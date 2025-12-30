@@ -10,6 +10,8 @@ import ExamActions from "@/pages/exam-actions";
 import RoundOne from "@/pages/round-one";
 import RoundTwo from "@/pages/round-two";
 import SyncPage from "@/pages/sync";
+import CentreDashboard from "@/pages/centre-dashboard";
+import AdminPanel from "@/pages/admin-panel";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -19,9 +21,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   const [, setLocation] = useLocation();
 
   if (!state.operator) {
-    // Redirect happens in render to avoid effect issues during render phase, 
-    // but wouter usually handles this better with effects. 
-    // For now simple return null + effect
     setTimeout(() => setLocation("/login"), 0);
     return null;
   }
@@ -62,6 +61,14 @@ function Router() {
         <Layout>
           <ProtectedRoute component={SyncPage} />
         </Layout>
+      </Route>
+
+      <Route path="/centre-dashboard">
+        <ProtectedRoute component={CentreDashboard} />
+      </Route>
+
+      <Route path="/admin-panel">
+        <ProtectedRoute component={AdminPanel} />
       </Route>
 
       <Route component={NotFound} />

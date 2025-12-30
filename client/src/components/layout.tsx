@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, LogOut, User, Menu } from "lucide-react";
+import { Wifi, WifiOff, LogOut, BarChart3, Shield, Menu, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,11 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useState } from "react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { state, logout } = useAppStore();
-  const [location, setLocation] = useLocation();
-  const isOnline = navigator.onLine; // Basic check, could be better
+  const [, setLocation] = useLocation();
+  const isOnline = navigator.onLine;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!state.operator) return <>{children}</>;
 
@@ -42,17 +44,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200" title={isOnline ? "Online" : "Offline"}>
               {isOnline ? (
                 <Wifi className="w-4 h-4 text-emerald-600" />
               ) : (
                 <WifiOff className="w-4 h-4 text-slate-400" />
               )}
-              <span className="text-xs font-medium text-slate-600 hidden sm:inline">
+              <span className="text-xs font-medium text-slate-600">
                 {isOnline ? "Online" : "Offline"}
               </span>
             </div>
+
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/centre-dashboard")} title="Centre Dashboard" className="gap-1.5 text-xs h-9">
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden lg:inline">Centre</span>
+            </Button>
+
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin-panel")} title="Admin Panel" className="gap-1.5 text-xs h-9">
+              <Shield className="w-4 h-4" />
+              <span className="hidden lg:inline">Admin</span>
+            </Button>
+
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/sync")} className="text-xs h-9">
+              Sync
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -89,7 +105,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-slate-200 bg-white p-4 space-y-2">
+            <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/centre-dashboard"); setMobileMenuOpen(false); }}>
+              <BarChart3 className="w-4 h-4" /> Centre Dashboard
+            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/admin-panel"); setMobileMenuOpen(false); }}>
+              <Shield className="w-4 h-4" /> Admin Panel
+            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/sync"); setMobileMenuOpen(false); }}>
+              Sync Status
+            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-2 text-destructive" onClick={() => { logout(); setLocation("/login"); setMobileMenuOpen(false); }}>
+              <LogOut className="w-4 h-4" /> Logout
+            </Button>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
