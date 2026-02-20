@@ -35,6 +35,8 @@ export default function Dashboard() {
     return { status: "Pending", color: "bg-slate-100 text-slate-600", icon: "◯" };
   };
 
+  const isAdmin = state.operator?.role === "ADMIN";
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -42,6 +44,24 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-slate-900">Exam Dashboard</h1>
           <p className="text-slate-500 mt-1">Select an assigned exam to proceed</p>
         </div>
+        {isAdmin && (
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              className="gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+              onClick={() => setLocation("/centre-dashboard")}
+            >
+              <MapPin className="w-4 h-4" /> Centre Monitor
+            </Button>
+            <Button 
+              variant="outline" 
+              className="gap-2 border-slate-200 hover:bg-slate-50"
+              onClick={() => setLocation("/admin-panel")}
+            >
+              <Users className="w-4 h-4" /> Admin Panel
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-4">

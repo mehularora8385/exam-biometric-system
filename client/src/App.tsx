@@ -64,11 +64,15 @@ function Router() {
       </Route>
 
       <Route path="/centre-dashboard">
-        <ProtectedRoute component={CentreDashboard} />
+        <Layout>
+          <ProtectedRoute component={CentreDashboard} />
+        </Layout>
       </Route>
 
       <Route path="/admin-panel">
-        <ProtectedRoute component={AdminPanel} />
+        <Layout>
+          <ProtectedRoute component={AdminPanel} />
+        </Layout>
       </Route>
 
       <Route component={NotFound} />
