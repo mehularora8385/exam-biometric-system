@@ -11,6 +11,7 @@ import RoundOne from "@/pages/round-one";
 import RoundTwo from "@/pages/round-two";
 import SyncPage from "@/pages/sync";
 import CentreDashboard from "@/pages/centre-dashboard";
+import ExamDashboard from "@/pages/exam-dashboard";
 import AdminPanel from "@/pages/admin-panel";
 import AdminLogin from "@/pages/admin/login";
 import ClientDashboard from "@/pages/client-dashboard";
@@ -69,6 +70,12 @@ function Router() {
       <Route path="/centre-dashboard">
         <Layout>
           <ProtectedRoute component={CentreDashboard} />
+        </Layout>
+      </Route>
+
+      <Route path="/exam-dashboard">
+        <Layout>
+          <ProtectedRoute component={ExamDashboard} />
         </Layout>
       </Route>
 

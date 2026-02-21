@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, LogOut, BarChart3, Shield, Menu, X } from "lucide-react";
+import { Wifi, WifiOff, LogOut, BarChart3, Shield, Menu, X, Database } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,7 +58,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <Button variant="ghost" size="sm" onClick={() => setLocation("/centre-dashboard")} title="Centre Dashboard" className="gap-1.5 text-xs h-9">
               <BarChart3 className="w-4 h-4" />
-              <span className="hidden lg:inline">Centre</span>
+              <span className="hidden lg:inline">Centre View</span>
+            </Button>
+            
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/exam-dashboard")} title="Exam Dashboard" className="gap-1.5 text-xs h-9">
+              <Database className="w-4 h-4" />
+              <span className="hidden lg:inline">Exam View</span>
             </Button>
 
             {state.operator.role === "ADMIN" && (
@@ -122,6 +127,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="md:hidden border-t border-slate-200 bg-white p-4 space-y-2">
             <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/centre-dashboard"); setMobileMenuOpen(false); }}>
               <BarChart3 className="w-4 h-4" /> Centre Dashboard
+            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/exam-dashboard"); setMobileMenuOpen(false); }}>
+              <Database className="w-4 h-4" /> Exam Dashboard
             </Button>
             {state.operator.role === "ADMIN" && (
               <Button variant="ghost" className="w-full justify-start gap-2 text-primary" onClick={() => { setLocation("/admin-panel"); setMobileMenuOpen(false); }}>
