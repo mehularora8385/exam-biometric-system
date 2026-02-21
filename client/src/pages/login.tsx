@@ -1,213 +1,239 @@
-import React, { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useAppStore } from "@/lib/store";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
+import { useAppStore } from "@/lib/store";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CameraCapture } from "@/components/camera-capture";
-import { Loader2, ArrowRight } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useToast } from "@/hooks/use-toast";
+import { UserCircle, Fingerprint, Camera, LogIn } from "lucide-react";
 
-// Schemas
 const loginSchema = z.object({
-  mobile: z.string().length(10, "Mobile number must be 10 digits"),
-  pin: z.string().min(4, "PIN must be at least 4 digits"),
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  mobile: z.string().length(10, "Mobile must be exactly 10 digits"),
+  aadhaar: z.string().length(12, "Aadhaar must be exactly 12 digits"),
+  deviceBound: z.string().optional()
 });
 
-const registerSchema = z.object({
-  fullName: z.string().min(3, "Name must be at least 3 characters"),
-  aadhaar: z.string().length(12, "Aadhaar must be 12 digits"),
-  mobile: z.string().length(10, "Mobile number must be 10 digits"),
-});
+type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
-  const [activeTab, setActiveTab] = useState("login");
-  const { login } = useAppStore();
   const [, setLocation] = useLocation();
-  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const [step, setStep] = useState<"details" | "photo">("details");
+  const { setOperator, login } = useAppStore();
+  const { toast } = useToast();
+  const [step, setStep] = useState<1 | 2>(1);
+  const [photoCaptured, setPhotoCaptured] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
-  const loginForm = useForm<z.infer<typeof loginSchema>>({
+  const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { mobile: "", pin: "" },
+    defaultValues: {
+      name: "",
+      mobile: "",
+      aadhaar: "",
+      deviceBound: "TAB-" + Math.floor(Math.random() * 10000).toString().padStart(4, '0') // Auto device ID
+    },
   });
 
-  const registerForm = useForm<z.infer<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: { fullName: "", aadhaar: "", mobile: "" },
-  });
-
-  const onLogin = async (data: z.infer<typeof loginSchema>) => {
-    // Mock login
-    await new Promise(r => setTimeout(r, 1000));
-
-    login({
-      id: "OP-" + data.mobile.slice(-4),
-      name: "Demo Operator",
-      mobile: data.mobile,
-      aadhaar: "XXXXXXXX1234",
-      photoUrl: "https://github.com/shadcn.png",
-      role: "OPERATOR"
-    });
-    setLocation("/");
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+    } catch (err) {
+      toast({ title: "Camera Error", description: "Could not access front camera", variant: "destructive" });
+    }
   };
 
-  const onRegisterNext = async (data: z.infer<typeof registerSchema>) => {
-    setStep("photo");
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+        setPhotoCaptured(true);
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          setStream(null);
+        }
+      }
+    }
   };
 
-  const onRegisterComplete = async () => {
-    if (!capturedPhoto) return;
-    const data = registerForm.getValues();
+  const retakePhoto = () => {
+    setPhotoCaptured(false);
+    startCamera();
+  };
+
+  const onFirstStepSubmit = async (data: LoginForm) => {
+    setStep(2);
+    startCamera();
+  };
+
+  const onFinalSubmit = () => {
+    if (!photoCaptured) {
+      toast({ title: "Photo Required", description: "Please capture your live photo to continue", variant: "destructive" });
+      return;
+    }
     
-    // Mock registration
-    await new Promise(r => setTimeout(r, 1500));
+    // Auto-login success (mock JWT & session)
     login({
-      id: "OP-" + data.mobile.slice(-4),
-      name: data.fullName,
-      mobile: data.mobile,
-      aadhaar: data.aadhaar,
-      photoUrl: capturedPhoto,
-      role: "OPERATOR"
+      id: "OP-" + Math.floor(Math.random() * 10000),
+      name: form.getValues().name,
+      role: "OPERATOR",
+      mobile: form.getValues().mobile,
+      aadhaar: form.getValues().aadhaar,
+      photoUrl: "https://github.com/shadcn.png"
     });
+    
+    toast({
+      title: "Login Successful",
+      description: "Device bound successfully. JWT token generated.",
+    });
+    
     setLocation("/");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <Card className="w-full max-w-md shadow-xl border-slate-200">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-2">
-            <span className="text-white font-bold text-2xl">E</span>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-xl border-t-4 border-t-primary">
+        <CardHeader className="space-y-1 text-center pb-6 border-b border-slate-100">
+          <div className="mx-auto w-12 h-12 bg-primary/10 flex items-center justify-center rounded-full mb-2">
+            <Fingerprint className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold text-slate-900">Exam Verification</CardTitle>
-          <CardDescription>Secure Biometric Access System</CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight">MPA Verification System</CardTitle>
+          <CardDescription>
+            {step === 1 ? "Operator Identity Verification" : "Live Liveness Check"}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">Operator Login</TabsTrigger>
-              <TabsTrigger value="register">Register New</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="login">
-              <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
-                  <FormField
-                    control={loginForm.control}
-                    name="mobile"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mobile Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter 10 digit mobile" {...field} maxLength={10} type="tel" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={loginForm.control}
-                    name="pin"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Access PIN</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter PIN" {...field} maxLength={6} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full h-11 text-base mt-2" disabled={loginForm.formState.isSubmitting}>
-                    {loginForm.formState.isSubmitting ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>
-                    ) : (
-                      "Login to System"
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </TabsContent>
-
-            <TabsContent value="register">
-              {step === "details" ? (
-                <Form {...registerForm}>
-                  <form onSubmit={registerForm.handleSubmit(onRegisterNext)} className="space-y-4">
-                    <FormField
-                      control={registerForm.control}
-                      name="fullName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Full Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="As per ID proof" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={registerForm.control}
-                      name="mobile"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Mobile Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="10 digit number" {...field} maxLength={10} type="tel" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={registerForm.control}
-                      name="aadhaar"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Aadhaar Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="12 digit number" {...field} maxLength={12} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="submit" className="w-full h-11 mt-2">
-                      Next Step <ArrowRight className="ml-2 w-4 h-4" />
-                    </Button>
-                  </form>
-                </Form>
-              ) : (
-                <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                  <div className="text-center">
-                    <h3 className="font-medium text-lg">Operator Verification</h3>
-                    <p className="text-sm text-slate-500">Capture a clear selfie for ID</p>
-                  </div>
-                  
-                  <CameraCapture onCapture={setCapturedPhoto} label="Capture Selfie" />
-
-                  <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1" onClick={() => setStep("details")}>
-                      Back
-                    </Button>
-                    <Button className="flex-1" disabled={!capturedPhoto} onClick={onRegisterComplete}>
-                      Complete Registration
-                    </Button>
-                  </div>
+        <CardContent className="pt-6">
+          {step === 1 ? (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onFirstStepSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Operator Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your full name (min 3 chars)" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mobile"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mobile Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="10-digit mobile number" maxLength={10} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="aadhaar"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Aadhaar Number</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="12-digit Aadhaar number" maxLength={12} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="bg-slate-50 p-3 rounded-md text-xs text-slate-500 border border-slate-200 mt-4">
+                  <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1"><UserCircle className="w-3 h-3"/> Device Binding Info</p>
+                  This device ({form.getValues().deviceBound}) will be securely bound to your identity. Duplicate logins on other devices will be blocked.
                 </div>
-              )}
-            </TabsContent>
-          </Tabs>
+
+                <Button type="submit" className="w-full mt-6 h-12 text-lg font-semibold">
+                  Continue to Photo <LogIn className="w-5 h-5 ml-2" />
+                </Button>
+              </form>
+            </Form>
+          ) : (
+            <div className="space-y-6 flex flex-col items-center">
+              <div className="relative w-64 h-64 bg-slate-200 rounded-full overflow-hidden border-4 border-slate-100 shadow-inner">
+                {!photoCaptured ? (
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className="w-full h-full object-cover transform scale-x-[-1]"
+                  />
+                ) : (
+                  <canvas ref={canvasRef} className="w-full h-full object-cover transform scale-x-[-1]" />
+                )}
+                
+                {/* Face guide overlay */}
+                {!photoCaptured && (
+                  <div className="absolute inset-0 border-2 border-dashed border-primary/50 m-8 rounded-[40%] pointer-events-none" />
+                )}
+              </div>
+              
+              <p className="text-sm text-slate-500 text-center px-4">
+                {photoCaptured ? "Photo captured successfully. Proceed to login." : "Position your face within the guide and ensure good lighting."}
+              </p>
+
+              <div className="flex gap-3 w-full">
+                {!photoCaptured ? (
+                  <>
+                    <Button type="button" variant="outline" className="w-full" onClick={() => setStep(1)}>Back</Button>
+                    <Button type="button" className="w-full gap-2" onClick={capturePhoto}>
+                      <Camera className="w-4 h-4" /> Capture Photo
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" className="w-full" onClick={retakePhoto}>Retake</Button>
+                    <Button type="button" className="w-full gap-2" onClick={onFinalSubmit}>
+                      <LogIn className="w-4 h-4" /> Secure Login
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
-        <CardFooter className="bg-slate-50 border-t border-slate-100 p-4 text-center">
-          <p className="text-xs text-slate-400 w-full">Protected by secure biometric encryption</p>
-        </CardFooter>
       </Card>
+      
+      {/* Dev backdoor (mockup only) */}
+      <div className="absolute bottom-4 right-4 flex gap-2">
+         <Button variant="ghost" size="sm" className="text-xs text-slate-400" onClick={() => {
+            login({
+              id: "OP-9999",
+              name: "Demo Operator",
+              role: "OPERATOR",
+              mobile: "9876543210",
+              aadhaar: "XXXXXXXX1234",
+              photoUrl: "https://github.com/shadcn.png"
+            });
+            setLocation("/");
+         }}>
+           Bypass Login
+         </Button>
+         <Button variant="ghost" size="sm" className="text-xs text-slate-400" onClick={() => setLocation("/admin/login")}>
+           Admin Portal
+         </Button>
+      </div>
     </div>
   );
 }
