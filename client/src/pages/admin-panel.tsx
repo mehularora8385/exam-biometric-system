@@ -9,14 +9,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, Plus, Edit2, Trash2, DownloadCloud, FileText, Users, 
   Calendar, Settings, Lock, CheckCircle2, AlertTriangle, Clock, 
-  MapPin, RefreshCw, Upload, Search, Filter, ShieldCheck, Power
+  MapPin, RefreshCw, Upload, Search, Filter, ShieldCheck, Power, 
+  BarChart4, PieChart, Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 
 export default function AdminPanel() {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedExamFilter, setSelectedExamFilter] = useState("all");
 
   const exams = [
     {
@@ -55,6 +57,23 @@ export default function AdminPanel() {
     { omr: "OMR-88123", rollNo: "2025001", name: "Rahul Sharma", father: "R.K. Sharma", dob: "2002-05-12", centre: "DL-015", faceMatch: "98%", status: "Verified" },
     { omr: "OMR-88124", rollNo: "2025002", name: "Priya Singh", father: "V. Singh", dob: "2001-11-20", centre: "DL-015", faceMatch: "95%", status: "Verified" },
     { omr: "OMR-88125", rollNo: "2025003", name: "Amit Kumar", father: "S. Kumar", dob: "2003-01-05", centre: "DL-016", faceMatch: "-", status: "Pending" },
+  ];
+
+  // Mock Data for Charts
+  const hourlySyncData = [
+    { time: '08:00', verified: 400, pending: 15000 },
+    { time: '09:00', verified: 3200, pending: 12200 },
+    { time: '10:00', verified: 8500, pending: 6900 },
+    { time: '11:00', verified: 14200, pending: 1200 },
+    { time: '12:00', verified: 15240, pending: 160 },
+  ];
+
+  const centrePerformanceData = [
+    { name: 'DL-015', verified: 500, capacity: 500 },
+    { name: 'DL-016', verified: 780, capacity: 800 },
+    { name: 'UP-102', verified: 420, capacity: 450 },
+    { name: 'HR-055', verified: 580, capacity: 600 },
+    { name: 'RJ-011', verified: 300, capacity: 350 },
   ];
 
   return (
@@ -96,69 +115,148 @@ export default function AdminPanel() {
 
           {/* 1.1 ADMIN DASHBOARD */}
           <TabsContent value="dashboard" className="space-y-6 mt-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">Live Global Statistics (All Exams)</h2>
-              <div className="flex gap-2">
-                <select className="border rounded-md px-3 py-1.5 text-sm bg-white">
-                  <option>All Active Exams</option>
-                  <option>EX-2025-001</option>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-600" />
+                <h2 className="text-xl font-bold">Live Global Statistics</h2>
+              </div>
+              <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                <select 
+                  className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium min-w-[200px]"
+                  value={selectedExamFilter}
+                  onChange={(e) => setSelectedExamFilter(e.target.value)}
+                >
+                  <option value="all">Global View (All Active Exams)</option>
+                  {exams.map(exam => (
+                    <option key={exam.id} value={exam.id}>{exam.name} ({exam.id})</option>
+                  ))}
+                </select>
+                <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium">
+                  <option>All Centres</option>
+                  {centres.map(c => <option key={c.id}>{c.name} ({c.id})</option>)}
                 </select>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="bg-white border-slate-200">
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
-                  <span className="text-sm font-medium text-slate-500 mb-1">Total Candidates</span>
+              <Card className="bg-white border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
+                <CardContent className="p-5 flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-500">Total Candidates</span>
+                    <Users className="w-4 h-4 text-slate-400" />
+                  </div>
                   <span className="text-3xl font-bold text-slate-900">23,500</span>
                 </CardContent>
               </Card>
-              <Card className="bg-white border-slate-200">
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
-                  <span className="text-sm font-medium text-slate-500 mb-1">Total Centres</span>
+              <Card className="bg-white border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
+                <CardContent className="p-5 flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-500">Active Centres</span>
+                    <MapPin className="w-4 h-4 text-slate-400" />
+                  </div>
                   <span className="text-3xl font-bold text-slate-900">20</span>
                 </CardContent>
               </Card>
-              <Card className="bg-white border-slate-200">
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
-                  <span className="text-sm font-medium text-slate-500 mb-1">Operators Logged In</span>
+              <Card className="bg-white border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
+                <CardContent className="p-5 flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-500">Operators Online</span>
+                    <ShieldCheck className="w-4 h-4 text-blue-500" />
+                  </div>
                   <span className="text-3xl font-bold text-blue-600">145</span>
                 </CardContent>
               </Card>
-              <Card className="bg-white border-slate-200">
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
-                  <span className="text-sm font-medium text-slate-500 mb-1">Global Sync Status</span>
+              <Card className="bg-white border-slate-200 shadow-sm hover:border-emerald-300 transition-colors">
+                <CardContent className="p-5 flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-500">Global Sync</span>
+                    <RefreshCw className="w-4 h-4 text-emerald-500" />
+                  </div>
                   <span className="text-3xl font-bold text-emerald-600">94%</span>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <Card className="bg-blue-50 border-blue-100">
-                <CardContent className="p-5 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium text-blue-700">Present Count (Gate)</p>
-                    <h3 className="text-2xl font-bold text-blue-900">18,240</h3>
-                  </div>
+            <div className="grid lg:grid-cols-3 gap-6">
+              <Card className="lg:col-span-2 shadow-sm border-slate-200">
+                <CardHeader className="pb-2 border-b border-slate-100">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <LineChart className="w-4 h-4 text-slate-500" /> 
+                    Hourly Verification Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={hourlySyncData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                      <Line type="monotone" dataKey="verified" name="Verified (Round 2)" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="pending" name="Pending" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </CardContent>
               </Card>
-              <Card className="bg-emerald-50 border-emerald-100">
-                <CardContent className="p-5 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium text-emerald-700">Verified (Round 2)</p>
-                    <h3 className="text-2xl font-bold text-emerald-900">16,500</h3>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-amber-50 border-amber-100">
-                <CardContent className="p-5 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium text-amber-700">Pending Verification</p>
-                    <h3 className="text-2xl font-bold text-amber-900">1,740</h3>
-                  </div>
-                </CardContent>
-              </Card>
+
+              <div className="space-y-4">
+                <Card className="bg-blue-50 border-blue-100 shadow-sm">
+                  <CardContent className="p-5 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-medium text-blue-700 mb-1">Present Count (Gate)</p>
+                      <div className="flex items-baseline gap-2">
+                        <h3 className="text-3xl font-bold text-blue-900">18,240</h3>
+                        <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">77%</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-emerald-50 border-emerald-100 shadow-sm">
+                  <CardContent className="p-5 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-medium text-emerald-700 mb-1">Verified (Round 2)</p>
+                      <div className="flex items-baseline gap-2">
+                        <h3 className="text-3xl font-bold text-emerald-900">16,500</h3>
+                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">70%</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-amber-50 border-amber-100 shadow-sm">
+                  <CardContent className="p-5 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-medium text-amber-700 mb-1">Pending Verification</p>
+                      <div className="flex items-baseline gap-2">
+                        <h3 className="text-3xl font-bold text-amber-900">1,740</h3>
+                        <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">7%</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
+
+            <div className="grid lg:grid-cols-2 gap-6">
+               <Card className="shadow-sm border-slate-200">
+                  <CardHeader className="pb-2 border-b border-slate-100">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <BarChart4 className="w-4 h-4 text-slate-500" />
+                      Top 5 Centres by Verification
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={centrePerformanceData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#334155', fontWeight: 500 }} width={60} />
+                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                        <Bar dataKey="verified" name="Verified" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+               </Card>
 
             {/* Exception Monitor injected here */}
             <Card className="border-red-200 shadow-sm mt-6">
