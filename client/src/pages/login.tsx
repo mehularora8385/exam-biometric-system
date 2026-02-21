@@ -44,12 +44,17 @@ export default function Login() {
   const onLogin = async (data: z.infer<typeof loginSchema>) => {
     // Mock login
     await new Promise(r => setTimeout(r, 1000));
+
+    // Check if it's the admin PIN
+    const isAdmin = data.pin === "8888";
+
     login({
       id: "OP-" + data.mobile.slice(-4),
-      name: "Demo Operator",
+      name: isAdmin ? "System Administrator" : "Demo Operator",
       mobile: data.mobile,
       aadhaar: "XXXXXXXX1234",
-      photoUrl: "https://github.com/shadcn.png"
+      photoUrl: "https://github.com/shadcn.png",
+      role: isAdmin ? "ADMIN" : "OPERATOR"
     });
     setLocation("/");
   };
