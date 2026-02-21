@@ -8,6 +8,7 @@ export type Operator = {
   mobile: string;
   aadhaar: string;
   photoUrl: string;
+  role: "ADMIN" | "OPERATOR";
 };
 
 export type Exam = {
@@ -17,6 +18,9 @@ export type Exam = {
   type: "MOCK" | "LIVE";
   centerCode: string;
   roomDetails: string;
+  status: "active" | "scheduled" | "completed";
+  candidatesCount: number;
+  centresCount: number;
 };
 
 export type Candidate = {
@@ -25,6 +29,9 @@ export type Candidate = {
   name: string;
   photoUrl?: string;
   examId: string;
+  verificationStatus: "PENDING" | "GATE_ENTRY" | "ENROLLED" | "VERIFIED" | "REJECTED";
+  faceMatchScore?: number;
+  fingerprintStatus?: boolean;
 };
 
 export type Attendance = {

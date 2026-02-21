@@ -26,8 +26,18 @@ export default function RoundTwo() {
   const [fingerprintHash, setFingerprintHash] = useState<string | null>(null);
   const [omrCode, setOmrCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [integrityAlert, setIntegrityAlert] = useState<string | null>(null);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleCapturePhoto = (imageSrc: string) => {
+    // Simulate Face Integrity Check
+    if (Math.random() > 0.9) {
+      setIntegrityAlert("Invalid Photo – Human Face Not Detected");
+      setCapturedPhoto(null);
+    } else {
+      setIntegrityAlert(null);
+      setCapturedPhoto(imageSrc);
+    }
+  };
     e.preventDefault();
     const found = state.candidates.find(c => 
       c.applicationNo === searchQuery || c.rollNo === searchQuery
