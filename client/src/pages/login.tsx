@@ -45,16 +45,13 @@ export default function Login() {
     // Mock login
     await new Promise(r => setTimeout(r, 1000));
 
-    // Check if it's the admin PIN
-    const isAdmin = data.pin === "8888";
-
     login({
       id: "OP-" + data.mobile.slice(-4),
-      name: isAdmin ? "System Administrator" : "Demo Operator",
+      name: "Demo Operator",
       mobile: data.mobile,
       aadhaar: "XXXXXXXX1234",
       photoUrl: "https://github.com/shadcn.png",
-      role: isAdmin ? "ADMIN" : "OPERATOR"
+      role: "OPERATOR"
     });
     setLocation("/");
   };

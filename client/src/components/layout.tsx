@@ -64,7 +64,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {state.operator.role === "ADMIN" && (
               <Button variant="ghost" size="sm" onClick={() => setLocation("/admin-panel")} title="Admin Panel" className="gap-1.5 text-xs h-9 text-primary hover:text-primary hover:bg-primary/5">
                 <Shield className="w-4 h-4" />
-                <span className="hidden lg:inline">HQ Admin</span>
+                <span className="hidden lg:inline">HQ Admin Panel</span>
               </Button>
             )}
 

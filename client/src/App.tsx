@@ -12,6 +12,7 @@ import RoundTwo from "@/pages/round-two";
 import SyncPage from "@/pages/sync";
 import CentreDashboard from "@/pages/centre-dashboard";
 import AdminPanel from "@/pages/admin-panel";
+import AdminLogin from "@/pages/admin/login";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -32,6 +33,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/admin/login" component={AdminLogin} />
       
       <Route path="/">
         <Layout>
