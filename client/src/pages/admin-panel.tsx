@@ -21,24 +21,8 @@ export default function AdminPanel() {
   const [selectedExamFilter, setSelectedExamFilter] = useState("all");
 
   const exams = [
-    {
-      id: "EX-2025-001",
-      name: "National Entrance Test 2025",
-      date: "2025-05-15",
-      centres: 12,
-      candidates: 15000,
-      status: "active",
-      apkPassword: "NET25_SECURE_88X"
-    },
-    {
-      id: "EX-2025-002",
-      name: "State Level Entrance",
-      date: "2025-06-10",
-      centres: 8,
-      candidates: 8500,
-      status: "scheduled",
-      apkPassword: "STATE25_99Y"
-    }
+    { id: "EX-2025-001", name: "National Entrance Test 2025", date: "2025-05-15", centres: 12, candidates: 15000, status: "active", apkPassword: "NET25_SECURE_88X" },
+    { id: "EX-2025-002", name: "State Level Entrance", date: "2025-06-10", centres: 8, candidates: 8500, status: "scheduled", apkPassword: "STATE25_99Y" }
   ];
 
   const centres = [
@@ -59,7 +43,6 @@ export default function AdminPanel() {
     { omr: "OMR-88125", rollNo: "2025003", name: "Amit Kumar", father: "S. Kumar", dob: "2003-01-05", centre: "DL-016", faceMatch: "-", status: "Pending" },
   ];
 
-  // Mock Data for Charts
   const hourlySyncData = [
     { time: '08:00', verified: 400, pending: 15000 },
     { time: '09:00', verified: 3200, pending: 12200 },
@@ -305,6 +288,7 @@ export default function AdminPanel() {
                  </Table>
                </CardContent>
              </Card>
+             </div>
           </TabsContent>
 
           {/* 1.2 & 1.3 EXAM & SLOT MANAGEMENT */}
