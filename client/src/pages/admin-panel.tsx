@@ -43,12 +43,19 @@ export default function AdminPanel() {
     { omr: "OMR-88125", rollNo: "2025003", name: "Amit Kumar", father: "S. Kumar", dob: "2003-01-05", centre: "DL-016", faceMatch: "-", status: "Pending" },
   ];
 
+  // Mock Data for Charts
   const hourlySyncData = [
     { time: '08:00', verified: 400, pending: 15000 },
     { time: '09:00', verified: 3200, pending: 12200 },
     { time: '10:00', verified: 8500, pending: 6900 },
     { time: '11:00', verified: 14200, pending: 1200 },
     { time: '12:00', verified: 15240, pending: 160 },
+  ];
+
+  const examVerificationData = [
+    { name: 'EX-001', verified: 14200, pending: 800, total: 15000 },
+    { name: 'EX-002', verified: 7100, pending: 1400, total: 8500 },
+    { name: 'EX-003', verified: 3500, pending: 500, total: 4000 },
   ];
 
   const centrePerformanceData = [
@@ -164,21 +171,21 @@ export default function AdminPanel() {
               <Card className="lg:col-span-2 shadow-sm border-slate-200">
                 <CardHeader className="pb-2 border-b border-slate-100">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <LineChart className="w-4 h-4 text-slate-500" /> 
-                    Hourly Verification Progress
+                    <BarChart4 className="w-4 h-4 text-slate-500" /> 
+                    Exam-wise Verification Status
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={hourlySyncData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <BarChart data={examVerificationData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                      <Line type="monotone" dataKey="verified" name="Verified (Round 2)" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                      <Line type="monotone" dataKey="pending" name="Pending" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
-                    </LineChart>
+                      <Bar dataKey="verified" name="Verified" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
+                      <Bar dataKey="pending" name="Pending" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
