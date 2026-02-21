@@ -27,15 +27,25 @@ export default function RoundTwo() {
   const [omrCode, setOmrCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [integrityAlert, setIntegrityAlert] = useState<string | null>(null);
+  const [faceMatchScore, setFaceMatchScore] = useState<number | null>(null);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
 
   const handleCapturePhoto = (imageSrc: string) => {
-    // Simulate Face Integrity Check
-    if (Math.random() > 0.9) {
+    // Simulate Face Integrity Check & Match Score
+    const randomScore = Math.floor(Math.random() * 40) + 60; // 60-100%
+    setFaceMatchScore(randomScore);
+
+    if (randomScore < 75) { // Threshold
+      setShowApprovalDialog(true);
+      setCapturedPhoto(imageSrc);
+    } else if (Math.random() > 0.95) {
       setIntegrityAlert("Invalid Photo – Human Face Not Detected");
       setCapturedPhoto(null);
+      setShowApprovalDialog(false);
     } else {
       setIntegrityAlert(null);
       setCapturedPhoto(imageSrc);
+      setShowApprovalDialog(false);
     }
   };
 
@@ -189,6 +199,11 @@ export default function RoundTwo() {
                 {integrityAlert && (
                   <Badge variant="destructive" className="text-[10px]">Alert</Badge>
                 )}
+                {faceMatchScore !== null && !showApprovalDialog && !integrityAlert && (
+                  <Badge variant={faceMatchScore >= 75 ? "default" : "destructive"} className="text-[10px]">
+                    {faceMatchScore}% Match
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -198,7 +213,28 @@ export default function RoundTwo() {
                   <p className="text-xs mt-1">Please ensure candidate's face is clearly visible and well-lit.</p>
                 </div>
               )}
-              <CameraCapture onCapture={handleCapturePhoto} label="Capture Candidate" />
+              {showApprovalDialog && (
+                 <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-lg mb-4 text-sm animate-in fade-in space-y-3">
+                    <div className="flex items-start gap-2">
+                      <div className="font-bold text-lg text-orange-600">{faceMatchScore}%</div>
+                      <div>
+                        <p className="font-semibold">FACE NOT MATCHED</p>
+                        <p className="text-xs mt-0.5 opacity-80">Required threshold: 75%</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                       <Button size="sm" variant="outline" className="flex-1 bg-white" onClick={() => { setShowApprovalDialog(false); setCapturedPhoto(null); }}>
+                         Re-Capture
+                       </Button>
+                       <Button size="sm" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white" onClick={() => setShowApprovalDialog(false)}>
+                         Approve & Continue
+                       </Button>
+                    </div>
+                 </div>
+              )}
+              {!showApprovalDialog && (
+                <CameraCapture onCapture={handleCapturePhoto} label="Capture Candidate" />
+              )}
             </CardContent>
           </Card>
 
