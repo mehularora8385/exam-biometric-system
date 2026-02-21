@@ -83,8 +83,8 @@ export default function AdminPanel() {
             <Button variant="outline" className="text-destructive border-destructive/20 hover:bg-destructive/5 gap-2">
               <Power className="w-4 h-4" /> Logout All Devices
             </Button>
-            <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50 gap-2">
-              <RefreshCw className="w-4 h-4" /> Sync All
+            <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50 gap-2" onClick={() => setLocation('/client-dashboard')}>
+              <Activity className="w-4 h-4" /> Client Portal View
             </Button>
             <Badge className="bg-primary/10 text-primary text-sm px-3 py-1 ml-2">
               <Settings className="w-3 h-3 mr-1" /> System Admin

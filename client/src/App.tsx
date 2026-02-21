@@ -13,6 +13,7 @@ import SyncPage from "@/pages/sync";
 import CentreDashboard from "@/pages/centre-dashboard";
 import AdminPanel from "@/pages/admin-panel";
 import AdminLogin from "@/pages/admin/login";
+import ClientDashboard from "@/pages/client-dashboard";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -75,6 +76,10 @@ function Router() {
         <Layout>
           <ProtectedRoute component={AdminPanel} />
         </Layout>
+      </Route>
+
+      <Route path="/client-dashboard">
+        <ClientDashboard />
       </Route>
 
       <Route component={NotFound} />
