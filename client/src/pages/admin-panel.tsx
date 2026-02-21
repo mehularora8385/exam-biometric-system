@@ -6,12 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Edit2, Trash2, DownloadCloud, FileText, Users, Calendar, Settings, Lock, CheckCircle2, AlertTriangle, Fingerprint, Clock } from "lucide-react";
+import { 
+  ArrowLeft, Plus, Edit2, Trash2, DownloadCloud, FileText, Users, 
+  Calendar, Settings, Lock, CheckCircle2, AlertTriangle, Clock, 
+  MapPin, RefreshCw, Upload, Search, Filter, ShieldCheck, Power
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AdminPanel() {
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("exams");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
 
   const exams = [
@@ -20,17 +24,37 @@ export default function AdminPanel() {
       name: "National Entrance Test 2025",
       date: "2025-05-15",
       centres: 12,
-      candidates: 2845,
+      candidates: 15000,
       status: "active",
-      dataDownloads: 156,
-      stats: {
-        present: 2450,
-        verified: 2100,
-        pending: 395,
-        syncPercent: 98
-      }
+      apkPassword: "NET25_SECURE_88X"
     },
-    // ... existing exams
+    {
+      id: "EX-2025-002",
+      name: "State Level Entrance",
+      date: "2025-06-10",
+      centres: 8,
+      candidates: 8500,
+      status: "scheduled",
+      apkPassword: "STATE25_99Y"
+    }
+  ];
+
+  const centres = [
+    { id: "DL-015", name: "Modern Public School", city: "Delhi", capacity: 500, assignedExam: "EX-2025-001", syncStatus: "98%" },
+    { id: "DL-016", name: "Greenway Academy", city: "Delhi", capacity: 800, assignedExam: "EX-2025-001", syncStatus: "100%" },
+    { id: "UP-102", name: "City Convent", city: "Noida", capacity: 450, assignedExam: "EX-2025-002", syncStatus: "0%" }
+  ];
+
+  const operators = [
+    { id: "OP-1234", name: "Rajesh Kumar", mobile: "9876543210", deviceBound: "TAB-A12", status: "active", lastActive: "2 mins ago" },
+    { id: "OP-1235", name: "Priya Sharma", mobile: "9876543211", deviceBound: "TAB-B44", status: "active", lastActive: "Just now" },
+    { id: "OP-1236", name: "Amit Singh", mobile: "9876543212", deviceBound: "Not Bound", status: "disabled", lastActive: "2 days ago" },
+  ];
+
+  const candidatesMaster = [
+    { omr: "OMR-88123", rollNo: "2025001", name: "Rahul Sharma", father: "R.K. Sharma", dob: "2002-05-12", centre: "DL-015", faceMatch: "98%", status: "Verified" },
+    { omr: "OMR-88124", rollNo: "2025002", name: "Priya Singh", father: "V. Singh", dob: "2001-11-20", centre: "DL-015", faceMatch: "95%", status: "Verified" },
+    { omr: "OMR-88125", rollNo: "2025003", name: "Amit Kumar", father: "S. Kumar", dob: "2003-01-05", centre: "DL-016", faceMatch: "-", status: "Pending" },
   ];
 
   return (
@@ -46,68 +70,105 @@ export default function AdminPanel() {
               <p className="text-slate-500">Centralized monitoring and exam governance</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
             <Button variant="outline" className="text-destructive border-destructive/20 hover:bg-destructive/5 gap-2">
-              <Lock className="w-4 h-4" /> Logout All Devices
+              <Power className="w-4 h-4" /> Logout All Devices
             </Button>
-            <Badge className="bg-primary/10 text-primary text-sm px-3 py-1">
-              <Settings className="w-3 h-3 mr-1" /> HQ Admin
+            <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50 gap-2">
+              <RefreshCw className="w-4 h-4" /> Sync All
+            </Button>
+            <Badge className="bg-primary/10 text-primary text-sm px-3 py-1 ml-2">
+              <Settings className="w-3 h-3 mr-1" /> System Admin
             </Badge>
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="exams">Exams</TabsTrigger>
-            <TabsTrigger value="monitoring">Live Monitor</TabsTrigger>
-            <TabsTrigger value="operators">Operators</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="config">APK Config</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-7 h-12">
+            <TabsTrigger value="dashboard" className="text-xs md:text-sm">Dashboard</TabsTrigger>
+            <TabsTrigger value="exams" className="text-xs md:text-sm">Exams</TabsTrigger>
+            <TabsTrigger value="centres" className="text-xs md:text-sm">Centres</TabsTrigger>
+            <TabsTrigger value="operators" className="text-xs md:text-sm">Operators</TabsTrigger>
+            <TabsTrigger value="candidates" className="text-xs md:text-sm">Candidates</TabsTrigger>
+            <TabsTrigger value="reports" className="text-xs md:text-sm">Reports</TabsTrigger>
+            <TabsTrigger value="config" className="text-xs md:text-sm">APK Config</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="monitoring" className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="bg-emerald-50 border-emerald-100">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-emerald-600">Verified Candidates</p>
-                        <h3 className="text-3xl font-bold text-emerald-900">2,100</h3>
-                      </div>
-                      <CheckCircle2 className="w-10 h-10 text-emerald-500/20" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-amber-50 border-amber-100">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-amber-600">Pending Sync</p>
-                        <h3 className="text-3xl font-bold text-amber-900">345</h3>
-                      </div>
-                      <Clock className="w-10 h-10 text-amber-500/20" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-red-50 border-red-100">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-red-600">Integrity Alerts</p>
-                        <h3 className="text-3xl font-bold text-red-900">12</h3>
-                      </div>
-                      <AlertTriangle className="w-10 h-10 text-red-500/20" />
-                    </div>
-                  </CardContent>
-                </Card>
-             </div>
+          {/* 1.1 ADMIN DASHBOARD */}
+          <TabsContent value="dashboard" className="space-y-6 mt-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">Live Global Statistics (All Exams)</h2>
+              <div className="flex gap-2">
+                <select className="border rounded-md px-3 py-1.5 text-sm bg-white">
+                  <option>All Active Exams</option>
+                  <option>EX-2025-001</option>
+                </select>
+              </div>
+            </div>
 
-             <Card className="border-red-200 shadow-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
+                  <span className="text-sm font-medium text-slate-500 mb-1">Total Candidates</span>
+                  <span className="text-3xl font-bold text-slate-900">23,500</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
+                  <span className="text-sm font-medium text-slate-500 mb-1">Total Centres</span>
+                  <span className="text-3xl font-bold text-slate-900">20</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
+                  <span className="text-sm font-medium text-slate-500 mb-1">Operators Logged In</span>
+                  <span className="text-3xl font-bold text-blue-600">145</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4 flex flex-col items-center justify-center text-center h-24">
+                  <span className="text-sm font-medium text-slate-500 mb-1">Global Sync Status</span>
+                  <span className="text-3xl font-bold text-emerald-600">94%</span>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="bg-blue-50 border-blue-100">
+                <CardContent className="p-5 flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium text-blue-700">Present Count (Gate)</p>
+                    <h3 className="text-2xl font-bold text-blue-900">18,240</h3>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-emerald-50 border-emerald-100">
+                <CardContent className="p-5 flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-700">Verified (Round 2)</p>
+                    <h3 className="text-2xl font-bold text-emerald-900">16,500</h3>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-amber-50 border-amber-100">
+                <CardContent className="p-5 flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium text-amber-700">Pending Verification</p>
+                    <h3 className="text-2xl font-bold text-amber-900">1,740</h3>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Exception Monitor injected here */}
+            <Card className="border-red-200 shadow-sm mt-6">
                <CardHeader className="bg-red-50/50 border-b border-red-100 pb-4">
-                 <CardTitle className="text-lg flex items-center gap-2 text-red-900">
-                   <AlertTriangle className="w-5 h-5 text-red-600" /> Biometric Exception Monitor
-                 </CardTitle>
-                 <CardDescription>Live feed of security exceptions and operator overrides</CardDescription>
+                 <div className="flex justify-between items-center">
+                   <CardTitle className="text-lg flex items-center gap-2 text-red-900">
+                     <AlertTriangle className="w-5 h-5 text-red-600" /> Biometric Exception Monitor
+                   </CardTitle>
+                   <Badge variant="destructive">12 New Alerts</Badge>
+                 </div>
                </CardHeader>
                <CardContent className="p-0">
                  <Table>
@@ -118,28 +179,23 @@ export default function AdminPanel() {
                        <TableHead className="text-xs font-semibold">Centre</TableHead>
                        <TableHead className="text-xs font-semibold">Operator</TableHead>
                        <TableHead className="text-xs font-semibold">Roll No</TableHead>
-                       <TableHead className="text-xs font-semibold text-center">Match %</TableHead>
-                       <TableHead className="text-xs font-semibold">Action Taken</TableHead>
+                       <TableHead className="text-xs font-semibold">Action</TableHead>
                      </TableRow>
                    </TableHeader>
                    <TableBody>
                      {[
-                       { time: "10:45 AM", type: "Face Mismatch Approved", centre: "DL-015", operator: "Rajesh K.", roll: "2025001", match: "68%", action: "Override - Approved", severity: "medium" },
-                       { time: "10:32 AM", type: "Invalid Photo Attempt", centre: "DL-016", operator: "Amit S.", roll: "2025089", match: "-", action: "Blocked", severity: "high" },
-                       { time: "10:15 AM", type: "Duplicate Image Detected", centre: "DL-015", operator: "Priya S.", roll: "2025112", match: "100%", action: "Blocked", severity: "high" },
+                       { time: "10:45 AM", type: "Face Mismatch Approved", centre: "DL-015", operator: "Rajesh K.", roll: "2025001", action: "Override - Approved", severity: "medium" },
+                       { time: "10:32 AM", type: "Invalid Photo Attempt", centre: "DL-016", operator: "Amit S.", roll: "2025089", action: "Blocked", severity: "high" },
                      ].map((alert, i) => (
-                       <TableRow key={i} className="hover:bg-slate-50 border-b border-slate-100">
-                         <TableCell className="text-xs text-slate-500 whitespace-nowrap">{alert.time}</TableCell>
-                         <TableCell className="font-medium text-sm text-slate-900">
-                           <div className="flex items-center gap-2">
-                             <div className={cn("w-2 h-2 rounded-full", alert.severity === "high" ? "bg-red-500" : "bg-orange-500")} />
-                             {alert.type}
-                           </div>
+                       <TableRow key={i}>
+                         <TableCell className="text-xs text-slate-500">{alert.time}</TableCell>
+                         <TableCell className="font-medium text-sm text-slate-900 flex items-center gap-2">
+                           <div className={cn("w-2 h-2 rounded-full", alert.severity === "high" ? "bg-red-500" : "bg-orange-500")} />
+                           {alert.type}
                          </TableCell>
                          <TableCell className="text-sm font-mono text-slate-600">{alert.centre}</TableCell>
                          <TableCell className="text-sm">{alert.operator}</TableCell>
                          <TableCell className="text-sm font-mono">{alert.roll}</TableCell>
-                         <TableCell className="text-center font-bold text-slate-700">{alert.match}</TableCell>
                          <TableCell>
                            <Badge variant="outline" className={cn("text-[10px]", alert.action === "Blocked" ? "border-red-200 text-red-700 bg-red-50" : "border-orange-200 text-orange-700 bg-orange-50")}>
                              {alert.action}
@@ -153,37 +209,272 @@ export default function AdminPanel() {
              </Card>
           </TabsContent>
 
-          <TabsContent value="config" className="space-y-6">
+          {/* 1.2 & 1.3 EXAM & SLOT MANAGEMENT */}
+          <TabsContent value="exams" className="space-y-6 mt-6">
+            <div className="flex gap-2 justify-between items-center">
+              <Input placeholder="Search exams..." className="max-w-sm" />
+              <div className="flex gap-2">
+                <Button variant="outline" className="gap-2"><Upload className="w-4 h-4"/> Upload Candidate Data (CSV)</Button>
+                <Button className="gap-2"><Plus className="w-4 h-4" /> Create Exam</Button>
+              </div>
+            </div>
+            
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>Exam ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Date / Slots</TableHead>
+                      <TableHead>Centres</TableHead>
+                      <TableHead>APK Password</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {exams.map((exam) => (
+                      <TableRow key={exam.id}>
+                        <TableCell className="font-mono text-xs">{exam.id}</TableCell>
+                        <TableCell className="font-medium">{exam.name}</TableCell>
+                        <TableCell className="text-sm">{exam.date} (2 Slots)</TableCell>
+                        <TableCell className="font-medium">{exam.centres}</TableCell>
+                        <TableCell className="font-mono text-xs text-slate-500">{exam.apkPassword}</TableCell>
+                        <TableCell>
+                          <Badge className={cn("text-xs", exam.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700")}>
+                            {exam.status.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="flex gap-1">
+                          <Button size="sm" variant="ghost"><Edit2 className="w-4 h-4" /></Button>
+                          <Button size="sm" variant="ghost" className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 1.4 CENTRE MANAGEMENT */}
+          <TabsContent value="centres" className="space-y-6 mt-6">
+             <div className="flex gap-2 justify-between items-center">
+              <Input placeholder="Search centres..." className="max-w-sm" />
+              <Button className="gap-2"><Plus className="w-4 h-4" /> Add Centre</Button>
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>Centre Code</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead>Assigned Exam</TableHead>
+                      <TableHead>Capacity</TableHead>
+                      <TableHead>Sync Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {centres.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-mono text-xs font-bold">{c.id}</TableCell>
+                        <TableCell>{c.name}</TableCell>
+                        <TableCell>{c.city}</TableCell>
+                        <TableCell className="font-mono text-xs">{c.assignedExam}</TableCell>
+                        <TableCell>{c.capacity}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-full bg-slate-200 rounded-full h-2 max-w-[60px]">
+                              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: c.syncStatus }}></div>
+                            </div>
+                            <span className="text-xs font-medium">{c.syncStatus}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="flex gap-1">
+                          <Button size="sm" variant="ghost"><Edit2 className="w-4 h-4" /></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 1.5 OPERATOR MANAGEMENT */}
+          <TabsContent value="operators" className="space-y-6 mt-6">
+            <div className="flex gap-2 justify-between items-center">
+              <Input placeholder="Search operators by ID or Phone..." className="max-w-sm" />
+              <Button className="gap-2"><Plus className="w-4 h-4" /> Create Operator</Button>
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>Operator ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Mobile</TableHead>
+                      <TableHead>Device Bound</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Active</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {operators.map((op) => (
+                      <TableRow key={op.id}>
+                        <TableCell className="font-mono text-xs font-bold">{op.id}</TableCell>
+                        <TableCell>{op.name}</TableCell>
+                        <TableCell className="font-mono text-xs">{op.mobile}</TableCell>
+                        <TableCell>
+                          {op.deviceBound !== "Not Bound" ? (
+                             <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-200">{op.deviceBound}</Badge>
+                          ) : (
+                             <span className="text-xs text-slate-400">Not Bound</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                           <Badge className={cn("text-xs", op.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                            {op.status.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-500">{op.lastActive}</TableCell>
+                        <TableCell className="flex gap-1">
+                          <Button size="sm" variant="outline" className="text-xs h-7">Reset Bind</Button>
+                          <Button size="sm" variant="ghost" className={op.status === "active" ? "text-red-600" : "text-emerald-600"}>
+                            {op.status === "active" ? "Disable" : "Enable"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 1.6 CANDIDATE MASTER FIELDS */}
+          <TabsContent value="candidates" className="space-y-6 mt-6">
+            <div className="flex gap-2 justify-between items-center">
+               <div className="flex gap-2">
+                 <Input placeholder="Search Roll No or OMR..." className="w-64" />
+                 <Button variant="outline"><Filter className="w-4 h-4 mr-2" /> Filter</Button>
+               </div>
+            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>OMR No</TableHead>
+                      <TableHead>Roll No</TableHead>
+                      <TableHead>Candidate Name</TableHead>
+                      <TableHead>Father Name</TableHead>
+                      <TableHead>Centre</TableHead>
+                      <TableHead>Face Match</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {candidatesMaster.map((c, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs">{c.omr}</TableCell>
+                        <TableCell className="font-mono text-xs">{c.rollNo}</TableCell>
+                        <TableCell className="font-medium">{c.name}</TableCell>
+                        <TableCell className="text-sm text-slate-600">{c.father}</TableCell>
+                        <TableCell className="font-mono text-xs">{c.centre}</TableCell>
+                        <TableCell className="font-medium">{c.faceMatch}</TableCell>
+                        <TableCell>
+                           <Badge className={cn("text-xs", c.status === "Verified" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                            {c.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 1.7 REPORTS & EXPORT */}
+          <TabsContent value="reports" className="space-y-6 mt-6">
+            <div className="grid md:grid-cols-3 gap-6">
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Attendance Report</CardTitle>
+                   <CardDescription>Gate entry summaries and absent lists</CardDescription>
+                 </CardHeader>
+                 <CardContent>
+                   <Button className="w-full gap-2" variant="outline"><DownloadCloud className="w-4 h-4"/> Export CSV</Button>
+                 </CardContent>
+               </Card>
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Biometric & OMR Report</CardTitle>
+                   <CardDescription>Full face match % and fingerprint logs</CardDescription>
+                 </CardHeader>
+                 <CardContent>
+                   <Button className="w-full gap-2" variant="outline"><DownloadCloud className="w-4 h-4"/> Export CSV</Button>
+                 </CardContent>
+               </Card>
+               <Card>
+                 <CardHeader>
+                   <CardTitle className="text-base">Exception Audit Log</CardTitle>
+                   <CardDescription>All manual overrides and system alerts</CardDescription>
+                 </CardHeader>
+                 <CardContent>
+                   <Button className="w-full gap-2" variant="outline"><DownloadCloud className="w-4 h-4"/> Export CSV</Button>
+                 </CardContent>
+               </Card>
+            </div>
+          </TabsContent>
+
+          {/* 4. APK CONFIGURATION */}
+          <TabsContent value="config" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>APK Control Configuration</CardTitle>
-                <CardDescription>Dynamically control APK behavior and security policies</CardDescription>
+                <CardTitle>APK Control Configuration (Global API)</CardTitle>
+                <CardDescription>Dynamically control APK behavior and security policies on 15,000 tablets</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-sm">Biometric Controls</h4>
+                    <h4 className="font-semibold text-sm border-b pb-2">Biometric Controls</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm">Fingerprint Scanning</span>
-                        <Badge>Enabled</Badge>
+                        <span className="text-sm font-medium">MFS100 Fingerprint Scanner</span>
+                        <Badge className="bg-emerald-100 text-emerald-700">Enabled</Badge>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm">AI Face Matching</span>
-                        <Badge>Enabled</Badge>
+                        <span className="text-sm font-medium">AI Face Matching (TensorFlow)</span>
+                        <Badge className="bg-emerald-100 text-emerald-700">Enabled</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium">Aadhaar Verification Toggle</span>
+                        <Badge variant="outline" className="text-slate-500 bg-slate-100 border-slate-200">Disabled</Badge>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-sm">MDM & Security (Full Control)</h4>
+                    <h4 className="font-semibold text-sm border-b pb-2">MDM Security Rules (Kiosk)</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm">Kiosk Mode (App Locking)</span>
-                        <Badge variant="outline" className="text-emerald-600 border-emerald-200">ACTIVE</Badge>
+                        <span className="text-sm font-medium">App Locking (Kiosk Mode)</span>
+                        <Badge className="bg-blue-100 text-blue-700">ACTIVE</Badge>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm">Block Screenshot/USB</span>
-                        <Badge variant="outline" className="text-emerald-600 border-emerald-200">ACTIVE</Badge>
+                        <span className="text-sm font-medium">Block USB / Screenshots</span>
+                        <Badge className="bg-blue-100 text-blue-700">ACTIVE</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium">Auto-wipe After Exam</span>
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">STANDBY</Badge>
                       </div>
                     </div>
                   </div>
@@ -191,7 +482,6 @@ export default function AdminPanel() {
               </CardContent>
             </Card>
           </TabsContent>
-          {/* ... existing tab contents */}
         </Tabs>
       </div>
     </div>
