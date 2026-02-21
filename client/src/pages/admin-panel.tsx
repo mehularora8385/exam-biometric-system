@@ -26,21 +26,21 @@ export default function AdminPanel() {
   ];
 
   const centres = [
-    { id: "DL-015", name: "Modern Public School", city: "Delhi", capacity: 500, assignedExam: "EX-2025-001", syncStatus: "98%" },
-    { id: "DL-016", name: "Greenway Academy", city: "Delhi", capacity: 800, assignedExam: "EX-2025-001", syncStatus: "100%" },
-    { id: "UP-102", name: "City Convent", city: "Noida", capacity: 450, assignedExam: "EX-2025-002", syncStatus: "0%" }
+    { id: "DEL001", name: "Delhi Public School", exam: "UPSC Civil Services 2024", location: "New Delhi, Delhi", address: "Mathura Road", capacity: 500 },
+    { id: "DEL002", name: "Kendriya Vidyalaya", exam: "UPSC Civil Services 2024", location: "New Delhi, Delhi", address: "Gole Market", capacity: 800 },
+    { id: "MUM001", name: "St. Xaviers College", exam: "UPSC Civil Services 2024", location: "Mumbai, MH", address: "Fort", capacity: 450 }
   ];
 
   const operators = [
-    { id: "OP-1234", name: "Rajesh Kumar", mobile: "9876543210", deviceBound: "TAB-A12", status: "active", lastActive: "2 mins ago" },
-    { id: "OP-1235", name: "Priya Sharma", mobile: "9876543211", deviceBound: "TAB-B44", status: "active", lastActive: "Just now" },
-    { id: "OP-1236", name: "Amit Singh", mobile: "9876543212", deviceBound: "Not Bound", status: "disabled", lastActive: "2 days ago" },
+    { name: "Rajesh Kumar", mobile: "9876543210", email: "rajesh@example.com", centre: "Delhi Public School", device: "Samsung Tab A7", status: "Active", lastActive: "25/01/2024, 10:30 am" },
+    { name: "Priya Sharma", mobile: "9876543211", email: "priya@example.com", centre: "Kendriya Vidyalaya", device: "Lenovo Tab S6", status: "Active", lastActive: "25/01/2024, 10:32 am" },
+    { name: "Amit Singh", mobile: "9876543212", email: "amit@example.com", centre: "St. Xaviers College", device: "Samsung Tab A7", status: "Inactive", lastActive: "24/01/2024, 05:00 pm" },
   ];
 
   const candidatesMaster = [
-    { omr: "OMR-88123", rollNo: "2025001", name: "Rahul Sharma", father: "R.K. Sharma", dob: "2002-05-12", centre: "DL-015", faceMatch: "98%", status: "Verified" },
-    { omr: "OMR-88124", rollNo: "2025002", name: "Priya Singh", father: "V. Singh", dob: "2001-11-20", centre: "DL-015", faceMatch: "95%", status: "Verified" },
-    { omr: "OMR-88125", rollNo: "2025003", name: "Amit Kumar", father: "S. Kumar", dob: "2003-01-05", centre: "DL-016", faceMatch: "-", status: "Pending" },
+    { omr: "OMR001234", rollNo: "UPSC2024001", name: "Arun Kumar", father: "Suresh Kumar", dob: "1995-05-15", centre: "DEL001 Delhi Public School", slot: "Morning Slot", faceMatch: "98.5%", status: "Verified" },
+    { omr: "OMR001235", rollNo: "UPSC2024002", name: "Priya Singh", father: "V. Singh", dob: "1996-11-20", centre: "DEL001 Delhi Public School", slot: "Morning Slot", faceMatch: "95.2%", status: "Verified" },
+    { omr: "OMR001236", rollNo: "UPSC2024003", name: "Amit Kumar", father: "S. Kumar", dob: "1997-01-05", centre: "DEL002 Kendriya Vidyalaya", slot: "Evening Slot", faceMatch: "-", status: "Pending" },
   ];
 
   // Mock Data for Charts
@@ -99,8 +99,8 @@ export default function AdminPanel() {
             <TabsTrigger value="centres" className="text-xs md:text-sm">Centres</TabsTrigger>
             <TabsTrigger value="operators" className="text-xs md:text-sm">Operators</TabsTrigger>
             <TabsTrigger value="candidates" className="text-xs md:text-sm">Candidates</TabsTrigger>
-            <TabsTrigger value="reports" className="text-xs md:text-sm">Reports</TabsTrigger>
-            <TabsTrigger value="config" className="text-xs md:text-sm">APK Config</TabsTrigger>
+            <TabsTrigger value="reports" className="text-xs md:text-sm">Audit Logs</TabsTrigger>
+            <TabsTrigger value="config" className="text-xs md:text-sm">Generate APK</TabsTrigger>
           </TabsList>
 
           {/* 1.1 ADMIN DASHBOARD */}
@@ -397,31 +397,24 @@ export default function AdminPanel() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead>Centre Code</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>City</TableHead>
-                      <TableHead>Assigned Exam</TableHead>
-                      <TableHead>Capacity</TableHead>
-                      <TableHead>Sync Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>CODE</TableHead>
+                      <TableHead>CENTRE NAME</TableHead>
+                      <TableHead>EXAM</TableHead>
+                      <TableHead>LOCATION</TableHead>
+                      <TableHead>ADDRESS</TableHead>
+                      <TableHead>CAPACITY</TableHead>
+                      <TableHead>ACTIONS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {centres.map((c) => (
                       <TableRow key={c.id}>
                         <TableCell className="font-mono text-xs font-bold">{c.id}</TableCell>
-                        <TableCell>{c.name}</TableCell>
-                        <TableCell>{c.city}</TableCell>
-                        <TableCell className="font-mono text-xs">{c.assignedExam}</TableCell>
+                        <TableCell className="font-medium">{c.name}</TableCell>
+                        <TableCell className="text-sm">{c.exam}</TableCell>
+                        <TableCell className="text-sm text-slate-500">{c.location}</TableCell>
+                        <TableCell className="text-sm text-slate-500">{c.address}</TableCell>
                         <TableCell>{c.capacity}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-full bg-slate-200 rounded-full h-2 max-w-[60px]">
-                              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: c.syncStatus }}></div>
-                            </div>
-                            <span className="text-xs font-medium">{c.syncStatus}</span>
-                          </div>
-                        </TableCell>
                         <TableCell className="flex gap-1">
                           <Button size="sm" variant="ghost"><Edit2 className="w-4 h-4" /></Button>
                         </TableCell>
@@ -436,7 +429,7 @@ export default function AdminPanel() {
           {/* 1.5 OPERATOR MANAGEMENT */}
           <TabsContent value="operators" className="space-y-6 mt-6">
             <div className="flex gap-2 justify-between items-center">
-              <Input placeholder="Search operators by ID or Phone..." className="max-w-sm" />
+              <Input placeholder="Search operators..." className="max-w-sm" />
               <Button className="gap-2"><Plus className="w-4 h-4" /> Create Operator</Button>
             </div>
             <Card>
@@ -444,39 +437,33 @@ export default function AdminPanel() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead>Operator ID</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Mobile</TableHead>
-                      <TableHead>Device Bound</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Active</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>OPERATOR</TableHead>
+                      <TableHead>EMAIL</TableHead>
+                      <TableHead>CENTRE</TableHead>
+                      <TableHead>DEVICE</TableHead>
+                      <TableHead>LAST ACTIVE</TableHead>
+                      <TableHead>STATUS</TableHead>
+                      <TableHead>ACTIONS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {operators.map((op) => (
-                      <TableRow key={op.id}>
-                        <TableCell className="font-mono text-xs font-bold">{op.id}</TableCell>
-                        <TableCell>{op.name}</TableCell>
-                        <TableCell className="font-mono text-xs">{op.mobile}</TableCell>
+                    {operators.map((op, i) => (
+                      <TableRow key={i}>
                         <TableCell>
-                          {op.deviceBound !== "Not Bound" ? (
-                             <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-200">{op.deviceBound}</Badge>
-                          ) : (
-                             <span className="text-xs text-slate-400">Not Bound</span>
-                          )}
+                          <p className="font-medium">{op.name}</p>
+                          <p className="text-xs text-slate-500">{op.mobile}</p>
                         </TableCell>
+                        <TableCell className="text-sm">{op.email}</TableCell>
+                        <TableCell className="text-sm">{op.centre}</TableCell>
+                        <TableCell className="text-sm">{op.device}</TableCell>
+                        <TableCell className="text-sm text-slate-500">{op.lastActive}</TableCell>
                         <TableCell>
-                           <Badge className={cn("text-xs", op.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
-                            {op.status.toUpperCase()}
+                           <Badge className={cn("text-xs", op.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                            {op.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-slate-500">{op.lastActive}</TableCell>
                         <TableCell className="flex gap-1">
-                          <Button size="sm" variant="outline" className="text-xs h-7">Reset Bind</Button>
-                          <Button size="sm" variant="ghost" className={op.status === "active" ? "text-red-600" : "text-emerald-600"}>
-                            {op.status === "active" ? "Disable" : "Enable"}
-                          </Button>
+                          <Button size="sm" variant="ghost"><Edit2 className="w-4 h-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -490,8 +477,12 @@ export default function AdminPanel() {
           <TabsContent value="candidates" className="space-y-6 mt-6">
             <div className="flex gap-2 justify-between items-center">
                <div className="flex gap-2">
-                 <Input placeholder="Search Roll No or OMR..." className="w-64" />
-                 <Button variant="outline"><Filter className="w-4 h-4 mr-2" /> Filter</Button>
+                 <Input placeholder="Search by name, roll no, OMR no..." className="w-80" />
+                 <Button variant="outline"><Filter className="w-4 h-4 mr-2" /> Filters</Button>
+               </div>
+               <div className="flex gap-2">
+                 <Button variant="outline"><DownloadCloud className="w-4 h-4 mr-2" /> Excel</Button>
+                 <Button variant="outline"><FileText className="w-4 h-4 mr-2" /> PDF</Button>
                </div>
             </div>
             <Card>
@@ -499,28 +490,41 @@ export default function AdminPanel() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead>OMR No</TableHead>
-                      <TableHead>Roll No</TableHead>
-                      <TableHead>Candidate Name</TableHead>
-                      <TableHead>Father Name</TableHead>
-                      <TableHead>Centre</TableHead>
-                      <TableHead>Face Match</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>UPLOAD PHOTO</TableHead>
+                      <TableHead>VERIFIED PHOTO</TableHead>
+                      <TableHead>OMR NO.</TableHead>
+                      <TableHead>ROLL NO.</TableHead>
+                      <TableHead>CANDIDATE</TableHead>
+                      <TableHead>DOB</TableHead>
+                      <TableHead>CENTRE</TableHead>
+                      <TableHead>SLOT</TableHead>
+                      <TableHead>MATCH %</TableHead>
+                      <TableHead>STATUS</TableHead>
+                      <TableHead>ACTIONS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {candidatesMaster.map((c, i) => (
                       <TableRow key={i}>
+                        <TableCell><div className="w-8 h-8 bg-slate-200 rounded-sm"></div></TableCell>
+                        <TableCell><div className="w-8 h-8 bg-slate-200 rounded-sm"></div></TableCell>
                         <TableCell className="font-mono text-xs">{c.omr}</TableCell>
                         <TableCell className="font-mono text-xs">{c.rollNo}</TableCell>
-                        <TableCell className="font-medium">{c.name}</TableCell>
-                        <TableCell className="text-sm text-slate-600">{c.father}</TableCell>
-                        <TableCell className="font-mono text-xs">{c.centre}</TableCell>
+                        <TableCell>
+                          <p className="font-medium text-sm">{c.name}</p>
+                          <p className="text-xs text-slate-500">S/o {c.father}</p>
+                        </TableCell>
+                        <TableCell className="text-sm">{c.dob}</TableCell>
+                        <TableCell className="text-sm max-w-[150px] truncate">{c.centre}</TableCell>
+                        <TableCell className="text-sm">{c.slot}</TableCell>
                         <TableCell className="font-medium">{c.faceMatch}</TableCell>
                         <TableCell>
                            <Badge className={cn("text-xs", c.status === "Verified" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
                             {c.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="flex gap-1">
+                          <Button size="sm" variant="ghost"><Edit2 className="w-4 h-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -530,83 +534,90 @@ export default function AdminPanel() {
             </Card>
           </TabsContent>
 
-          {/* 1.7 REPORTS & EXPORT */}
+          {/* 1.7 REPORTS & EXPORT -> AUDIT LOGS */}
           <TabsContent value="reports" className="space-y-6 mt-6">
-            <div className="grid md:grid-cols-3 gap-6">
-               <Card>
-                 <CardHeader>
-                   <CardTitle className="text-base">Attendance Report</CardTitle>
-                   <CardDescription>Gate entry summaries and absent lists</CardDescription>
-                 </CardHeader>
-                 <CardContent>
-                   <Button className="w-full gap-2" variant="outline"><DownloadCloud className="w-4 h-4"/> Export CSV</Button>
-                 </CardContent>
-               </Card>
-               <Card>
-                 <CardHeader>
-                   <CardTitle className="text-base">Biometric & OMR Report</CardTitle>
-                   <CardDescription>Full face match % and fingerprint logs</CardDescription>
-                 </CardHeader>
-                 <CardContent>
-                   <Button className="w-full gap-2" variant="outline"><DownloadCloud className="w-4 h-4"/> Export CSV</Button>
-                 </CardContent>
-               </Card>
-               <Card>
-                 <CardHeader>
-                   <CardTitle className="text-base">Exception Audit Log</CardTitle>
-                   <CardDescription>All manual overrides and system alerts</CardDescription>
-                 </CardHeader>
-                 <CardContent>
-                   <Button className="w-full gap-2" variant="outline"><DownloadCloud className="w-4 h-4"/> Export CSV</Button>
-                 </CardContent>
-               </Card>
+            <div className="flex gap-2 justify-between items-center">
+              <Input placeholder="Search logs..." className="max-w-sm" />
+              <div className="flex gap-2">
+                <Button variant="outline"><Filter className="w-4 h-4 mr-2" /> Filters</Button>
+                <Button variant="outline"><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
+                <Button variant="outline"><DownloadCloud className="w-4 h-4 mr-2" /> Export</Button>
+              </div>
             </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>TIMESTAMP</TableHead>
+                      <TableHead>ACTION</TableHead>
+                      <TableHead>BIOMETRIC</TableHead>
+                      <TableHead>OPERATOR</TableHead>
+                      <TableHead>DEVICE</TableHead>
+                      <TableHead>CANDIDATE</TableHead>
+                      <TableHead>STATUS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="text-sm text-slate-500">25/01/2024, 10:30 am</TableCell>
+                      <TableCell className="font-medium">Candidate Verified</TableCell>
+                      <TableCell>Both</TableCell>
+                      <TableCell>
+                        <p className="font-medium text-sm">Rajesh Kumar</p>
+                        <p className="text-xs text-slate-500">op-1</p>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">DEV001</TableCell>
+                      <TableCell>
+                        <p className="font-medium text-sm">Arun Kumar</p>
+                        <p className="text-xs text-slate-500">cand-1</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-emerald-100 text-emerald-700">Online</Badge>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* 4. APK CONFIGURATION */}
+          {/* 4. APK CONFIGURATION -> GENERATE APK */}
           <TabsContent value="config" className="space-y-6 mt-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-900">APK Versions</h2>
+              <Button className="gap-2"><Plus className="w-4 h-4" /> Generate APK</Button>
+            </div>
             <Card>
-              <CardHeader>
-                <CardTitle>APK Control Configuration (Global API)</CardTitle>
-                <CardDescription>Dynamically control APK behavior and security policies on 15,000 tablets</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-sm border-b pb-2">Biometric Controls</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm font-medium">MFS100 Fingerprint Scanner</span>
-                        <Badge className="bg-emerald-100 text-emerald-700">Enabled</Badge>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm font-medium">AI Face Matching (TensorFlow)</span>
-                        <Badge className="bg-emerald-100 text-emerald-700">Enabled</Badge>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm font-medium">Aadhaar Verification Toggle</span>
-                        <Badge variant="outline" className="text-slate-500 bg-slate-100 border-slate-200">Disabled</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-sm border-b pb-2">MDM Security Rules (Kiosk)</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm font-medium">App Locking (Kiosk Mode)</span>
-                        <Badge className="bg-blue-100 text-blue-700">ACTIVE</Badge>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm font-medium">Block USB / Screenshots</span>
-                        <Badge className="bg-blue-100 text-blue-700">ACTIVE</Badge>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <span className="text-sm font-medium">Auto-wipe After Exam</span>
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">STANDBY</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>VERSION</TableHead>
+                      <TableHead>EXAM</TableHead>
+                      <TableHead>GENERATED ON</TableHead>
+                      <TableHead>STATUS</TableHead>
+                      <TableHead>ACTIONS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">2.1.0</TableCell>
+                      <TableCell className="text-sm text-slate-600">
+                        Added face liveness detection<br/>
+                        Improved fingerprint scanner compatibility<br/>
+                        Bug fixes
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-500">20/01/2024</TableCell>
+                      <TableCell>
+                         <Badge className="bg-emerald-100 text-emerald-700">Ready</Badge>
+                      </TableCell>
+                      <TableCell className="flex gap-1">
+                         <Button size="sm" variant="ghost"><DownloadCloud className="w-4 h-4" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>

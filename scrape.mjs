@@ -12,7 +12,6 @@ import puppeteer from 'puppeteer';
     await page.goto('https://mr-mehul-admin-frontend.vercel.app/', { waitUntil: 'networkidle2' });
     
     console.log('Typing credentials...');
-    // Finding input fields (assuming standard type text and password)
     await page.waitForSelector('input[type="text"]');
     await page.type('input[type="text"]', 'demo');
     await page.type('input[type="password"]', 'demo');
@@ -23,26 +22,51 @@ import puppeteer from 'puppeteer';
     console.log('Waiting for navigation...');
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
     
-    console.log('Current URL:', page.url());
-    
-    console.log('Extracting dashboard content...');
-    const content = await page.evaluate(() => {
-      const texts = [];
-      document.querySelectorAll('h1, h2, h3, h4, h5, span, p, a, button, th, td, div.text-sm, div.font-bold').forEach(el => {
-        if(el.innerText && el.innerText.trim().length > 0) texts.push(el.tagName + ': ' + el.innerText.trim());
-      });
-      return texts;
+    const links = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('a')).map(a => ({ text: a.innerText.trim(), href: a.href })).filter(l => l.text);
     });
     
-    const uniqueContent = [...new Set(content)];
-    console.log('Dashboard text elements:', uniqueContent.slice(0, 100).join('\n'));
+    const pagesToScrape = ['Exams', 'Centres', 'Operators', 'Candidates', 'Generate APK', 'Audit Logs'];
     
-    // Check if there are specific sections or a sidebar
-    const sidebarLinks = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll('a'));
-      return links.map(a => a.innerText.trim()).filter(t => t.length > 0);
-    });
-    console.log('\nNavigation/Sidebar links:', [...new Set(sidebarLinks)].join(', '));
+    for (const linkText of pagesToScrape) {
+      const link = links.find(l => l.text === linkText);
+      if (link) {
+        console.log(`\n\n--- Scraping ${linkText} (${link.href}) ---`);
+        await page.goto(link.href, { waitUntil: 'networkidle2' });
+        
+        // Wait for table to load if any
+        await new Promise(r => setTimeout(r, 1000));
+        
+        const content = await page.evaluate(() => {
+          const texts = [];
+          
+          // Let's get table headers and first row to understand the structure
+          const tables = document.querySelectorAll('table');
+          tables.forEach(table => {
+            texts.push('TABLE HEADERS:');
+            const ths = Array.from(table.querySelectorAll('th')).map(th => th.innerText.trim());
+            texts.push(ths.join(' | '));
+            
+            texts.push('FIRST ROW:');
+            const firstRow = table.querySelector('tbody tr');
+            if (firstRow) {
+              const tds = Array.from(firstRow.querySelectorAll('td')).map(td => td.innerText.trim());
+              texts.push(tds.join(' | '));
+            }
+          });
+          
+          // Get forms/inputs
+          document.querySelectorAll('input, select, button').forEach(el => {
+             if (el.tagName === 'BUTTON') texts.push('BUTTON: ' + el.innerText.trim());
+             if (el.tagName === 'INPUT') texts.push('INPUT placeholder: ' + el.placeholder);
+          });
+          
+          return texts;
+        });
+        
+        console.log(content.join('\n'));
+      }
+    }
     
     await browser.close();
   } catch (e) {
