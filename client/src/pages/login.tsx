@@ -74,7 +74,8 @@ export default function Login() {
       name: data.fullName,
       mobile: data.mobile,
       aadhaar: data.aadhaar,
-      photoUrl: capturedPhoto
+      photoUrl: capturedPhoto,
+      role: "OPERATOR"
     });
     setLocation("/");
   };

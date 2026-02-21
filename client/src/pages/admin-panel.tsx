@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Edit2, Trash2, DownloadCloud, FileText, Users, Calendar, Settings, Lock } from "lucide-react";
+import { ArrowLeft, Plus, Edit2, Trash2, DownloadCloud, FileText, Users, Calendar, Settings, Lock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AdminPanel() {

@@ -38,6 +38,8 @@ export default function RoundTwo() {
       setCapturedPhoto(imageSrc);
     }
   };
+
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const found = state.candidates.find(c => 
       c.applicationNo === searchQuery || c.rollNo === searchQuery
@@ -180,12 +182,23 @@ export default function RoundTwo() {
         <div className="grid md:grid-cols-2 gap-6 animate-in slide-in-from-right duration-300">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="w-5 h-5" /> Live Photo
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-5 h-5" /> Live Photo
+                </div>
+                {integrityAlert && (
+                  <Badge variant="destructive" className="text-[10px]">Alert</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CameraCapture onCapture={setCapturedPhoto} label="Capture Candidate" />
+              {integrityAlert && (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-4 text-sm animate-in fade-in">
+                  <p className="font-semibold">{integrityAlert}</p>
+                  <p className="text-xs mt-1">Please ensure candidate's face is clearly visible and well-lit.</p>
+                </div>
+              )}
+              <CameraCapture onCapture={handleCapturePhoto} label="Capture Candidate" />
             </CardContent>
           </Card>
 

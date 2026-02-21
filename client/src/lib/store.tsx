@@ -83,6 +83,9 @@ const MOCK_EXAMS: Exam[] = [
     type: "LIVE",
     centerCode: "DL-015",
     roomDetails: "Block A, Room 101-110",
+    status: "active",
+    candidatesCount: 2845,
+    centresCount: 12
   },
   {
     id: "EX-MOCK-001",
@@ -91,6 +94,9 @@ const MOCK_EXAMS: Exam[] = [
     type: "MOCK",
     centerCode: "DL-015",
     roomDetails: "Test Lab 1",
+    status: "active",
+    candidatesCount: 355,
+    centresCount: 3
   },
 ];
 
@@ -100,7 +106,7 @@ const MOCK_CANDIDATES: Candidate[] = [
   { applicationNo: "APP003", rollNo: "2025003", name: "Amit Kumar", photoUrl: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=400&h=400&fit=crop" },
   { applicationNo: "APP004", rollNo: "2025004", name: "Sneha Patel", photoUrl: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&h=400&fit=crop" },
   { applicationNo: "APP005", rollNo: "2025005", name: "Vikram Malhotra" }, // No photo
-].map(c => ({ ...c, examId: "EX-2025-001" }));
+].map(c => ({ ...c, examId: "EX-2025-001", verificationStatus: "PENDING" as const }));
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AppState>({
