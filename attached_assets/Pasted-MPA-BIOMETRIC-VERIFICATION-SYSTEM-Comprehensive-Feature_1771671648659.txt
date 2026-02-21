@@ -1,0 +1,297 @@
+MPA BIOMETRIC VERIFICATION SYSTEM
+Comprehensive Feature Documentation
+------------------------------------------------------------
+1. ADMIN PANEL (HQ CONTROL PANEL)
+1.1 Admin Dashboard
+The Admin Dashboard provides centralized control and monitoring for all exams.
+Features:
+- Exam-wise filtering system.
+- Sync All Devices (Exam-wise).
+- Logout All Devices (Exam-wise).
+- Real-time statistics display:
+    * Total Candidates
+    * Total Centres
+    * Total Operators Logged In
+    * Present Count
+    * Verified Count
+    * Pending Count
+    * Sync Percentage
+- Centre-wise and operator-wise live monitoring.
+
+1.2 Exam Management
+Admin can:
+- Create Exam
+- Edit Exam
+- Delete Exam
+- Activate / Stop Exam
+- Generate secure password for APK data download
+- Generate client login credentials
+
+Each exam has isolated data and a unique exam ID.
+Candidate Data Upload (Excel/CSV) includes:
+- Centre Code
+- Centre Name
+- Candidate Name
+- Father Name
+- DOB
+- Slot
+- Photo
+System auto-distributes candidates centre-code wise.
+
+1.3 Slot Management
+- Time-wise slot creation.
+- Slot editing.
+- Slot mapping with centres.
+
+1.4 Centre Management
+- Add/Edit/Delete Centre.
+- Assign centre to exam.
+- Monitor centre-wise data sync.
+
+1.5 Operator Management
+- Create Operator accounts.
+- Enable/Disable operators.
+- Bind operator to specific device.
+- Reset device binding.
+- Track login and activity logs.
+
+1.6 Candidate Master Fields
+Candidate fields include:
+- OMR Number
+- Roll Number
+- Candidate Name
+- Father Name
+- DOB
+- Centre Code
+- Uploaded Photo
+- Verified Photo
+- Fingerprint Template
+- Face Match %
+- Verification Status
+
+1.7 Reports & Export
+- Advanced filtering.
+- Search functionality.
+- Excel/CSV export.
+- Real-time sync monitoring.
+
+2. OPERATOR MOBILE APPLICATION (APK)
+2.1 Login Module
+- Operator name validation (minimum 3 characters).
+- Mobile number validation (10 digits).
+- Aadhaar validation (12 digits, masked).
+-live time operator photo 
+- Duplicate device detection.
+- JWT token authentication.
+- Secure session management.
+-Not registration required only 1 time login work not auto logout work only forced logout & admin base logout.
+
+2.2 Data Download Module
+- Centre & Exam dropdown (API based).
+- Candidate count display.
+- Admin-generated password verification.
+- Encrypted local storage.
+- Offline caching.
+- Download progress indicator.
+
+2.3 Attendance Module
+- Roll number barcode scan or manual entry.
+- Candidate details display.
+- Mark Present option.
+- Auto timestamp capture.
+- Operator ID auto-mapping.
+- Offline storage with later sync.
+
+2.4 Verification Module
+- Live photo capture.
+- Side-by-side image comparison.
+- AI-based face matching.
+- Fingerprint capture (MFS100/MFS110).
+- OMR scan/input.
+- Verification status marking.
+
+2.5 Sync Module
+- Real-time sync tracking.
+- Manual sync button.
+- Auto-sync every 1 minute.
+- Sync progress bar.
+- Error handling with retry.
+- Last & next sync time display.
+
+2.6 Operator Dashboard
+- Welcome message.
+- Operator information card.
+- Quick statistics (Present, Verified, Pending).
+- Sync indicator.
+- Device & exam info.
+- Secure logout option.
+
+3. CLIENT EXAM-WISE DASHBOARD (VIEW ONLY)
+Purpose: Monitoring portal for clients to view their specific exam status.
+
+Features:
+- Same login URL for all clients.
+- Role-based exam isolation.
+- Read-only access.
+- Exam header information display.
+- Summary statistics cards.
+- Centre-wise live progress table.
+- Operator tracking table.
+- Candidate status filtering.
+- Graphical analytics.
+- Admin-controlled activation.
+
+4. APK CONTROL CONFIGURATION (ADMIN CONTROLLED)
+Admin controls APK behavior dynamically via Configuration API.
+
+Includes:
+- Biometric Mode (Face/Fingerprint/OMR/Both/ all 3/Photo).
+- Biometric Flow Control.
+- Aadhaar verification toggle.
+- Dynamic exam & client branding.
+- Feature toggles (Liveness, GPS, Offline Mode).
+- Operator-device binding.
+- Version control & force update.
+- Audit logs storage.
+- Attendance & Verification mode control.
+- OMR scan control.
+-MDM MODE ENABLE DISABLE (Full control:
+•	Block USB
+•	Block screenshot
+•	Block app switching
+•	Lock app in kiosk mode
+•	Auto wipe after exam
+•	Wifi control )
+
+-Present mark + verification(face matching, Finger scanning ,OMR entry)
+
+5. SECURITY & ARCHITECTURE
+- Role-Based Access Control (RBAC).
+- JWT authentication.
+- Exam-wise data isolation.
+- Encrypted storage.
+- Secure API configuration.
+- Centralized database.
+- Full audit logging.
+
+
+Biometric Integrity & Live Control Module
+Hybrid Offline + Online Compatible
+------------------------------------------------------------
+1. Module Objective
+The Biometric Integrity & Live Control Module ensures secure, transparent, and misuse-free biometric verification. This module detects operator misuse, generates real-time alerts, works in Offline and Online mode, and does not require admin approval for verification.
+2. Core Integrity Controls
+2.1 Invalid / Wrong Photo Detection
+Detection Includes:
+- No human face detected
+- Wall / paper / blank capture
+- Covered camera
+- Extremely dark image
+- Blurred image
+
+System Action:
+- Blocks verification
+- Displays message: 'Invalid Photo – Human Face Not Detected'
+
+Dashboard Alert (if repeated attempts):
+- Alert Type: Invalid Photo Attempt
+- Centre, Operator, Roll No, Timestamp, Mode (Online/Offline)
+2.2 Operator Self-Face Detection
+Logic:
+- Operator face template captured securely at login.
+- During verification, live face compared against operator template.
+
+If match detected:
+- Verification blocked
+- Message displayed: 'Operator Face Detected – Verification Not Allowed'
+
+Dashboard Alert:
+- Alert Type: Operator Face Misuse
+- Centre, Operator, Timestamp
+2.3 Duplicate Image Detection
+Logic:
+- Each captured image generates a unique hash.
+- If same image reused for another roll number, system blocks second usage.
+
+Message displayed: 'Duplicate Image Detected'
+
+Dashboard Alert:
+- Alert Type: Duplicate Image Attempt
+- Affected Roll Numbers, Operator, Centre, Timestamp
+2.4 Face Mismatch Approval Alert (No Admin Approval Required)
+If face match percentage is below configured threshold:
+
+Popup Displayed:
+FACE NOT MATCHED
+Match %: XX%
+Required: XX%
+[Re-Capture]   [Approve & Continue]
+
+If operator selects 'Approve & Continue':
+- Verification completes
+- Record marked as 'Face Mismatch – Operator Approved'
+- System logs Match %, Operator ID, Device ID, Centre, Timestamp
+
+Dashboard Alert:
+- Alert Type: Face Mismatch Approved
+- Centre, Roll No, Match %, Operator, Mode (Online/Offline)
+2.5 Rapid Verification Speed Alert
+If verification completed below minimum realistic time threshold:
+- Warning shown in application
+- Event logged
+
+Dashboard Alert:
+- Alert Type: Suspicious Verification Speed
+- Operator, Centre, Average Verification Time
+2.6 Post-Exam Biometric Activity Alert
+Biometric before exam start is allowed (Gate Verification).
+System monitors only activity after exam end time.
+
+If verification performed after allowed end time:
+- Popup: 'Exam Time Over – Verification Recorded with Alert'
+- Verification recorded with alert flag
+
+Dashboard Alert:
+- Alert Type: Post-Exam Biometric Activity
+- Centre, Roll No, Operator, Delay Duration, Timestamp, Mode
+2.7 Device Time Manipulation Protection
+To prevent device clock tampering:
+- Time reference captured during data download
+- Background time validation active
+- If manual time change detected:
+  - Application temporarily locks
+  - Alert Type: Device Time Manipulation
+3. Live Alert Monitoring (Admin & Exam Dashboard)
+Both Admin Panel and Exam-Wise Dashboard include a 'Biometric Exception Monitor' section.
+
+Columns Include:
+- Alert Type
+- Centre Name
+- Roll No
+- Operator Name
+- Device ID
+- Match %
+- Timestamp
+- Delay (if applicable)
+- Mode (Online / Offline Generated)
+- Status (Open / Reviewed)
+4. Offline + Online Behavior
+Online Mode:
+- Alerts pushed instantly
+- Real-time dashboard updates
+
+Offline Mode:
+- Alerts stored in encrypted local database
+- Marked as 'Pending Sync'
+- Auto-synced when internet available
+- Original timestamp preserved
+- Zero data loss
+5. Admin Configuration Controls
+Per Exam Settings:
+- Face Match Threshold %
+- Allow Mismatch Approval (Yes / No)
+- Minimum Verification Time Threshold
+- Exam End Time + Grace Period
+- Strict Mode (Block Post-Exam Activity Yes / No)
+
+Admin cannot edit biometric results. Module is monitoring-focused
