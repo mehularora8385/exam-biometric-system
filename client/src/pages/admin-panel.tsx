@@ -21,8 +21,8 @@ export default function AdminPanel() {
   const [selectedExamFilter, setSelectedExamFilter] = useState("all");
 
   const exams = [
-    { id: "EX-2025-001", name: "National Entrance Test 2025", date: "2025-05-15", centres: 12, candidates: 15000, status: "active", apkPassword: "NET25_SECURE_88X" },
-    { id: "EX-2025-002", name: "State Level Entrance", date: "2025-06-10", centres: 8, candidates: 8500, status: "scheduled", apkPassword: "STATE25_99Y" }
+    { id: "EX-2025-001", name: "UPSC Civil Services 2024", date: "2024-05-15", centres: 12, candidates: 15420, status: "Active", apkPassword: "UPSC24_SECURE_88X" },
+    { id: "EX-2025-002", name: "State Level Entrance", date: "2024-06-10", centres: 8, candidates: 8500, status: "Scheduled", apkPassword: "STATE24_99Y" }
   ];
 
   const centres = [
@@ -340,9 +340,12 @@ export default function AdminPanel() {
           {/* 1.2 & 1.3 EXAM & SLOT MANAGEMENT */}
           <TabsContent value="exams" className="space-y-6 mt-6">
             <div className="flex gap-2 justify-between items-center">
-              <Input placeholder="Search exams..." className="max-w-sm" />
               <div className="flex gap-2">
-                <Button variant="outline" className="gap-2"><Upload className="w-4 h-4"/> Upload Candidate Data (CSV)</Button>
+                 <Input placeholder="Search exams..." className="w-80" />
+                 <Button variant="outline"><Filter className="w-4 h-4 mr-2" /> Filters</Button>
+               </div>
+              <div className="flex gap-2">
+                <Button variant="outline"><DownloadCloud className="w-4 h-4 mr-2"/> Excel</Button>
                 <Button className="gap-2"><Plus className="w-4 h-4" /> Create Exam</Button>
               </div>
             </div>
@@ -352,25 +355,25 @@ export default function AdminPanel() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead>Exam ID</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Date / Slots</TableHead>
-                      <TableHead>Centres</TableHead>
-                      <TableHead>APK Password</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>EXAM ID</TableHead>
+                      <TableHead>NAME</TableHead>
+                      <TableHead>DATE / SLOTS</TableHead>
+                      <TableHead>CENTRES</TableHead>
+                      <TableHead>APK PASSWORD</TableHead>
+                      <TableHead>STATUS</TableHead>
+                      <TableHead>ACTIONS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {exams.map((exam) => (
                       <TableRow key={exam.id}>
-                        <TableCell className="font-mono text-xs">{exam.id}</TableCell>
+                        <TableCell className="font-mono text-xs font-bold">{exam.id}</TableCell>
                         <TableCell className="font-medium">{exam.name}</TableCell>
-                        <TableCell className="text-sm">{exam.date} (2 Slots)</TableCell>
+                        <TableCell className="text-sm text-slate-500">{exam.date} (2 Slots)</TableCell>
                         <TableCell className="font-medium">{exam.centres}</TableCell>
                         <TableCell className="font-mono text-xs text-slate-500">{exam.apkPassword}</TableCell>
                         <TableCell>
-                          <Badge className={cn("text-xs", exam.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700")}>
+                          <Badge className={cn("text-xs", exam.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700")}>
                             {exam.status.toUpperCase()}
                           </Badge>
                         </TableCell>
