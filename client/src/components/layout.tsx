@@ -61,10 +61,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span className="hidden lg:inline">Centre</span>
             </Button>
 
-            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin-panel")} title="Admin Panel" className="gap-1.5 text-xs h-9">
-              <Shield className="w-4 h-4" />
-              <span className="hidden lg:inline">Admin</span>
-            </Button>
+            {state.operator.role === "ADMIN" && (
+              <Button variant="ghost" size="sm" onClick={() => setLocation("/admin-panel")} title="Admin Panel" className="gap-1.5 text-xs h-9 text-primary hover:text-primary hover:bg-primary/5">
+                <Shield className="w-4 h-4" />
+                <span className="hidden lg:inline">HQ Admin</span>
+              </Button>
+            )}
 
             <Button variant="ghost" size="sm" onClick={() => setLocation("/sync")} className="text-xs h-9">
               Sync
@@ -121,9 +123,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/centre-dashboard"); setMobileMenuOpen(false); }}>
               <BarChart3 className="w-4 h-4" /> Centre Dashboard
             </Button>
-            <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/admin-panel"); setMobileMenuOpen(false); }}>
-              <Shield className="w-4 h-4" /> Admin Panel
-            </Button>
+            {state.operator.role === "ADMIN" && (
+              <Button variant="ghost" className="w-full justify-start gap-2 text-primary" onClick={() => { setLocation("/admin-panel"); setMobileMenuOpen(false); }}>
+                <Shield className="w-4 h-4" /> HQ Admin
+              </Button>
+            )}
             <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/sync"); setMobileMenuOpen(false); }}>
               Sync Status
             </Button>
