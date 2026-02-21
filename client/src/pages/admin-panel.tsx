@@ -105,197 +105,236 @@ export default function AdminPanel() {
 
           {/* 1.1 ADMIN DASHBOARD */}
           <TabsContent value="dashboard" className="space-y-6 mt-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-blue-600" />
-                <h2 className="text-xl font-bold">Live Global Statistics</h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Dashboard</h2>
+                <p className="text-slate-500">Overview of all exams</p>
               </div>
               <div className="flex flex-wrap gap-2 w-full md:w-auto">
-                <select 
-                  className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium min-w-[200px]"
-                  value={selectedExamFilter}
-                  onChange={(e) => setSelectedExamFilter(e.target.value)}
-                >
-                  <option value="all">Global View (All Active Exams)</option>
-                  {exams.map(exam => (
-                    <option key={exam.id} value={exam.id}>{exam.name} ({exam.id})</option>
-                  ))}
-                </select>
-                <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium">
-                  <option>All Centres</option>
-                  {centres.map(c => <option key={c.id}>{c.name} ({c.id})</option>)}
-                </select>
+                <Button variant="outline" className="bg-white">All Exams</Button>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="bg-white border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
-                <CardContent className="p-5 flex flex-col justify-center">
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardContent className="p-5 flex flex-col justify-center h-[120px]">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-slate-500">Total Candidates</span>
                     <Users className="w-4 h-4 text-slate-400" />
                   </div>
-                  <span className="text-3xl font-bold text-slate-900">23,500</span>
+                  <span className="text-3xl font-bold text-slate-900">15,420</span>
                 </CardContent>
               </Card>
-              <Card className="bg-white border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
-                <CardContent className="p-5 flex flex-col justify-center">
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardContent className="p-5 flex flex-col justify-center h-[120px]">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-500">Active Centres</span>
-                    <MapPin className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-500">Verified</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
-                  <span className="text-3xl font-bold text-slate-900">20</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-emerald-600">12,350</span>
+                    <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">80% complete</span>
+                  </div>
+                  <span className="text-xs text-slate-500 mt-1">+12.5% vs last hour</span>
                 </CardContent>
               </Card>
-              <Card className="bg-white border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
-                <CardContent className="p-5 flex flex-col justify-center">
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardContent className="p-5 flex flex-col justify-center h-[120px]">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-500">Operators Online</span>
-                    <ShieldCheck className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-medium text-slate-500">Pending</span>
+                    <Clock className="w-4 h-4 text-amber-500" />
                   </div>
-                  <span className="text-3xl font-bold text-blue-600">145</span>
+                  <span className="text-3xl font-bold text-amber-600">2,070</span>
+                  <span className="text-xs text-slate-500 mt-1">Not Verified: 1,000</span>
                 </CardContent>
               </Card>
-              <Card className="bg-white border-slate-200 shadow-sm hover:border-emerald-300 transition-colors">
-                <CardContent className="p-5 flex flex-col justify-center">
+              <Card className="bg-white border-slate-200 shadow-sm">
+                <CardContent className="p-5 flex flex-col justify-center h-[120px]">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-500">Global Sync</span>
-                    <RefreshCw className="w-4 h-4 text-emerald-500" />
+                    <span className="text-sm font-medium text-slate-500">Present Today</span>
+                    <Activity className="w-4 h-4 text-blue-500" />
                   </div>
-                  <span className="text-3xl font-bold text-emerald-600">94%</span>
+                  <span className="text-3xl font-bold text-blue-600">14,200</span>
+                  <div className="flex gap-3 mt-1">
+                    <span className="text-xs text-slate-500">Centres: 6/8</span>
+                    <span className="text-xs text-slate-500">Ops: 5/6</span>
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2 shadow-sm border-slate-200">
-                <CardHeader className="pb-2 border-b border-slate-100">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <BarChart4 className="w-4 h-4 text-slate-500" /> 
-                    Exam-wise Verification Status
-                  </CardTitle>
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-500">Verification Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                   <div className="flex flex-col items-center">
+                     <div className="relative w-32 h-32 flex items-center justify-center mb-2">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="8" fill="none" />
+                          <circle cx="50" cy="50" r="40" stroke="#10b981" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset={251.2 * (1 - 0.8)} strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute text-2xl font-bold text-slate-800">80%</div>
+                     </div>
+                     <p className="text-sm font-medium text-slate-600">12,350 / 15,420</p>
+                   </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-500">Present</CardTitle>
+                </CardHeader>
+                <CardContent>
+                   <div className="flex flex-col items-center">
+                     <div className="relative w-32 h-32 flex items-center justify-center mb-2">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="8" fill="none" />
+                          <circle cx="50" cy="50" r="40" stroke="#3b82f6" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset={251.2 * (1 - 0.92)} strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute text-2xl font-bold text-slate-800">92%</div>
+                     </div>
+                     <p className="text-sm font-medium text-slate-600">14,200 / 15,420</p>
+                   </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-500">Operators</CardTitle>
+                </CardHeader>
+                <CardContent>
+                   <div className="flex flex-col items-center">
+                     <div className="relative w-32 h-32 flex items-center justify-center mb-2">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="8" fill="none" />
+                          <circle cx="50" cy="50" r="40" stroke="#8b5cf6" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset={251.2 * (1 - 0.83)} strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute text-2xl font-bold text-slate-800">83%</div>
+                     </div>
+                     <p className="text-sm font-medium text-slate-600">5 / 6</p>
+                   </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-6">
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Centre-wise Verification Status</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={examVerificationData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <BarChart data={centrePerformanceData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                       <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                      <Bar dataKey="verified" name="Verified" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
-                      <Bar dataKey="pending" name="Pending" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="verified" name="Verified" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
-              <div className="space-y-4">
-                <Card className="bg-blue-50 border-blue-100 shadow-sm">
-                  <CardContent className="p-5 flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-blue-700 mb-1">Present Count (Gate)</p>
-                      <div className="flex items-baseline gap-2">
-                        <h3 className="text-3xl font-bold text-blue-900">18,240</h3>
-                        <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">77%</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-emerald-50 border-emerald-100 shadow-sm">
-                  <CardContent className="p-5 flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-emerald-700 mb-1">Verified (Round 2)</p>
-                      <div className="flex items-baseline gap-2">
-                        <h3 className="text-3xl font-bold text-emerald-900">16,500</h3>
-                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">70%</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-amber-50 border-amber-100 shadow-sm">
-                  <CardContent className="p-5 flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-amber-700 mb-1">Pending Verification</p>
-                      <div className="flex items-baseline gap-2">
-                        <h3 className="text-3xl font-bold text-amber-900">1,740</h3>
-                        <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">7%</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Verifications Today</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={hourlySyncData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                      <Line type="monotone" dataKey="verified" name="Verifications" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-               <Card className="shadow-sm border-slate-200">
-                  <CardHeader className="pb-2 border-b border-slate-100">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <BarChart4 className="w-4 h-4 text-slate-500" />
-                      Top 5 Centres by Verification
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 h-[250px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={centrePerformanceData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#334155', fontWeight: 500 }} width={60} />
-                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                        <Bar dataKey="verified" name="Verified" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-               </Card>
-
-            {/* Exception Monitor injected here */}
-            <Card className="border-red-200 shadow-sm mt-6">
-               <CardHeader className="bg-red-50/50 border-b border-red-100 pb-4">
-                 <div className="flex justify-between items-center">
-                   <CardTitle className="text-lg flex items-center gap-2 text-red-900">
-                     <AlertTriangle className="w-5 h-5 text-red-600" /> Biometric Exception Monitor
-                   </CardTitle>
-                   <Badge variant="destructive">12 New Alerts</Badge>
-                 </div>
-               </CardHeader>
-               <CardContent className="p-0">
-                 <Table>
-                   <TableHeader>
-                     <TableRow className="bg-slate-50">
-                       <TableHead className="text-xs font-semibold">Time</TableHead>
-                       <TableHead className="text-xs font-semibold">Alert Type</TableHead>
-                       <TableHead className="text-xs font-semibold">Centre</TableHead>
-                       <TableHead className="text-xs font-semibold">Operator</TableHead>
-                       <TableHead className="text-xs font-semibold">Roll No</TableHead>
-                       <TableHead className="text-xs font-semibold">Action</TableHead>
-                     </TableRow>
-                   </TableHeader>
-                   <TableBody>
-                     {[
-                       { time: "10:45 AM", type: "Face Mismatch Approved", centre: "DL-015", operator: "Rajesh K.", roll: "2025001", action: "Override - Approved", severity: "medium" },
-                       { time: "10:32 AM", type: "Invalid Photo Attempt", centre: "DL-016", operator: "Amit S.", roll: "2025089", action: "Blocked", severity: "high" },
-                     ].map((alert, i) => (
-                       <TableRow key={i}>
-                         <TableCell className="text-xs text-slate-500">{alert.time}</TableCell>
-                         <TableCell className="font-medium text-sm text-slate-900 flex items-center gap-2">
-                           <div className={cn("w-2 h-2 rounded-full", alert.severity === "high" ? "bg-red-500" : "bg-orange-500")} />
-                           {alert.type}
-                         </TableCell>
-                         <TableCell className="text-sm font-mono text-slate-600">{alert.centre}</TableCell>
-                         <TableCell className="text-sm">{alert.operator}</TableCell>
-                         <TableCell className="text-sm font-mono">{alert.roll}</TableCell>
-                         <TableCell>
-                           <Badge variant="outline" className={cn("text-[10px]", alert.action === "Blocked" ? "border-red-200 text-red-700 bg-red-50" : "border-orange-200 text-orange-700 bg-orange-50")}>
-                             {alert.action}
-                           </Badge>
-                         </TableCell>
-                       </TableRow>
-                     ))}
-                   </TableBody>
-                 </Table>
-               </CardContent>
-             </Card>
-             </div>
+            <Card className="shadow-sm border-slate-200">
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-lg">Centre-wise Statistics</CardTitle>
+                    <CardDescription>Detailed breakdown by examination centre</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-500">Show</span>
+                    <select className="border rounded px-2 py-1 text-sm"><option>10</option></select>
+                    <span className="text-sm text-slate-500">entries</span>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="font-semibold">CODE</TableHead>
+                      <TableHead className="font-semibold">CENTRE NAME</TableHead>
+                      <TableHead className="font-semibold">TOTAL</TableHead>
+                      <TableHead className="font-semibold">VERIFIED</TableHead>
+                      <TableHead className="font-semibold">PENDING</TableHead>
+                      <TableHead className="font-semibold">OPERATORS</TableHead>
+                      <TableHead className="font-semibold">PROGRESS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">DEL001</TableCell>
+                      <TableCell className="font-medium">Delhi Public School</TableCell>
+                      <TableCell>2,500</TableCell>
+                      <TableCell className="text-emerald-600 font-medium">2,100</TableCell>
+                      <TableCell className="text-amber-600">300</TableCell>
+                      <TableCell>2 / 2</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-slate-100 rounded-full h-2">
+                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '84%' }}></div>
+                          </div>
+                          <span className="text-xs font-medium">84%</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">DEL002</TableCell>
+                      <TableCell className="font-medium">Kendriya Vidyalaya</TableCell>
+                      <TableCell>2,200</TableCell>
+                      <TableCell className="text-emerald-600 font-medium">1,800</TableCell>
+                      <TableCell className="text-amber-600">350</TableCell>
+                      <TableCell>1 / 1</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-slate-100 rounded-full h-2">
+                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '82%' }}></div>
+                          </div>
+                          <span className="text-xs font-medium">82%</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">MUM001</TableCell>
+                      <TableCell className="font-medium">St. Xaviers College</TableCell>
+                      <TableCell>2,800</TableCell>
+                      <TableCell className="text-emerald-600 font-medium">2,300</TableCell>
+                      <TableCell className="text-amber-600">400</TableCell>
+                      <TableCell>0 / 1</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-slate-100 rounded-full h-2">
+                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '82%' }}></div>
+                          </div>
+                          <span className="text-xs font-medium">82%</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* 1.2 & 1.3 EXAM & SLOT MANAGEMENT */}
