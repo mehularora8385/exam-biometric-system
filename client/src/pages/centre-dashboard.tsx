@@ -1,16 +1,20 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Wifi, WifiOff, Users, CheckCircle2, Clock, AlertCircle, Cloud } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Wifi, WifiOff, Users, CheckCircle2, Clock, AlertCircle, Cloud, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function CentreDashboard() {
   const [, setLocation] = useLocation();
   const { state } = useAppStore();
+  
+  // Get active center from state or default to the first mock center
+  const [selectedCenter, setSelectedCenter] = useState<string>("DL-015");
 
   // Mock centre data
   const centres = [
@@ -59,221 +63,194 @@ export default function CentreDashboard() {
     { id: "OP-1237", name: "Neha Patel", centre: "BLR-001", mobile: "9876543213", status: "active", attendanceCount: 45, enrollmentCount: 38 },
     { id: "OP-1238", name: "Vikram Malhotra", centre: "BLR-001", mobile: "9876543214", status: "active", attendanceCount: 38, enrollmentCount: 32 },
   ];
+  
+  // Filter data based on selected center
+  const filteredCentres = centres.filter(c => c.id === selectedCenter);
+  const filteredOperators = operators.filter(o => o.centre === selectedCenter);
+  const currentCenterData = filteredCentres[0] || centres[0];
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/")}>
-            <ArrowLeft className="w-6 h-6" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Centre Server Dashboard</h1>
-            <p className="text-slate-500">Real-time monitoring of all exam centres</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => setLocation("/")}>
+              <ArrowLeft className="w-6 h-6" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Centre Server Dashboard</h1>
+              <p className="text-slate-500">Real-time monitoring for your active center</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+            <MapPin className="w-5 h-5 text-emerald-600 ml-2" />
+            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+              <SelectTrigger className="w-[280px] border-0 focus:ring-0 shadow-none font-semibold text-slate-900 bg-transparent">
+                <SelectValue placeholder="Select Center" />
+              </SelectTrigger>
+              <SelectContent>
+                {centres.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.id}: {c.location}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
+          <Card className="border-l-4 border-l-blue-500 shadow-sm">
+            <CardContent className="p-5">
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">3</div>
-                <p className="text-xs text-slate-500 mt-1">Active Centres</p>
+                <div className="text-4xl font-black text-slate-900">{currentCenterData.totalCandidates}</div>
+                <p className="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-wider">Total Candidates</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
+          <Card className="border-l-4 border-l-emerald-500 shadow-sm">
+            <CardContent className="p-5">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">355</div>
-                <p className="text-xs text-slate-500 mt-1">Total Candidates</p>
+                <div className="text-4xl font-black text-slate-900">{currentCenterData.attendanceMarked}</div>
+                <p className="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-wider">Gate Entry Passed</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
+          <Card className="border-l-4 border-l-purple-500 shadow-sm">
+            <CardContent className="p-5">
               <div className="text-center">
-                <div className="text-3xl font-bold text-emerald-600">335</div>
-                <p className="text-xs text-slate-500 mt-1">Gate Entry Passed</p>
+                <div className="text-4xl font-black text-slate-900">{currentCenterData.enrollmentComplete}</div>
+                <p className="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-wider">Enrolled (Round 2)</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">284</div>
-                <p className="text-xs text-slate-500 mt-1">Enrolled (Round 2)</p>
+          <Card className={cn("border-l-4 shadow-sm", currentCenterData.syncStatus === 'synced' ? 'border-l-emerald-500' : 'border-l-orange-500')}>
+            <CardContent className="p-5 flex flex-col items-center justify-center h-full">
+              <div className="flex items-center gap-2 mb-1">
+                {currentCenterData.syncStatus === 'synced' ? (
+                  <Wifi className="w-8 h-8 text-emerald-500" />
+                ) : (
+                  <Clock className="w-8 h-8 text-orange-500 animate-spin" />
+                )}
               </div>
+              <p className="text-sm font-semibold text-slate-700 capitalize mt-1">
+                {currentCenterData.syncStatus === 'synced' ? 'System Synced' : 'Sync in Progress'}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Last: {currentCenterData.lastSync}</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">Exam Centres Status</h2>
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50">
-                      <TableHead className="text-xs font-semibold">Centre</TableHead>
-                      <TableHead className="text-xs font-semibold">Location</TableHead>
-                      <TableHead className="text-xs font-semibold text-center">Operators</TableHead>
-                      <TableHead className="text-xs font-semibold text-center">Candidates</TableHead>
-                      <TableHead className="text-xs font-semibold text-center">Gate Entry %</TableHead>
-                      <TableHead className="text-xs font-semibold text-center">Enrolled %</TableHead>
-                      <TableHead className="text-xs font-semibold">Sync Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {centres.map((centre) => {
-                      const gateEntryPct = Math.round((centre.attendanceMarked / centre.totalCandidates) * 100);
-                      const enrollmentPct = Math.round((centre.enrollmentComplete / centre.totalCandidates) * 100);
-                      
-                      return (
-                        <TableRow key={centre.id} className="hover:bg-slate-50 border-b border-slate-100">
-                          <TableCell className="font-semibold text-slate-900">{centre.name}</TableCell>
-                          <TableCell className="text-sm text-slate-600">{centre.location}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="text-xs">
-                              {centre.activeOperators}/{centre.totalOperators}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center text-sm font-medium">{centre.totalCandidates}</TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-blue-500 transition-all" 
-                                  style={{width: `${gateEntryPct}%`}}
-                                ></div>
-                              </div>
-                              <span className="text-xs font-medium w-8 text-right">{gateEntryPct}%</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-emerald-500 transition-all" 
-                                  style={{width: `${enrollmentPct}%`}}
-                                ></div>
-                              </div>
-                              <span className="text-xs font-medium w-8 text-right">{enrollmentPct}%</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {centre.syncStatus === "synced" ? (
-                                <>
-                                  <Wifi className="w-4 h-4 text-emerald-600" />
-                                  <span className="text-xs text-emerald-600 font-medium">Synced</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="w-4 h-4 text-orange-600 animate-spin" />
-                                  <span className="text-xs text-orange-600 font-medium">Syncing</span>
-                                </>
-                              )}
-                            </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Center Operators Activity</h2>
+              <Badge variant="outline" className="bg-white">{filteredOperators.length} Assigned</Badge>
+            </div>
+            <Card className="shadow-sm border-slate-200">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/80">
+                        <TableHead className="font-semibold text-slate-700">Operator</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Status</TableHead>
+                        <TableHead className="font-semibold text-slate-700 text-center">Gate Entry</TableHead>
+                        <TableHead className="font-semibold text-slate-700 text-center">Enrollment</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredOperators.length > 0 ? (
+                        filteredOperators.map((op) => (
+                          <TableRow key={op.id} className="hover:bg-slate-50 border-b border-slate-100">
+                            <TableCell>
+                              <div className="font-medium text-slate-900">{op.name}</div>
+                              <div className="font-mono text-xs text-slate-500 mt-0.5">{op.id}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn(
+                                "text-xs",
+                                op.status === "active" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"
+                              )}>
+                                {op.status === "active" ? "Active" : "Idle"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-blue-600">{op.attendanceCount}</TableCell>
+                            <TableCell className="text-center font-bold text-emerald-600">{op.enrollmentCount}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8 text-slate-500">
+                            No operators assigned to this center.
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">Operators Activity</h2>
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50">
-                      <TableHead className="text-xs font-semibold">Operator ID</TableHead>
-                      <TableHead className="text-xs font-semibold">Name</TableHead>
-                      <TableHead className="text-xs font-semibold">Centre</TableHead>
-                      <TableHead className="text-xs font-semibold">Mobile</TableHead>
-                      <TableHead className="text-xs font-semibold">Status</TableHead>
-                      <TableHead className="text-xs font-semibold text-center">Gate Entry</TableHead>
-                      <TableHead className="text-xs font-semibold text-center">Enrollment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {operators.map((op) => (
-                      <TableRow key={op.id} className="hover:bg-slate-50 border-b border-slate-100">
-                        <TableCell className="font-mono text-xs text-slate-600">{op.id}</TableCell>
-                        <TableCell className="font-medium text-slate-900">{op.name}</TableCell>
-                        <TableCell className="text-sm text-slate-600">{op.centre}</TableCell>
-                        <TableCell className="font-mono text-xs text-slate-500">{op.mobile}</TableCell>
-                        <TableCell>
-                          <Badge className={cn(
-                            "text-xs",
-                            op.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                          )}>
-                            {op.status === "active" ? "Active" : "Idle"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center font-medium text-blue-600">{op.attendanceCount}</TableCell>
-                        <TableCell className="text-center font-medium text-emerald-600">{op.enrollmentCount}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-slate-900">Progress Overview</h2>
+            <Card className="shadow-sm border-slate-200 h-[calc(100%-2rem)]">
+              <CardContent className="p-6 space-y-8">
+                <div>
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="font-semibold text-slate-700">Gate Entry Progress</span>
+                    <span className="text-2xl font-bold text-blue-600">
+                      {Math.round((currentCenterData.attendanceMarked / currentCenterData.totalCandidates) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 transition-all rounded-full" 
+                      style={{width: `${Math.round((currentCenterData.attendanceMarked / currentCenterData.totalCandidates) * 100)}%`}}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2 text-right">
+                    {currentCenterData.attendanceMarked} of {currentCenterData.totalCandidates} candidates
+                  </p>
+                </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Cloud className="w-4 h-4" /> Data Sync Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-600">Total Records Synced:</span>
-                <span className="font-bold">2,847</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Pending Sync:</span>
-                <span className="font-bold text-orange-600">23</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Failed (Retry):</span>
-                <span className="font-bold text-destructive">2</span>
-              </div>
-              <Button className="w-full mt-3" size="sm">Force Sync All Centres</Button>
-            </CardContent>
-          </Card>
+                <div>
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="font-semibold text-slate-700">Biometric Enrollment</span>
+                    <span className="text-2xl font-bold text-emerald-600">
+                      {Math.round((currentCenterData.enrollmentComplete / currentCenterData.totalCandidates) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-500 transition-all rounded-full" 
+                      style={{width: `${Math.round((currentCenterData.enrollmentComplete / currentCenterData.totalCandidates) * 100)}%`}}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2 text-right">
+                    {currentCenterData.enrollmentComplete} of {currentCenterData.totalCandidates} candidates
+                  </p>
+                </div>
 
-          <Card className="border-l-4 border-l-purple-500">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">System Health</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-600">API Response Time:</span>
-                <span className="font-bold text-emerald-600">124ms</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Database Status:</span>
-                <Badge variant="outline" className="bg-emerald-50">Online</Badge>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Last Health Check:</span>
-                <span className="text-xs text-slate-500">30s ago</span>
-              </div>
-              <Button className="w-full mt-3" size="sm" variant="outline">View Logs</Button>
-            </CardContent>
-          </Card>
+                <div className="pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <Cloud className="w-4 h-4" /> Local System Status
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
+                      <span className="text-slate-600">Network Connection:</span>
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Online</Badge>
+                    </div>
+                    <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
+                      <span className="text-slate-600">Pending Sync Records:</span>
+                      <span className="font-bold text-slate-900">0</span>
+                    </div>
+                  </div>
+                  <Button className="w-full mt-4" variant="outline">Run Diagnostics</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
