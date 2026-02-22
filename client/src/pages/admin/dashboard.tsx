@@ -1,95 +1,172 @@
-import React, { useState } from "react";
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, CalendarDays, Users, Building, Users2, Clock, MapPin, XCircle, CheckCircle, AlertTriangle, CloudRain } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Users, UserCheck, Clock, AlertCircle, Building2, Smartphone, TrendingUp } from "lucide-react";
 
 export default function Dashboard() {
-  const [selectedExam, setSelectedExam] = useState("all");
-  
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+    <div className="space-y-6 animate-in fade-in duration-500 font-sans">
+      <div>
+        <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Dashboard</h1>
+        <p className="text-gray-500 text-[15px]">Overview of all exams</p>
       </div>
 
-      <Card className="border-t-4 border-t-[#1a56db] shadow-sm">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase">Select Date</label>
-              <Input type="date" className="h-9" defaultValue="2025-02-22" />
+      {/* Top Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Candidates */}
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-5 flex justify-between">
+            <div className="flex flex-col justify-between">
+              <span className="text-[15px] font-medium text-gray-500">Total Candidates</span>
+              <span className="text-3xl font-bold text-gray-900 mt-2">15,420</span>
             </div>
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase">Select Exam</label>
-              <Select value={selectedExam} onValueChange={setSelectedExam}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select Exam" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">--Select Exam--</SelectItem>
-                  <SelectItem value="exam1">UPSC Civil Services</SelectItem>
-                  <SelectItem value="exam2">State Entrance Test</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <Users className="w-6 h-6" />
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {/* Stat Cards matching Image 1 & Image 3 */}
-        <StatCard title="Total Exams" value="15" icon={<FileText className="w-8 h-8 opacity-20" />} color="bg-[#4e73df]" />
-        <StatCard title="Today Exams" value="5" icon={<CalendarDays className="w-8 h-8 opacity-20" />} color="bg-[#1cc88a]" />
-        <StatCard title="Total Candidates" value="200" icon={<Users className="w-8 h-8 opacity-20" />} color="bg-[#36b9cc]" />
-        <StatCard title="Total Centers" value="100" icon={<Building className="w-8 h-8 opacity-20" />} color="bg-[#f6c23e]" />
-        
-        <StatCard title="Present Candidate" value="50" icon={<Users2 className="w-8 h-8 opacity-20" />} color="bg-[#e74a3b]" />
-        <StatCard title="Pending Candidates" value="50" icon={<Clock className="w-8 h-8 opacity-20" />} color="bg-[#858796]" />
-        <StatCard title="Absent Candidates" value="100" icon={<XCircle className="w-8 h-8 opacity-20" />} color="bg-[#5a5c69]" />
-        
-        <StatCard title="Verified Candidates" value="50" icon={<CheckCircle className="w-8 h-8 opacity-20" />} color="bg-[#2e59d9]" />
-        <StatCard title="Un-Verified Candidates" value="150" icon={<XCircle className="w-8 h-8 opacity-20" />} color="bg-[#17a673]" />
-        
-        <StatCard title="Biometric Exceptions" value="0" icon={<AlertTriangle className="w-8 h-8 opacity-20" />} color="bg-[#2c9faf]" />
-        <StatCard title="Sync Percentage" value="0%" icon={<CloudRain className="w-8 h-8 opacity-20" />} color="bg-[#f4b619]" />
+        {/* Verified */}
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-5">
+            <div className="flex justify-between items-start">
+              <div className="flex flex-col">
+                <span className="text-[15px] font-medium text-gray-500">Verified</span>
+                <span className="text-3xl font-bold text-gray-900 mt-2">12,350</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
+                <UserCheck className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="mt-3 text-sm">
+              <span className="text-gray-500">80% complete</span><br/>
+              <span className="text-green-600 font-medium">+12.5%</span> <span className="text-gray-500">vs last hour</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pending */}
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-5 flex justify-between items-start">
+            <div className="flex flex-col">
+              <span className="text-[15px] font-medium text-gray-500">Pending</span>
+              <span className="text-3xl font-bold text-gray-900 mt-2">2,070</span>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-yellow-50 flex items-center justify-center text-yellow-600">
+              <Clock className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Not Verified */}
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-5 flex justify-between items-start">
+            <div className="flex flex-col">
+              <span className="text-[15px] font-medium text-gray-500">Not Verified</span>
+              <span className="text-3xl font-bold text-gray-900 mt-2">1,000</span>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <Card className="shadow-sm">
-          <div className="bg-slate-50 p-3 border-b border-slate-200">
-            <h3 className="font-semibold text-slate-700">Exam Wise Candidates</h3>
-          </div>
-          <CardContent className="p-6 flex justify-center items-center h-64 text-slate-400">
-            [Chart Area: Exam Wise Candidates]
+      {/* Mini Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="shadow-sm border-none bg-[#f0f7ff] rounded-xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-100/50 flex items-center justify-center text-blue-600">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-blue-800">Active Centres</div>
+              <div className="text-xl font-bold text-gray-900">6/8</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-none bg-[#f0fdf4] rounded-xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-100/50 flex items-center justify-center text-green-600">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-green-800">Active Operators</div>
+              <div className="text-xl font-bold text-gray-900">5/6</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-none bg-[#faf5ff] rounded-xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-purple-100/50 flex items-center justify-center text-purple-600">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-purple-800">Synced Devices</div>
+              <div className="text-xl font-bold text-gray-900">5/6</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-none bg-[#fffbeb] rounded-xl">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-yellow-100/50 flex items-center justify-center text-yellow-600">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-yellow-800">Present Today</div>
+              <div className="text-xl font-bold text-gray-900">14,200</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="shadow-sm border-gray-100 rounded-xl lg:col-span-2">
+          <CardContent className="p-6">
+            <h3 className="font-semibold text-gray-900 mb-6 text-lg">Centre-wise Verification Status</h3>
+            {/* Mock Bar Chart */}
+            <div className="h-64 flex items-end justify-around gap-2 px-4 border-l border-b border-gray-100 pb-2 relative">
+              {/* Y Axis labels */}
+              <div className="absolute left-[-35px] top-0 bottom-0 flex flex-col justify-between text-xs text-gray-400 py-2">
+                <span>2800</span>
+                <span>2100</span>
+                <span>1400</span>
+                <span>700</span>
+              </div>
+              {/* Grid lines */}
+              <div className="absolute inset-0 border-t border-gray-50 border-dashed top-[25%]" />
+              <div className="absolute inset-0 border-t border-gray-50 border-dashed top-[50%]" />
+              <div className="absolute inset-0 border-t border-gray-50 border-dashed top-[75%]" />
+              
+              {/* Bars */}
+              <div className="w-10 bg-green-500 rounded-t-sm h-[75%] relative z-10 mx-2" />
+              <div className="w-10 bg-green-500 rounded-t-sm h-[60%] relative z-10 mx-2" />
+              <div className="w-10 bg-green-500 rounded-t-sm h-[85%] relative z-10 mx-2" />
+              <div className="w-10 bg-green-500 rounded-t-sm h-[95%] relative z-10 mx-2" />
+              <div className="w-10 bg-green-500 rounded-t-sm h-[55%] relative z-10 mx-2" />
+              <div className="w-10 bg-green-500 rounded-t-sm h-[40%] relative z-10 mx-2" />
+            </div>
           </CardContent>
         </Card>
         
-        <Card className="shadow-sm">
-          <div className="bg-slate-50 p-3 border-b border-slate-200">
-            <h3 className="font-semibold text-slate-700">Exam Wise Verifications</h3>
-          </div>
-          <CardContent className="p-6 flex justify-center items-center h-64 text-slate-400">
-            [Chart Area: Exam Wise Verifications]
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-6">
+            <h3 className="font-semibold text-gray-900 mb-6 text-lg">Verification Status</h3>
+            {/* Mock Donut Chart */}
+            <div className="flex justify-center items-center h-64">
+              <div className="relative w-48 h-48">
+                <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                  <circle cx="50" cy="50" r="40" fill="transparent" stroke="#fef08a" strokeWidth="15" strokeDasharray="251.2" strokeDashoffset="220" />
+                  <circle cx="50" cy="50" r="40" fill="transparent" stroke="#ef4444" strokeWidth="15" strokeDasharray="251.2" strokeDashoffset="230" className="origin-center rotate-[45deg]" />
+                  <circle cx="50" cy="50" r="40" fill="transparent" stroke="#22c55e" strokeWidth="15" strokeDasharray="251.2" strokeDashoffset="50" className="origin-center rotate-[90deg]" />
+                </svg>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ title, value, icon, color }: { title: string, value: string, icon: React.ReactNode, color: string }) {
-  return (
-    <div className={`${color} rounded-lg shadow-sm text-white overflow-hidden relative group hover:shadow-md transition-shadow`}>
-      <div className="p-4 flex flex-col h-full z-10 relative">
-        <div className="text-3xl font-bold mb-1">{value}</div>
-        <div className="text-sm font-medium opacity-90">{title}</div>
-      </div>
-      <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 transform scale-150 text-black">
-        {icon}
-      </div>
-      <div className="bg-black/10 py-1.5 px-4 text-xs font-semibold flex items-center justify-between cursor-pointer hover:bg-black/20 transition-colors">
-        More info <span className="text-[10px]">▶</span>
       </div>
     </div>
   );
