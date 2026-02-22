@@ -24,13 +24,23 @@ export default function AdminLogin() {
       if (username === "demo" && password === "demo") {
         login({
           id: "HQ-ADMIN-01",
-          name: "System Administrator",
+          name: "Demo Admin",
           mobile: "N/A",
           aadhaar: "N/A",
           photoUrl: "https://github.com/shadcn.png",
           role: "ADMIN"
         });
         setLocation("/admin-panel");
+      } else if (username === "upsc_client" && password === "upsc@123") {
+        login({
+          id: "CLIENT-01",
+          name: "UPSC Client",
+          mobile: "N/A",
+          aadhaar: "N/A",
+          photoUrl: "https://github.com/shadcn.png",
+          role: "CLIENT"
+        });
+        setLocation("/client-dashboard");
       } else {
         setError("Invalid credentials");
       }
@@ -118,6 +128,10 @@ export default function AdminLogin() {
             <div className="flex justify-between p-2 bg-gray-50 rounded">
               <span className="text-gray-600">Admin:</span>
               <span className="font-mono text-gray-900 font-semibold">demo / demo</span>
+            </div>
+            <div className="flex justify-between p-2 bg-gray-50 rounded">
+              <span className="text-gray-600">Client:</span>
+              <span className="font-mono text-gray-900 font-semibold">upsc_client / upsc@123</span>
             </div>
           </div>
         </div>
