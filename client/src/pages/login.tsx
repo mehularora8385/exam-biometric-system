@@ -1,11 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
-import { Shield, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { User, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -14,6 +10,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +21,7 @@ export default function AdminLogin() {
       // Mock login validation
       await new Promise(r => setTimeout(r, 1000));
       
-      if (username === "admin" && password === "admin123") {
+      if (username === "demo" && password === "demo") {
         login({
           id: "HQ-ADMIN-01",
           name: "System Administrator",
@@ -35,7 +32,7 @@ export default function AdminLogin() {
         });
         setLocation("/admin-panel");
       } else {
-        setError("Invalid admin credentials");
+        setError("Invalid credentials");
       }
     } finally {
       setLoading(false);
@@ -43,67 +40,88 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-      <Card className="w-full max-w-md shadow-2xl border-slate-700 bg-slate-800 text-slate-100">
-        <CardHeader className="text-center space-y-4 pt-8">
-          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-2 shadow-lg shadow-blue-900/50">
-            <Shield className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans antialiased">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          {/* We'll use a placeholder structure for the logo if the image isn't available, but try to load it first */}
+          <div className="mx-auto mb-4 flex items-center justify-center h-24 w-full">
+            <div className="text-4xl font-extrabold text-blue-600 tracking-tighter flex items-center gap-2">
+              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                 <span className="text-white">M</span>
+              </div>
+              MPA
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-2xl font-bold text-white tracking-tight">HQ Control Panel</CardTitle>
-            <CardDescription className="text-slate-400 mt-2">
-              Secure Administrative Access
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Admin Username</label>
-              <Input 
+          <h1 className="text-2xl font-bold text-gray-900">MPA VERIFICATION SYSTEM</h1>
+          <p className="text-gray-500 mt-1">Sign in to your account</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div className="w-full text-left">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                <User className="w-4 h-4" />
+              </div>
+              <input 
                 type="text" 
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-blue-500" 
-                placeholder="Enter username" 
+                className="w-full px-3 py-2 border rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed border-gray-300 pl-10"
+                disabled={loading}
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Secure Password</label>
-              <Input 
-                type="password" 
+          </div>
+
+          <div className="w-full text-left">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                <Lock className="w-4 h-4" />
+              </div>
+              <input 
+                type={showPassword ? "text" : "password"} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-blue-500" 
-                placeholder="Enter password" 
+                className="w-full px-3 py-2 border rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed border-gray-300 pl-10 pr-10"
+                disabled={loading}
               />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 focus:outline-none hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+          </div>
 
-            {error && (
-              <div className="p-3 bg-red-900/50 border border-red-800 text-red-200 text-sm rounded-md text-center">
-                {error}
-              </div>
-            )}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg text-center">
+              {error}
+            </div>
+          )}
 
-            <Button 
-              type="submit" 
-              className="w-full h-12 text-base mt-6 bg-blue-600 hover:bg-blue-700 text-white shadow-lg" 
-              disabled={loading || !username || !password}
-            >
-              {loading ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Authenticating...</>
-              ) : (
-                "Access Control Panel"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="bg-slate-900/50 border-t border-slate-800 p-4 justify-center">
-          <p className="text-xs text-slate-500">
-            For demonstration: Use <span className="font-mono text-blue-400">admin</span> / <span className="font-mono text-blue-400">admin123</span>
-          </p>
-        </CardFooter>
-      </Card>
+          <button 
+            type="submit" 
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 px-6 py-3 text-base gap-2 w-full mt-2"
+            disabled={loading || !username || !password}
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+            Sign In
+          </button>
+        </form>
+
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <p className="text-sm text-gray-500 text-center mb-3">Demo Credentials</p>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between p-2 bg-gray-50 rounded">
+              <span className="text-gray-600">Admin:</span>
+              <span className="font-mono text-gray-900 font-semibold">demo / demo</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
