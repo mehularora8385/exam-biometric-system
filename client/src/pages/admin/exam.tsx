@@ -9,7 +9,7 @@ import { Plus, Search, MoreVertical, Key, User, Clock, Trash2, Edit, UploadCloud
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
 
-export default function ExamMaster() {
+export default function ExamMaster({ setActivePage }: { setActivePage?: (page: string) => void }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(1);
   const [, setLocation] = useLocation();
@@ -356,7 +356,9 @@ export default function ExamMaster() {
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 cursor-pointer rounded-lg hover:bg-gray-50 focus:bg-gray-50 mb-1"
-                        onClick={() => setLocation("/admin-panel/upload-candidate")}
+                        onClick={() => {
+                          if (setActivePage) setActivePage("upload-candidate");
+                        }}
                       >
                         <UploadCloud className="w-4 h-4" /> Upload Candidates
                       </DropdownMenuItem>

@@ -22,7 +22,7 @@ export default function AdminPanel() {
       case "dashboard": return <Dashboard />;
       case "department": return <DepartmentMaster />;
       case "designation": return <DesignationMaster />;
-      case "exam": return <ExamMaster />;
+      case "exam": return <ExamMaster setActivePage={setActivePage} />;
       case "slot": return <SlotMaster />;
       case "center": return <CenterMaster />;
       case "operator": return <OperatorMaster />;
