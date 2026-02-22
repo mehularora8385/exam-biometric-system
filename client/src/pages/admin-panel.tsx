@@ -1,18 +1,18 @@
 import React, { useState } from "react";
-import AdminLayout from "./admin/layout";
-import Dashboard from "./admin/dashboard";
-import DepartmentMaster from "./admin/department";
-import DesignationMaster from "./admin/designation";
-import ExamMaster from "./admin/exam";
-import SlotMaster from "./admin/slot";
-import CenterMaster from "./admin/center";
-import OperatorMaster from "./admin/operator";
-import CenterOperatorMap from "./admin/center-operator-map";
-import UploadCandidate from "./admin/upload-candidate";
-import Reports from "./admin/reports";
-import UploadInstruction from "./admin/upload-instruction";
-import OmrSetup from "./admin/omr-setup";
-import DeviceMapping from "./admin/device-mapping";
+import AdminLayout from "@/pages/admin/layout";
+import Dashboard from "@/pages/admin/dashboard";
+import DepartmentMaster from "@/pages/admin/department";
+import DesignationMaster from "@/pages/admin/designation";
+import ExamMaster from "@/pages/admin/exam";
+import SlotMaster from "@/pages/admin/slot";
+import CenterMaster from "@/pages/admin/center";
+import OperatorMaster from "@/pages/admin/operator";
+import CenterOperatorMap from "@/pages/admin/center-operator-map";
+import UploadCandidate from "@/pages/admin/upload-candidate";
+import Reports from "@/pages/admin/reports";
+import UploadInstruction from "@/pages/admin/upload-instruction";
+import OmrSetup from "@/pages/admin/omr-setup";
+import DeviceMapping from "@/pages/admin/device-mapping";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
