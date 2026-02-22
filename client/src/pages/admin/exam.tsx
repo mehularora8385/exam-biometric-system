@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, MoreVertical, Key, User, Clock, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Search, MoreVertical, Key, User, Clock, Trash2, Edit, UploadCloud, SquareSquare } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Link, useLocation } from "wouter";
 
 export default function ExamMaster() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(1);
+  const [, setLocation] = useLocation();
 
   // Mock data for exams
   const exams = [
@@ -341,9 +344,32 @@ export default function ExamMaster() {
                       <p className="text-xs text-gray-500 font-mono mt-0.5">{exam.code}</p>
                     </div>
                   </div>
-                  <button className="text-gray-400 hover:text-gray-600 p-1">
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-lg border-gray-100">
+                      <DropdownMenuItem className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 cursor-pointer rounded-lg hover:bg-gray-50 focus:bg-gray-50 mb-1">
+                        <Edit className="w-4 h-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 cursor-pointer rounded-lg hover:bg-gray-50 focus:bg-gray-50 mb-1"
+                        onClick={() => setLocation("/admin-panel/upload-candidate")}
+                      >
+                        <UploadCloud className="w-4 h-4" /> Upload Candidates
+                      </DropdownMenuItem>
+                      <div className="h-px bg-gray-100 my-1 mx-2" />
+                      <DropdownMenuItem className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600 mb-1">
+                        <SquareSquare className="w-4 h-4" /> Stop Exam
+                      </DropdownMenuItem>
+                      <div className="h-px bg-gray-100 my-1 mx-2" />
+                      <DropdownMenuItem className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600">
+                        <Trash2 className="w-4 h-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 <div className="space-y-3 text-sm">
