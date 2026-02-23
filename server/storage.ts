@@ -77,6 +77,7 @@ export interface IStorage {
 
   listApkBuilds(examId?: number): Promise<ApkBuild[]>;
   createApkBuild(build: InsertApkBuild): Promise<ApkBuild>;
+  updateApkBuild(id: number, data: Partial<InsertApkBuild>): Promise<ApkBuild | undefined>;
 
   listAuditLogs(): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -322,6 +323,11 @@ export class DatabaseStorage implements IStorage {
   async createApkBuild(build: InsertApkBuild): Promise<ApkBuild> {
     const [created] = await db.insert(apkBuilds).values(build).returning();
     return created;
+  }
+
+  async updateApkBuild(id: number, data: Partial<InsertApkBuild>): Promise<ApkBuild | undefined> {
+    const [updated] = await db.update(apkBuilds).set(data).where(eq(apkBuilds.id, id)).returning();
+    return updated;
   }
 
   async listAuditLogs(): Promise<AuditLog[]> {

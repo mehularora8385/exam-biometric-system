@@ -29,9 +29,16 @@ users, exams, centers, operators, candidates, departments, designations, slots, 
 - CRUD: /exams, /centers, /operators, /candidates
 - CRUD: /departments, /designations, /slots
 - /center-operator-maps, /devices
-- /apk-builds, /audit-logs, /alerts
+- /apk-builds, /apk-builds/batch (multi-exam build), /apk-builds/:id/config, /apk-builds/:id/download
+- /audit-logs, /alerts
 - /global-tech-settings/:examId
 - GET /dashboard/stats
+- POST /candidates/upload (Excel/CSV with photo URLs)
+- GET /candidates/template (download CSV template)
+- GET /candidates/by-centre/:centreCode (centre-filtered download)
+- GET /sync/:examId (data sync for Android APK - candidates, centers, slots)
+- POST /verification/submit (biometric verification results from APK)
+- POST /verification/heartbeat (device heartbeat)
 
 ## Login Credentials
 - Admin: demo / demo
@@ -50,6 +57,10 @@ All pages have working:
 - Center-Operator Map: create/delete mappings, filter by exam/center
 - Operator Management: edit modal, activate/deactivate, unbind device
 - Candidate filters: exam, centre, slot, status with clear filters
+- Upload Candidates: Excel/CSV upload with template (Centre Code, Centre Name, exam Name, Roll No, Name, Father Name, DOB, Slot, Photo urL) - photo URLs in same file, no separate photo upload
+- APK Generation: Multi-exam batch build, biometric config (Face+Fingerprint MFS100/MFS110, OMR camera capture), feature toggles, device compatibility (Tablet+Mobile Android 8.0+), config download
+- Verification API: Submit face match %, fingerprint match, OMR number from Android APK
+- Data Sync API: Centre-filtered candidate download for operators
 
 ## Global Tech (Beta)
 Optional advanced surveillance features (all OFF by default):

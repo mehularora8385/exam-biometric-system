@@ -121,9 +121,17 @@ export const apkBuilds = pgTable("apk_builds", {
   version: text("version").notNull(),
   description: text("description"),
   examId: integer("exam_id"),
+  examName: text("exam_name"),
   date: text("date").notNull(),
   status: text("status").notNull().default("Ready"),
   features: jsonb("features"),
+  platform: text("platform").notNull().default("Android"),
+  deviceTypes: text("device_types").notNull().default("Tablet,Mobile"),
+  minAndroidVersion: text("min_android_version").notNull().default("8.0"),
+  buildSize: text("build_size"),
+  buildProgress: integer("build_progress").default(0),
+  configJson: jsonb("config_json"),
+  downloadUrl: text("download_url"),
 });
 
 export const auditLogs = pgTable("audit_logs", {

@@ -103,6 +103,9 @@ export const api = {
   apkBuilds: {
     list: (examId?: number) => request<any[]>(`/apk-builds${examId ? `?examId=${examId}` : ""}`),
     create: (data: any) => request<any>("/apk-builds", { method: "POST", body: JSON.stringify(data) }),
+    batchCreate: (examIds: number[], features: any) => request<any>("/apk-builds/batch", { method: "POST", body: JSON.stringify({ examIds, features }) }),
+    downloadConfig: (id: number) => { window.open(`${API_BASE}/apk-builds/${id}/config`, "_blank"); },
+    downloadApk: (id: number) => { window.open(`${API_BASE}/apk-builds/${id}/download`, "_blank"); },
   },
   auditLogs: {
     list: () => request<any[]>("/audit-logs"),

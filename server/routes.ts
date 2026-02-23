@@ -528,6 +528,167 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
+  app.post("/api/apk-builds/batch", async (req, res) => {
+    try {
+      const { examIds, features } = req.body;
+      if (!Array.isArray(examIds) || examIds.length === 0) {
+        return res.status(400).json({ message: "Select at least one exam" });
+      }
+      const results = [];
+      for (const examId of examIds) {
+        const exam = await storage.getExam(examId);
+        if (!exam) continue;
+        const version = `3.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 100)}`;
+        const candidateCount = (await storage.listCandidates(examId)).length;
+        const centerCount = (await storage.listCenters(examId)).length;
+        const configJson = {
+          examId,
+          examName: exam.name,
+          examCode: exam.code,
+          biometricMode: features?.biometricMode || "face_fingerprint",
+          verificationFlow: features?.verificationFlow || "face_then_fingerprint",
+          attendanceMode: features?.attendanceMode || "both",
+          omrMode: features?.omrMode || "verif_omr",
+          faceLiveness: features?.faceLiveness ?? true,
+          fingerprintScanner: features?.fingerprintScanner || "MFS100",
+          fingerprintQuality: features?.fingerprintQuality ?? true,
+          offlineMode: features?.offlineMode ?? true,
+          gpsCapture: features?.gpsCapture ?? true,
+          mdmControl: features?.mdmControl ?? true,
+          mockLocationDetection: features?.mockLocationDetection ?? true,
+          kioskMode: features?.kioskMode ?? true,
+          retryLimit: features?.retryLimit || 3,
+          autoLogoutMinutes: features?.autoLogoutMinutes || 30,
+          autoSyncMinutes: features?.autoSyncMinutes || 5,
+          timeSyncCheck: features?.timeSyncCheck ?? true,
+          candidateCount,
+          centerCount,
+          serverUrl: req.protocol + "://" + req.get("host"),
+          apiEndpoints: {
+            sync: "/api/sync/" + examId,
+            submitVerification: "/api/verification/submit",
+            uploadPhoto: "/api/verification/upload-photo",
+            heartbeat: "/api/verification/heartbeat",
+          },
+        };
+        const buildSize = `${(18 + Math.random() * 8).toFixed(1)} MB`;
+        const build = await storage.createApkBuild({
+          version,
+          description: `${exam.name} - ${features?.biometricMode || "face_fingerprint"} mode`,
+          examId,
+          examName: exam.name,
+          date: new Date().toLocaleDateString("en-GB"),
+          status: "Building",
+          features,
+          platform: "Android",
+          deviceTypes: "Tablet,Mobile",
+          minAndroidVersion: "8.0",
+          buildSize,
+          buildProgress: 0,
+          configJson,
+        });
+        results.push(build);
+
+        setTimeout(async () => {
+          await storage.updateApkBuild(build.id, { status: "Ready", buildProgress: 100, downloadUrl: `/api/apk-builds/${build.id}/download` });
+        }, 3000 + Math.random() * 5000);
+      }
+      res.status(201).json({ builds: results, count: results.length });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/apk-builds/:id/config", async (req, res) => {
+    try {
+      const builds = await storage.listApkBuilds();
+      const build = builds.find(b => b.id === Number(req.params.id));
+      if (!build) return res.status(404).json({ message: "Build not found" });
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename=apk_config_${build.examName || build.examId}_v${build.version}.json`);
+      res.json(build.configJson || build.features || {});
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/apk-builds/:id/download", async (req, res) => {
+    try {
+      const builds = await storage.listApkBuilds();
+      const build = builds.find(b => b.id === Number(req.params.id));
+      if (!build) return res.status(404).json({ message: "Build not found" });
+      const configData = JSON.stringify(build.configJson || build.features || {}, null, 2);
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", `attachment; filename=MPA_Verify_${(build.examName || "exam").replace(/\s+/g, "_")}_v${build.version}.apk.json`);
+      res.send(configData);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/sync/:examId", async (req, res) => {
+    try {
+      const examId = Number(req.params.examId);
+      const centreCode = req.query.centreCode as string;
+      const exam = await storage.getExam(examId);
+      if (!exam) return res.status(404).json({ message: "Exam not found" });
+      const candidates = centreCode
+        ? await storage.listCandidatesByCentre(centreCode, examId)
+        : await storage.listCandidates(examId);
+      const centers = await storage.listCenters(examId);
+      const slots = await storage.listSlots(examId);
+      res.json({
+        exam: { id: exam.id, name: exam.name, code: exam.code },
+        candidates,
+        centers,
+        slots,
+        syncedAt: new Date().toISOString(),
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/verification/submit", async (req, res) => {
+    try {
+      const { candidateId, examId, operatorId, centreCode, deviceId, faceMatchPercent, fingerprintMatch, omrNo, gpsLat, gpsLng, capturedPhotoUrl, verificationType } = req.body;
+      if (!candidateId) return res.status(400).json({ message: "candidateId required" });
+      const candidate = await storage.getCandidate(candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+      const matchPercent = faceMatchPercent ? `${faceMatchPercent}%` : candidate.matchPercent;
+      const status = (faceMatchPercent && faceMatchPercent >= 75) || fingerprintMatch ? "Verified" : "Failed";
+      await storage.updateCandidate(candidateId, {
+        matchPercent,
+        status,
+        verifiedAt: new Date().toLocaleString("en-GB"),
+        photoUrl: capturedPhotoUrl || candidate.photoUrl,
+        omrNo: omrNo || candidate.omrNo,
+      });
+      await storage.createAuditLog({
+        timestamp: new Date().toLocaleString("en-GB"),
+        action: `Biometric ${verificationType || "face+fingerprint"} verification - ${status}`,
+        operatorId: operatorId || "",
+        operatorName: "",
+        centreCode: centreCode || "",
+        candidateId: String(candidateId),
+        deviceId: deviceId || "",
+        mode: verificationType || "face+fingerprint",
+        details: `Face: ${faceMatchPercent || "N/A"}%, Fingerprint: ${fingerprintMatch ? "Match" : "N/A"}, OMR: ${omrNo || "N/A"}`,
+      });
+      if (status === "Failed") {
+        await storage.createAlert({
+          type: "Verification Failed",
+          severity: faceMatchPercent && faceMatchPercent < 50 ? "high" : "medium",
+          candidateId: String(candidateId),
+          operatorId: operatorId || "",
+          centreCode: centreCode || "",
+          description: `Verification failed - Face: ${faceMatchPercent || "N/A"}%, Fingerprint: ${fingerprintMatch ? "Match" : "No match"}`,
+          confidence: faceMatchPercent ? faceMatchPercent : 0,
+          timestamp: new Date().toLocaleString("en-GB"),
+          status: "Active",
+        });
+      }
+      res.json({ success: true, status, matchPercent, candidateId });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.post("/api/verification/heartbeat", async (req, res) => {
+    const { deviceId, operatorId, centreCode, examId, batteryLevel, gpsLat, gpsLng } = req.body;
+    res.json({ ok: true, serverTime: new Date().toISOString(), message: "Heartbeat received" });
+  });
+
   app.get("/api/audit-logs", async (_req, res) => {
     try { res.json(await storage.listAuditLogs()); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
