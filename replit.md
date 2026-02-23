@@ -73,7 +73,9 @@ All pages have working:
 - Liveness Detection: MediaPipe FaceMesh v0.8.11 (blink detection, head turn, depth estimation)
 - Anti-Spoofing: Print attack, screen replay, 3D mask detection (anti_spoof_v3.tflite model)
 - Capture: Front camera 1280x720, auto-focus, lighting check (min 100 lux)
-- Match Threshold: ≥75% verified, 50-75% suspicious, <50% rejected
+- Match Threshold: Configurable (60-95%), default ≥75% verified, 50-75% suspicious, <50% rejected
+- FAR/FRR Tuning: FAR 0.01% (configurable 0.001-1.0%), FRR 1.0% (configurable 0.1-5.0%), EER 0.15%
+- Camera: Front cam 720p (operator login selfie), Back cam 1080p (candidate face verification + OMR)
 
 ### Fingerprint SDK (MFS100/MFS110)
 - SDK: Mantra RD Service v2.0 (MFS100) / v2.1 (MFS110)
@@ -83,6 +85,18 @@ All pages have working:
 - Matching: Minutiae-based ISO 19795-1, template format ISO/IEC 19794-2
 - Quality: NFIQ 2.0 scoring, min score ≥ 3 required, auto-retry on low quality
 - RD Service: dpId MANTRA.AND.001, PID v2.0, Intent: in.gov.uidai.rdservice.fp.CAPTURE
+
+### Retry & Fallback Flow
+- Face retries: configurable (default 3), auto lighting adjustment, capture new photo on retry
+- Fingerprint retries: configurable (default 3), sensor clean prompt, alternate finger on fail
+- Overall limit: configurable (default 10), fallback sequence: retry → alternate biometric → supervisor override
+- Supervisor Override: requires 6-digit PIN + reason selection + selfie, max 5 overrides per session, fully audit logged
+
+### Offline Encrypted Template Storage
+- Encryption: AES-256-GCM, PBKDF2-HMAC-SHA256 key derivation (100K iterations)
+- Device Binding: IMEI + Android ID + Hardware Serial + MAC Address, SHA-256 binding hash
+- Security: Root detection, tamper detection, debug mode blocked, auto-wipe after 72hr or on tamper
+- Data at Rest: All candidate photos, fingerprint templates, audit logs, sync queue encrypted
 
 ## Global Tech (Beta)
 Optional advanced surveillance features (all OFF by default):

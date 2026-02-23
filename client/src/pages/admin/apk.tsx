@@ -34,6 +34,14 @@ export default function GenerateAPK() {
   const [mockLocationDetection, setMockLocationDetection] = useState(true);
   const [kioskMode, setKioskMode] = useState(true);
   const [retryLimit, setRetryLimit] = useState("3");
+  const [faceMatchThreshold, setFaceMatchThreshold] = useState("75");
+  const [farRate, setFarRate] = useState("0.01");
+  const [frrRate, setFrrRate] = useState("1.0");
+  const [faceRetryLimit, setFaceRetryLimit] = useState("3");
+  const [fpRetryLimit, setFpRetryLimit] = useState("3");
+  const [supervisorOverride, setSupervisorOverride] = useState(true);
+  const [offlineEncryption, setOfflineEncryption] = useState(true);
+  const [deviceBinding, setDeviceBinding] = useState(true);
   const [autoLogout, setAutoLogout] = useState(true);
   const [autoLogoutMinutes, setAutoLogoutMinutes] = useState("30");
   const [autoSync, setAutoSync] = useState(true);
@@ -77,6 +85,14 @@ export default function GenerateAPK() {
       mockLocationDetection,
       kioskMode,
       retryLimit: parseInt(retryLimit),
+      faceMatchThreshold: parseFloat(faceMatchThreshold),
+      farRate: parseFloat(farRate),
+      frrRate: parseFloat(frrRate),
+      faceRetryLimit: parseInt(faceRetryLimit),
+      fpRetryLimit: parseInt(fpRetryLimit),
+      supervisorOverride,
+      offlineEncryption,
+      deviceBinding,
       autoLogoutMinutes: autoLogout ? parseInt(autoLogoutMinutes) : 0,
       autoSyncMinutes: autoSync ? parseInt(autoSyncMinutes) : 0,
       timeSyncCheck,
@@ -400,6 +416,8 @@ export default function GenerateAPK() {
                       <div className="flex justify-between"><span>Embedding</span><span className="font-medium text-gray-800">512 dimensions</span></div>
                       <div className="flex justify-between"><span>Liveness</span><span className="font-medium text-gray-800">MediaPipe FaceMesh</span></div>
                       <div className="flex justify-between"><span>Anti-Spoof</span><span className="font-medium text-gray-800">Print/Screen/3D Mask</span></div>
+                      <div className="flex justify-between"><span>Threshold</span><span className="font-medium text-blue-700">≥{faceMatchThreshold}% match</span></div>
+                      <div className="flex justify-between"><span>FAR / FRR</span><span className="font-medium text-gray-800">{farRate}% / {frrRate}%</span></div>
                       <div className="flex justify-between"><span>Operator Login</span><span className="font-medium text-gray-800">Front cam 720p</span></div>
                       <div className="flex justify-between"><span>Candidate Verify</span><span className="font-medium text-gray-800">Back cam 1080p</span></div>
                     </div>
@@ -416,6 +434,35 @@ export default function GenerateAPK() {
                       <div className="flex justify-between"><span>Template</span><span className="font-medium text-gray-800">ISO/IEC 19794-2</span></div>
                       <div className="flex justify-between"><span>Quality</span><span className="font-medium text-gray-800">NFIQ 2.0 (≥3)</span></div>
                       <div className="flex justify-between"><span>Certified</span><span className="font-medium text-gray-800">FBI PIV, STQC</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mt-3">
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <div className="font-bold text-red-600 mb-1.5 flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Retry Flow</div>
+                    <div className="space-y-0.5 text-gray-600">
+                      <div>Face: {faceRetryLimit} retries</div>
+                      <div>FP: {fpRetryLimit} retries</div>
+                      <div>Total: {retryLimit} max</div>
+                      <div className="text-orange-600 font-medium">Supervisor: {supervisorOverride ? "ON" : "OFF"}</div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <div className="font-bold text-green-600 mb-1.5 flex items-center gap-1"><Lock className="w-3 h-3" /> Encryption</div>
+                    <div className="space-y-0.5 text-gray-600">
+                      <div>AES-256-GCM</div>
+                      <div>PBKDF2 100K rounds</div>
+                      <div>Auto-wipe: 72hr</div>
+                      <div className="text-green-600 font-medium">{offlineEncryption ? "Enabled" : "Disabled"}</div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <div className="font-bold text-indigo-600 mb-1.5 flex items-center gap-1"><Smartphone className="w-3 h-3" /> Device Binding</div>
+                    <div className="space-y-0.5 text-gray-600">
+                      <div>IMEI + HW Serial</div>
+                      <div>Root detection</div>
+                      <div>Tamper alert</div>
+                      <div className="text-indigo-600 font-medium">{deviceBinding ? "Bound" : "Unbound"}</div>
                     </div>
                   </div>
                 </div>
@@ -523,14 +570,85 @@ export default function GenerateAPK() {
                   <Switch checked={kioskMode} onCheckedChange={setKioskMode} />
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-gray-100">
-                  <div className="flex gap-3 items-center">
-                    <RefreshCw className="w-5 h-5 text-gray-500" />
-                    <div className="font-medium text-gray-900 text-sm">Retry Limit</div>
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="font-semibold text-sm text-gray-800 mb-3 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-blue-500" /> Face Match Threshold (FAR/FRR)
                   </div>
-                  <div className="pl-8">
-                    <Input value={retryLimit} onChange={e => setRetryLimit(e.target.value)} className="h-10 rounded-lg border-gray-200 shadow-sm w-full" />
-                    <div className="text-xs text-gray-500 mt-1">Max biometric verification attempts (1-10)</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Match Score (%)</label>
+                      <Input value={faceMatchThreshold} onChange={e => setFaceMatchThreshold(e.target.value)} className="h-9 rounded-lg border-gray-200 shadow-sm text-sm" data-testid="input-face-threshold" />
+                      <div className="text-[10px] text-gray-400 mt-0.5">60-95 range</div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">FAR (%)</label>
+                      <Input value={farRate} onChange={e => setFarRate(e.target.value)} className="h-9 rounded-lg border-gray-200 shadow-sm text-sm" data-testid="input-far-rate" />
+                      <div className="text-[10px] text-gray-400 mt-0.5">False Accept</div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">FRR (%)</label>
+                      <Input value={frrRate} onChange={e => setFrrRate(e.target.value)} className="h-9 rounded-lg border-gray-200 shadow-sm text-sm" data-testid="input-frr-rate" />
+                      <div className="text-[10px] text-gray-400 mt-0.5">False Reject</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="font-semibold text-sm text-gray-800 mb-3 flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-orange-500" /> Retry & Fallback Flow
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Face Retries</label>
+                      <Input value={faceRetryLimit} onChange={e => setFaceRetryLimit(e.target.value)} className="h-9 rounded-lg border-gray-200 shadow-sm text-sm" data-testid="input-face-retries" />
+                      <div className="text-[10px] text-gray-400 mt-0.5">Max face attempts</div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">FP Retries</label>
+                      <Input value={fpRetryLimit} onChange={e => setFpRetryLimit(e.target.value)} className="h-9 rounded-lg border-gray-200 shadow-sm text-sm" data-testid="input-fp-retries" />
+                      <div className="text-[10px] text-gray-400 mt-0.5">Max fingerprint</div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Overall Limit</label>
+                      <Input value={retryLimit} onChange={e => setRetryLimit(e.target.value)} className="h-9 rounded-lg border-gray-200 shadow-sm text-sm" data-testid="input-retry-limit" />
+                      <div className="text-[10px] text-gray-400 mt-0.5">Total max (1-10)</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex gap-3">
+                      <Shield className="w-5 h-5 text-red-500 mt-0.5" />
+                      <div>
+                        <div className="font-medium text-gray-900 text-sm">Supervisor Override</div>
+                        <div className="text-xs text-gray-500">Allow supervisor to manually approve after max retries</div>
+                      </div>
+                    </div>
+                    <Switch checked={supervisorOverride} onCheckedChange={setSupervisorOverride} data-testid="switch-supervisor-override" />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="font-semibold text-sm text-gray-800 mb-3 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-green-600" /> Offline Encrypted Storage
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-3">
+                      <Shield className="w-5 h-5 text-green-500 mt-0.5" />
+                      <div>
+                        <div className="font-medium text-gray-900 text-sm">AES-256 Template Encryption</div>
+                        <div className="text-xs text-gray-500">Encrypt biometric templates stored on device</div>
+                      </div>
+                    </div>
+                    <Switch checked={offlineEncryption} onCheckedChange={setOfflineEncryption} data-testid="switch-encryption" />
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex gap-3">
+                      <Smartphone className="w-5 h-5 text-indigo-500 mt-0.5" />
+                      <div>
+                        <div className="font-medium text-gray-900 text-sm">Device Binding</div>
+                        <div className="text-xs text-gray-500">Lock templates to device IMEI + hardware ID</div>
+                      </div>
+                    </div>
+                    <Switch checked={deviceBinding} onCheckedChange={setDeviceBinding} data-testid="switch-device-binding" />
                   </div>
                 </div>
               </div>
