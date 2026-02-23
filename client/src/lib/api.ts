@@ -44,6 +44,32 @@ export const api = {
     create: (data: any) => request<any>("/candidates", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/candidates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/candidates/${id}`, { method: "DELETE" }),
+    uploadFile: async (file: File, examId: number) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("examId", String(examId));
+      const res = await fetch(`${API_BASE}/candidates/upload`, { method: "POST", body: formData });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(error.message || `HTTP ${res.status}`);
+      }
+      return res.json();
+    },
+    uploadPhotos: async (files: FileList | File[]) => {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append("photos", file));
+      const res = await fetch(`${API_BASE}/candidates/upload-photos`, { method: "POST", body: formData });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(error.message || `HTTP ${res.status}`);
+      }
+      return res.json();
+    },
+    downloadTemplate: () => {
+      window.open(`${API_BASE}/candidates/template`, "_blank");
+    },
+    listByCentre: (centreCode: string, examId?: number) => 
+      request<any[]>("/candidates/by-centre/" + centreCode + (examId ? "?examId=" + examId : "")),
   },
   departments: {
     list: () => request<any[]>("/departments"),

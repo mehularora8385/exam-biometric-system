@@ -8,6 +8,28 @@ import {
   insertApkBuildSchema, insertAuditLogSchema, insertAlertSchema,
   insertGlobalTechSettingsSchema,
 } from "@shared/schema";
+import multer from "multer";
+import * as XLSX from "xlsx";
+import * as fs from "fs";
+import * as path from "path";
+
+const upload = multer({ dest: "uploads/temp/" });
+const photoUpload = multer({ 
+  storage: multer.diskStorage({
+    destination: "uploads/photos/",
+    filename: (_req, file, cb) => {
+      const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+      cb(null, uniqueName);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|bmp|webp/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    cb(null, ext || mime);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -193,6 +215,147 @@ export async function registerRoutes(
     } catch (e: any) {
       res.status(400).json({ message: e.message });
     }
+  });
+
+  app.post("/api/candidates/bulk", async (req, res) => {
+    try {
+      const candidatesList = req.body;
+      if (!Array.isArray(candidatesList) || candidatesList.length === 0) {
+        return res.status(400).json({ message: "Expected non-empty array of candidates" });
+      }
+      const results = await storage.bulkCreateCandidates(candidatesList);
+      const examIds = Array.from(new Set(results.map(c => c.examId).filter(Boolean)));
+      for (const eid of examIds) {
+        const allForExam = await storage.listCandidates(eid as number);
+        await storage.updateExam(eid as number, { candidatesCount: allForExam.length });
+      }
+      res.status(201).json({ inserted: results.length, candidates: results });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/candidates/by-centre/:centreCode", async (req, res) => {
+    try {
+      const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      const data = await storage.listCandidatesByCentre(req.params.centreCode, examId);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/candidates/upload", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      
+      const filePath = req.file.path;
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      let rows: any[] = [];
+      
+      if (ext === ".csv") {
+        const csvContent = fs.readFileSync(filePath, "utf-8");
+        const lines = csvContent.split("\n").filter(l => l.trim());
+        if (lines.length < 2) {
+          fs.unlinkSync(filePath);
+          return res.status(400).json({ message: "File is empty or has no data rows" });
+        }
+        const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+          const row: any = {};
+          headers.forEach((h, idx) => { row[h] = values[idx] || ""; });
+          rows.push(row);
+        }
+      } else {
+        const workbook = XLSX.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+      }
+      
+      fs.unlinkSync(filePath);
+      
+      const examId = req.body.examId ? parseInt(req.body.examId) : undefined;
+      
+      const mapRow = (row: any) => {
+        const get = (keys: string[]) => {
+          for (const k of keys) {
+            const val = row[k] || row[k.toLowerCase()] || row[k.toUpperCase()] || row[k.replace(/\s/g, "")] || row[k.replace(/\s/g, "_")];
+            if (val !== undefined && val !== null && val !== "") return String(val);
+          }
+          return undefined;
+        };
+        return {
+          rollNo: get(["Roll No", "RollNo", "roll_no", "Roll Number", "rollno", "roll no", "ROLL NO"]) || "",
+          name: get(["Name", "name", "Candidate Name", "candidate_name", "Student Name", "NAME"]) || "",
+          fatherName: get(["Father Name", "father_name", "FatherName", "Father's Name", "father name", "FATHER NAME"]),
+          dob: get(["DOB", "dob", "Date of Birth", "date_of_birth", "DateOfBirth", "DOB"]),
+          omrNo: get(["OMR No", "omr_no", "OMR", "omrNo", "OMR NO"]),
+          centreCode: get(["Centre Code", "centre_code", "CentreCode", "Center Code", "center_code", "CENTRE CODE"]),
+          centreName: get(["Centre Name", "centre_name", "CentreName", "Center Name", "center_name", "CENTRE NAME"]),
+          slot: get(["Slot", "slot", "Time Slot", "SLOT"]),
+          photoUrl: get(["Photo", "photo", "Photo URL", "photo_url", "PhotoURL", "Image", "PHOTO"]),
+          status: "Pending",
+          examId: examId,
+        };
+      };
+      
+      const candidatesList = rows.map(mapRow).filter(c => c.rollNo && c.name);
+      
+      if (candidatesList.length === 0) {
+        return res.status(400).json({ message: "No valid candidate rows found. Ensure Roll No and Name columns exist." });
+      }
+      
+      const results = await storage.bulkCreateCandidates(candidatesList as any[]);
+      
+      if (examId) {
+        const allForExam = await storage.listCandidates(examId);
+        await storage.updateExam(examId, { candidatesCount: allForExam.length });
+      }
+      
+      res.status(201).json({ 
+        inserted: results.length, 
+        total: rows.length,
+        skipped: rows.length - candidatesList.length,
+        message: "Upload successful"
+      });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/candidates/upload-photos", photoUpload.array("photos", 500), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ message: "No photos uploaded" });
+      
+      const results: any[] = [];
+      for (const file of files) {
+        const photoUrl = "/uploads/photos/" + file.filename;
+        const baseName = path.basename(file.originalname, path.extname(file.originalname));
+        const allCandidates = await storage.listCandidates();
+        const matched = allCandidates.find(c => c.rollNo === baseName || c.omrNo === baseName);
+        if (matched) {
+          await storage.updateCandidate(matched.id, { photoUrl });
+          results.push({ file: file.originalname, candidateId: matched.id, matched: true, photoUrl });
+        } else {
+          results.push({ file: file.originalname, matched: false, photoUrl });
+        }
+      }
+      res.json({ uploaded: files.length, matched: results.filter(r => r.matched).length, results });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.use("/uploads", (await import("express")).default.static("uploads"));
+
+  app.get("/api/candidates/template", (_req, res) => {
+    const headers = "Roll No,Name,Father Name,DOB,OMR No,Centre Code,Centre Name,Slot,Photo\n";
+    const sample = "2024001,Rahul Kumar,Suresh Kumar,01/01/1995,OMR001,DEL001,Delhi Public School,Slot 1,\n";
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=candidate_template.csv");
+    res.send(headers + sample);
   });
 
   app.get("/api/candidates/:id", async (req, res) => {

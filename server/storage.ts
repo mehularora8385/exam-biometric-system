@@ -48,6 +48,8 @@ export interface IStorage {
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
   updateCandidate(id: number, candidate: Partial<InsertCandidate>): Promise<Candidate | undefined>;
   deleteCandidate(id: number): Promise<void>;
+  bulkCreateCandidates(candidatesList: InsertCandidate[]): Promise<Candidate[]>;
+  listCandidatesByCentre(centreCode: string, examId?: number): Promise<Candidate[]>;
 
   listDepartments(): Promise<Department[]>;
   createDepartment(dept: InsertDepartment): Promise<Department>;
@@ -201,6 +203,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCandidate(id: number): Promise<void> {
     await db.delete(candidates).where(eq(candidates.id, id));
+  }
+
+  async bulkCreateCandidates(candidatesList: InsertCandidate[]): Promise<Candidate[]> {
+    if (candidatesList.length === 0) return [];
+    const batchSize = 100;
+    const results: Candidate[] = [];
+    for (let i = 0; i < candidatesList.length; i += batchSize) {
+      const batch = candidatesList.slice(i, i + batchSize);
+      const created = await db.insert(candidates).values(batch).returning();
+      results.push(...created);
+    }
+    return results;
+  }
+
+  async listCandidatesByCentre(centreCode: string, examId?: number): Promise<Candidate[]> {
+    if (examId) {
+      return db.select().from(candidates).where(and(eq(candidates.centreCode, centreCode), eq(candidates.examId, examId)));
+    }
+    return db.select().from(candidates).where(eq(candidates.centreCode, centreCode));
   }
 
   async listDepartments(): Promise<Department[]> {
