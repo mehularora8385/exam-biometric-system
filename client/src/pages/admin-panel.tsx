@@ -18,6 +18,7 @@ import GenerateAPK from "@/pages/admin/apk";
 import AICommandCenter from "@/pages/admin/ai-command-center";
 import FraudAnalytics from "@/pages/admin/fraud-analytics";
 import BiometricIntegrity from "@/pages/admin/biometric-integrity";
+import GlobalSurveillance from "@/pages/admin/global-surveillance";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -39,6 +40,7 @@ export default function AdminPanel() {
       case "ai-command": return <AICommandCenter />;
       case "fraud-analytics": return <FraudAnalytics />;
       case "biometric-integrity": return <BiometricIntegrity />;
+      case "global-surveillance": return <GlobalSurveillance />;
       case "upload-instruction": return <UploadInstruction />;
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, Users, Building2, Smartphone, FileText, 
-  ChevronLeft, Menu, Shield, Users2, FileArchive, Activity
+  ChevronLeft, Menu, Shield, Users2, FileArchive, Activity, ShieldAlert, Radar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
@@ -100,6 +100,11 @@ export default function AdminLayout({ children, activePage, setActivePage }: Adm
           <div className={navItemClass(activePage === "biometric-integrity")} onClick={() => setActivePage("biometric-integrity")}>
             <ShieldAlert className="w-5 h-5" />
             <span>Biometric Integrity</span>
+          </div>
+          
+          <div className={navItemClass(activePage === "global-surveillance")} onClick={() => setActivePage("global-surveillance")}>
+            <Radar className="w-5 h-5" />
+            <span>Global Tech (Beta)</span>
           </div>
         </div>
       </aside>
