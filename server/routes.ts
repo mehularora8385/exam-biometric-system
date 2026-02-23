@@ -645,9 +645,14 @@ export async function registerRoutes(
         hardwareFeatures: [
           "android.hardware.camera",
           "android.hardware.camera.front",
+          "android.hardware.camera.autofocus",
           "android.hardware.usb.host",
           "android.hardware.location.gps",
         ],
+        cameraAssignment: {
+          front: { purpose: "Operator selfie login authentication", resolution: "1280x720" },
+          back: { purpose: "Candidate face verification + OMR capture", resolution: "1920x1080" },
+        },
         biometricSdk: {
           faceMatch: {
             engine: "TensorFlow Lite",
@@ -660,8 +665,10 @@ export async function registerRoutes(
             livenessEngine: "MediaPipe FaceMesh v0.8.11",
             livenessChecks: ["blink_detection", "head_turn", "depth_estimation"],
             antiSpoofing: { printAttack: true, screenReplay: true, mask3d: true, modelFile: "anti_spoof_v3.tflite" },
-            captureCamera: "front",
-            captureResolution: "1280x720",
+            cameraUsage: {
+              operatorLogin: { camera: "front", resolution: "1280x720", purpose: "Operator selfie authentication" },
+              candidateVerification: { camera: "back", resolution: "1920x1080", purpose: "Candidate face AI match + liveness" },
+            },
           },
           fingerprint: {
             scanner: config.fingerprintScanner || "MFS100",
@@ -749,15 +756,33 @@ export async function registerRoutes(
             threshold: 0.85,
           },
         },
-        captureSettings: {
-          camera: "front",
-          resolution: { width: 1280, height: 720 },
-          autoFocus: true,
-          faceDetectionMinSize: 0.15,
-          faceDetectionMaxSize: 0.85,
-          lightingCheck: true,
-          minLux: 100,
-          jpegQuality: 90,
+        cameraConfig: {
+          operatorLogin: {
+            camera: "front",
+            purpose: "Operator selfie for login authentication",
+            resolution: { width: 1280, height: 720 },
+            autoFocus: true,
+            jpegQuality: 85,
+          },
+          candidateVerification: {
+            camera: "back",
+            purpose: "Candidate face capture for AI verification & liveness check",
+            resolution: { width: 1920, height: 1080 },
+            autoFocus: true,
+            faceDetectionMinSize: 0.15,
+            faceDetectionMaxSize: 0.85,
+            lightingCheck: true,
+            minLux: 100,
+            jpegQuality: 90,
+          },
+          omrCapture: {
+            camera: "back",
+            purpose: "OMR sheet / barcode scanning",
+            resolution: { width: 1920, height: 1080 },
+            autoFocus: true,
+            flashSupport: true,
+            jpegQuality: 95,
+          },
         },
       },
       fingerprint: {

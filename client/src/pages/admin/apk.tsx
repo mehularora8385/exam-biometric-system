@@ -329,7 +329,7 @@ export default function GenerateAPK() {
                   <div className="space-y-1.5 text-xs text-green-700">
                     <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Android 8.0+ (Oreo & above)</div>
                     <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> USB OTG for MFS100/MFS110</div>
-                    <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Front & rear camera required</div>
+                    <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Front camera (operator) + Back camera (candidate)</div>
                     <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Min 2GB RAM, 16GB storage</div>
                   </div>
                 </div>
@@ -344,7 +344,8 @@ export default function GenerateAPK() {
                   <div className="space-y-1.5 text-xs text-blue-700">
                     <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Android 8.0+ (Oreo & above)</div>
                     <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> USB OTG for fingerprint scanner</div>
-                    <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Front camera for face match</div>
+                    <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Front camera (operator login)</div>
+                    <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Back camera (candidate verify)</div>
                     <div className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3" /> Min 2GB RAM, 8GB storage</div>
                   </div>
                 </div>
@@ -354,7 +355,7 @@ export default function GenerateAPK() {
                 <h4 className="font-semibold text-sm text-gray-800 mb-2 flex items-center gap-2">
                   <Fingerprint className="w-4 h-4 text-purple-600" /> Supported Hardware
                 </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
                   <div className="p-2 bg-white rounded-lg border text-center">
                     <div className="font-bold text-gray-800">MFS100</div>
                     <div className="text-gray-500">Fingerprint</div>
@@ -366,9 +367,14 @@ export default function GenerateAPK() {
                     <div className="text-green-600 font-medium mt-1">USB OTG</div>
                   </div>
                   <div className="p-2 bg-white rounded-lg border text-center">
-                    <div className="font-bold text-gray-800">Camera</div>
-                    <div className="text-gray-500">Face + OMR</div>
-                    <div className="text-blue-600 font-medium mt-1">Built-in</div>
+                    <div className="font-bold text-gray-800">Front Cam</div>
+                    <div className="text-gray-500">Operator Login</div>
+                    <div className="text-blue-600 font-medium mt-1">720p Selfie</div>
+                  </div>
+                  <div className="p-2 bg-white rounded-lg border text-center">
+                    <div className="font-bold text-gray-800">Back Cam</div>
+                    <div className="text-gray-500">Verify + OMR</div>
+                    <div className="text-green-600 font-medium mt-1">1080p HD</div>
                   </div>
                   <div className="p-2 bg-white rounded-lg border text-center">
                     <div className="font-bold text-gray-800">GPS</div>
@@ -394,7 +400,8 @@ export default function GenerateAPK() {
                       <div className="flex justify-between"><span>Embedding</span><span className="font-medium text-gray-800">512 dimensions</span></div>
                       <div className="flex justify-between"><span>Liveness</span><span className="font-medium text-gray-800">MediaPipe FaceMesh</span></div>
                       <div className="flex justify-between"><span>Anti-Spoof</span><span className="font-medium text-gray-800">Print/Screen/3D Mask</span></div>
-                      <div className="flex justify-between"><span>Camera</span><span className="font-medium text-gray-800">Front 1280x720</span></div>
+                      <div className="flex justify-between"><span>Operator Login</span><span className="font-medium text-gray-800">Front cam 720p</span></div>
+                      <div className="flex justify-between"><span>Candidate Verify</span><span className="font-medium text-gray-800">Back cam 1080p</span></div>
                     </div>
                   </div>
                   <div className="p-3 bg-white rounded-lg border border-indigo-100">
@@ -720,7 +727,7 @@ export default function GenerateAPK() {
                   </div>
                   <div className="text-xs font-bold text-purple-700 mb-1">Step 2</div>
                   <div className="font-semibold text-sm text-gray-900">Operator Login</div>
-                  <div className="text-xs text-gray-500 mt-1">Operator logs in with credentials, downloads centre data</div>
+                  <div className="text-xs text-gray-500 mt-1">Operator selfie via front camera + credentials, downloads centre data</div>
                 </div>
                 <div className="p-4 bg-green-50 rounded-xl border border-green-200 text-center">
                   <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-2">
@@ -728,8 +735,9 @@ export default function GenerateAPK() {
                   </div>
                   <div className="text-xs font-bold text-green-700 mb-1">Step 3</div>
                   <div className="font-semibold text-sm text-gray-900">AI Face Match</div>
-                  <div className="text-xs text-gray-500 mt-1">TensorFlow Lite + FaceNet-512d AI engine captures live photo via front camera</div>
+                  <div className="text-xs text-gray-500 mt-1">TensorFlow Lite + FaceNet-512d AI engine with dual camera support</div>
                   <div className="mt-2 space-y-0.5 text-xs text-green-700 text-left">
+                    <div>• Back camera captures candidate face</div>
                     <div>• Liveness: Blink + Head turn detection</div>
                     <div>• Anti-spoof: Print/screen/3D mask</div>
                     <div>• Preprocessor: MTCNN face alignment</div>
