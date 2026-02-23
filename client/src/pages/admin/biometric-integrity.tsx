@@ -178,7 +178,17 @@ export default function BiometricIntegrity() {
                   className="pl-9 h-10 border-gray-200 focus-visible:ring-1 focus-visible:ring-blue-500 rounded-lg shadow-sm"
                 />
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                <Select defaultValue="all">
+                  <SelectTrigger className="w-[180px] h-10 border-gray-200 text-gray-700 bg-white shadow-sm rounded-lg">
+                    <SelectValue placeholder="All Exams" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Exams</SelectItem>
+                    <SelectItem value="upsc">UPSC Civil Services 2024</SelectItem>
+                    <SelectItem value="ssc">SSC CGL 2024</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select defaultValue="all">
                   <SelectTrigger className="w-[180px] h-10 border-gray-200 text-gray-700 bg-white shadow-sm rounded-lg">
                     <SelectValue placeholder="All Alert Types" />
