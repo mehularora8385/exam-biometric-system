@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw, Upload, Download, Settings, LogOut } from "lucide-react";
+import { Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw, Upload, Download, Settings, LogOut, Clock, NavigationOff, Lock } from "lucide-react";
 
 export default function GenerateAPK() {
   const [dragActive, setDragActive] = useState(false);
@@ -246,6 +246,28 @@ export default function GenerateAPK() {
                   <Switch defaultChecked />
                 </div>
 
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-3">
+                    <NavigationOff className="w-5 h-5 text-indigo-500 mt-0.5" />
+                    <div>
+                      <div className="font-medium text-gray-900 text-sm">Mock Location Detection</div>
+                      <div className="text-xs text-gray-500">Prevent GPS spoofing apps</div>
+                    </div>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-3">
+                    <Lock className="w-5 h-5 text-slate-500 mt-0.5" />
+                    <div>
+                      <div className="font-medium text-gray-900 text-sm">Kiosk Mode</div>
+                      <div className="text-xs text-gray-500">Lock app to foreground during exam</div>
+                    </div>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
                 <div className="space-y-3 pt-2">
                   <div className="flex gap-3 items-center">
                     <RefreshCw className="w-5 h-5 text-gray-500" />
@@ -301,6 +323,17 @@ export default function GenerateAPK() {
                     <Input defaultValue="5" className="h-10 rounded-lg border-gray-200 shadow-sm w-full" />
                     <div className="text-xs text-gray-500 mt-1.5">Sync interval in minutes (1-60 min)</div>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                  <div className="flex gap-3">
+                    <Clock className="w-5 h-5 text-blue-500 mt-0.5" />
+                    <div>
+                      <div className="font-medium text-gray-900 text-sm">Time Synchronization Check</div>
+                      <div className="text-xs text-gray-500">Ensure device time matches server time</div>
+                    </div>
+                  </div>
+                  <Switch defaultChecked />
                 </div>
               </div>
             </CardContent>
