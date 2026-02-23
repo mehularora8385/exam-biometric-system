@@ -29,6 +29,7 @@ export const exams = pgTable("exams", {
   faceLiveness: boolean("face_liveness").default(true),
   irisEnabled: boolean("iris_enabled").default(false),
   retryLimit: integer("retry_limit").default(3),
+  clientLogo: text("client_logo"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

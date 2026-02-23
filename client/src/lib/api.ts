@@ -17,6 +17,17 @@ export const api = {
     login: (username: string, password: string) =>
       request<any>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
   },
+  uploadLogo: async (examId: number, file: File) => {
+    const formData = new FormData();
+    formData.append("logo", file);
+    const res = await fetch(`${API_BASE}/exams/${examId}/logo`, { method: "POST", body: formData });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: "Upload failed" }));
+      throw new Error(error.message || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+  removeLogo: (examId: number) => request<any>(`/exams/${examId}/logo`, { method: "DELETE" }),
   exams: {
     list: () => request<any[]>("/exams"),
     get: (id: number) => request<any>(`/exams/${id}`),

@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw,
   Download, Settings, LogOut, Clock, NavigationOff, Lock, Smartphone, Tablet,
-  CheckCircle, XCircle, FileJson, Cpu, Scan, Eye, Key, Monitor
+  CheckCircle, XCircle, FileJson, Cpu, Scan, Eye, Key, Monitor, Upload, Trash2, ImageIcon
 } from "lucide-react";
 
 export default function GenerateAPK() {
@@ -233,6 +233,76 @@ export default function GenerateAPK() {
           </div>
         </CardContent>
       </Card>
+
+      {selectedExamIds.length > 0 && (
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-1">
+              <ImageIcon className="w-5 h-5 text-blue-600" /> Client Logo
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">Upload client logo for each exam — shown in APK and client dashboard</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {exams.filter((e: any) => selectedExamIds.includes(e.id)).map((exam: any) => (
+                <div key={exam.id} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                  {exam.clientLogo ? (
+                    <img src={exam.clientLogo} alt="Logo" className="w-14 h-14 object-contain rounded-lg border border-gray-200 bg-white p-1" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-gray-200 flex items-center justify-center text-gray-400">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{exam.name}</div>
+                    <div className="text-xs text-gray-500">{exam.client}</div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          data-testid={`input-logo-${exam.id}`}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              await api.uploadLogo(exam.id, file);
+                              queryClient.invalidateQueries({ queryKey: ["exams"] });
+                              toast({ title: "Logo Uploaded", description: `Logo set for ${exam.name}` });
+                            } catch (err: any) {
+                              toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-md hover:bg-blue-100 transition-colors">
+                          <Upload className="w-3 h-3" /> {exam.clientLogo ? "Change" : "Upload"}
+                        </span>
+                      </label>
+                      {exam.clientLogo && (
+                        <button
+                          data-testid={`button-remove-logo-${exam.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 text-xs font-medium rounded-md hover:bg-red-100 transition-colors"
+                          onClick={async () => {
+                            try {
+                              await api.removeLogo(exam.id);
+                              queryClient.invalidateQueries({ queryKey: ["exams"] });
+                              toast({ title: "Logo Removed" });
+                            } catch (err: any) {
+                              toast({ title: "Error", description: err.message, variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" /> Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-6">

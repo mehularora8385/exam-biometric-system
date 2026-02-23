@@ -14,6 +14,20 @@ import * as fs from "fs";
 import * as path from "path";
 
 const upload = multer({ dest: "uploads/temp/" });
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: "uploads/logos/",
+    filename: (_req, file, cb) => {
+      const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
+      cb(null, uniqueName);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 const photoUpload = multer({ 
   storage: multer.diskStorage({
     destination: "uploads/photos/",
@@ -98,6 +112,24 @@ export async function registerRoutes(
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
+  });
+
+  app.post("/api/exams/:id/logo", logoUpload.single("logo"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No logo file uploaded" });
+      const logoUrl = "/uploads/logos/" + req.file.filename;
+      const exam = await storage.updateExam(Number(req.params.id), { clientLogo: logoUrl });
+      if (!exam) return res.status(404).json({ message: "Exam not found" });
+      res.json({ message: "Logo uploaded", logoUrl, exam });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/exams/:id/logo", async (req, res) => {
+    try {
+      const exam = await storage.updateExam(Number(req.params.id), { clientLogo: null });
+      if (!exam) return res.status(404).json({ message: "Exam not found" });
+      res.json({ message: "Logo removed", exam });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.get("/api/centers", async (req, res) => {

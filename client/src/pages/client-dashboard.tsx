@@ -94,15 +94,24 @@ export default function ClientDashboard() {
       <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-40">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2 pr-6 border-r border-gray-200 h-8">
-            <Shield className="w-6 h-6 text-gray-400" />
+            {clientExam?.clientLogo ? (
+              <img src={clientExam.clientLogo} alt="Client Logo" className="w-8 h-8 object-contain rounded" />
+            ) : (
+              <Shield className="w-6 h-6 text-gray-400" />
+            )}
             <span className="font-bold text-[13px] text-gray-800 leading-tight uppercase">
               MPA VERIFICATION<br/>SYSTEM
             </span>
           </div>
 
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-900 text-sm leading-tight" data-testid="text-exam-name">{examTitle}</span>
-            <span className="text-[11px] text-gray-400">{clientExam?.client || ""}</span>
+          <div className="flex items-center gap-3">
+            {clientExam?.clientLogo && (
+              <img src={clientExam.clientLogo} alt="" className="w-10 h-10 object-contain rounded-lg border border-gray-200 bg-white p-0.5" data-testid="img-client-logo" />
+            )}
+            <div className="flex flex-col">
+              <span className="font-semibold text-gray-900 text-sm leading-tight" data-testid="text-exam-name">{examTitle}</span>
+              <span className="text-[11px] text-gray-400">{clientExam?.client || ""}</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-4">
