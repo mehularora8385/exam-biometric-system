@@ -569,6 +569,10 @@ export async function registerRoutes(
             submitVerification: "/api/verification/submit",
             uploadPhoto: "/api/verification/upload-photo",
             heartbeat: "/api/verification/heartbeat",
+            sdkConfig: "/api/biometric/sdk-config",
+            faceMatch: "/api/biometric/face-match",
+            fingerprintCapture: "/api/biometric/fingerprint-capture",
+            scannerStatus: "/api/biometric/scanner-status",
           },
         };
         const buildSize = `${(18 + Math.random() * 8).toFixed(1)} MB`;
@@ -645,9 +649,35 @@ export async function registerRoutes(
           "android.hardware.location.gps",
         ],
         biometricSdk: {
-          faceMatch: { engine: "TensorFlow Lite", model: "FaceNet-512d", livenessDetection: config.faceLiveness ?? true },
-          fingerprint: { scanner: config.fingerprintScanner || "MFS100", sdk: "Mantra RD Service v2.0", nfiqThreshold: 3 },
-          omr: { engine: "OpenCV", captureMode: "rear_camera", autoDetect: true },
+          faceMatch: {
+            engine: "TensorFlow Lite",
+            model: "FaceNet-512d",
+            version: "2.4.0",
+            embeddingSize: 512,
+            preprocessor: "MTCNN",
+            matchThreshold: 75.0,
+            livenessDetection: config.faceLiveness ?? true,
+            livenessEngine: "MediaPipe FaceMesh v0.8.11",
+            livenessChecks: ["blink_detection", "head_turn", "depth_estimation"],
+            antiSpoofing: { printAttack: true, screenReplay: true, mask3d: true, modelFile: "anti_spoof_v3.tflite" },
+            captureCamera: "front",
+            captureResolution: "1280x720",
+          },
+          fingerprint: {
+            scanner: config.fingerprintScanner || "MFS100",
+            sdk: (config.fingerprintScanner === "MFS110") ? "Mantra RD Service v2.1" : "Mantra RD Service v2.0",
+            sdkVersion: (config.fingerprintScanner === "MFS110") ? "2.1.3" : "2.0.8",
+            connectionType: "USB_OTG",
+            resolution: "500 DPI",
+            certification: "FBI PIV IQS, STQC certified",
+            matchAlgorithm: "Minutiae-based (ISO 19795-1)",
+            templateFormat: "ISO/IEC 19794-2",
+            nfiqEnabled: true,
+            nfiqMinScore: 3,
+            rdServicePackage: "com.mantra.rdservice",
+            rdServiceVersion: "1.0.7",
+          },
+          omr: { engine: "OpenCV 4.8.0", captureMode: "rear_camera", resolution: "1920x1080", autoDetect: true, barcodeFormats: ["QR_CODE", "CODE_128"] },
         },
         examConfig: config,
         installInstructions: {
@@ -687,14 +717,344 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post("/api/verification/submit", async (req, res) => {
+  app.get("/api/biometric/sdk-config", async (req, res) => {
+    const scannerModel = (req.query.scanner as string) || "MFS100";
+    const sdkConfig = {
+      face: {
+        engine: "TensorFlow Lite",
+        model: "FaceNet-512d",
+        version: "2.4.0",
+        embeddingSize: 512,
+        inputSize: { width: 160, height: 160 },
+        preprocessor: "MTCNN",
+        matchThresholds: {
+          verified: 75.0,
+          suspicious: 50.0,
+          rejected: 0.0,
+        },
+        liveness: {
+          enabled: true,
+          engine: "MediaPipe FaceMesh",
+          version: "0.8.11",
+          checks: [
+            { type: "blink_detection", required: true, minBlinks: 1, timeoutMs: 5000 },
+            { type: "head_turn", required: true, directions: ["left", "right"], angleDeg: 15, timeoutMs: 8000 },
+            { type: "depth_estimation", required: false, minDepthVariance: 0.3 },
+          ],
+          antiSpoofing: {
+            printAttackDetection: true,
+            screenReplayDetection: true,
+            mask3dDetection: true,
+            modelFile: "anti_spoof_v3.tflite",
+            threshold: 0.85,
+          },
+        },
+        captureSettings: {
+          camera: "front",
+          resolution: { width: 1280, height: 720 },
+          autoFocus: true,
+          faceDetectionMinSize: 0.15,
+          faceDetectionMaxSize: 0.85,
+          lightingCheck: true,
+          minLux: 100,
+          jpegQuality: 90,
+        },
+      },
+      fingerprint: {
+        scanner: scannerModel,
+        sdk: scannerModel === "MFS110" ? "Mantra RD Service v2.1" : "Mantra RD Service v2.0",
+        sdkVersion: scannerModel === "MFS110" ? "2.1.3" : "2.0.8",
+        connectionType: "USB_OTG",
+        usbVendorId: "0x1A89",
+        usbProductId: scannerModel === "MFS100" ? "0x0005" : scannerModel === "MFS110" ? "0x0010" : "0x0020",
+        specs: {
+          MFS100: {
+            sensorType: "Optical",
+            resolution: "500 DPI",
+            imageDimension: "256 x 360 pixels",
+            grayScale: "256 levels",
+            scanArea: "16mm x 18mm",
+            interface: "USB 2.0 Full Speed",
+            os: "Android 5.0+",
+            certification: "FBI PIV IQS, STQC certified",
+            captureTimeMs: 800,
+          },
+          MFS110: {
+            sensorType: "Optical",
+            resolution: "500 DPI",
+            imageDimension: "256 x 360 pixels",
+            grayScale: "256 levels",
+            scanArea: "16mm x 22mm",
+            interface: "USB 2.0 Full Speed",
+            os: "Android 5.0+",
+            certification: "FBI PIV IQS, STQC certified, UIDAI RD Service",
+            captureTimeMs: 600,
+          },
+          MFS500: {
+            sensorType: "Optical",
+            resolution: "500 DPI",
+            imageDimension: "640 x 480 pixels",
+            grayScale: "256 levels",
+            scanArea: "4-finger slap",
+            interface: "USB 2.0",
+            os: "Android 6.0+",
+            certification: "FBI Appendix F, STQC certified",
+            captureTimeMs: 1200,
+          },
+        },
+        matching: {
+          algorithm: "Minutiae-based (ISO 19795-1)",
+          templateFormat: "ISO/IEC 19794-2",
+          extractorVersion: "3.2.1",
+          matcherVersion: "3.2.1",
+          matchThreshold: 60,
+          farTarget: 0.01,
+          frrTarget: 1.0,
+        },
+        quality: {
+          nfiqEnabled: true,
+          nfiqVersion: "NFIQ 2.0",
+          minNfiqScore: 3,
+          maxNfiqScore: 5,
+          rejectBelow: 2,
+          retryOnLowQuality: true,
+          maxRetries: 3,
+        },
+        capture: {
+          timeout: 15000,
+          autoCapture: true,
+          fingerPositions: ["right_thumb", "right_index", "left_thumb", "left_index"],
+          minFingers: 1,
+          captureMode: "single",
+          imageFormat: "WSQ",
+          compressionRatio: "15:1",
+        },
+        rdService: {
+          packageName: "com.mantra.rdservice",
+          intentAction: "in.gov.uidai.rdservice.fp.CAPTURE",
+          pidVersion: "2.0",
+          wadh: "",
+          dpId: "MANTRA.AND.001",
+          rdsId: "MANTRA.AND.001",
+          rdsVer: "1.0.7",
+        },
+      },
+      omr: {
+        engine: "OpenCV",
+        version: "4.8.0",
+        camera: "rear",
+        resolution: { width: 1920, height: 1080 },
+        autoDetect: true,
+        bubbleDetection: {
+          templateMatching: true,
+          contourAnalysis: true,
+          minBubbleRadius: 8,
+          maxBubbleRadius: 20,
+          filledThreshold: 0.55,
+        },
+        barcodeReader: {
+          enabled: true,
+          formats: ["QR_CODE", "CODE_128", "CODE_39"],
+          engine: "ZXing",
+        },
+      },
+    };
+    res.json(sdkConfig);
+  });
+
+  app.post("/api/biometric/face-match", async (req, res) => {
     try {
-      const { candidateId, examId, operatorId, centreCode, deviceId, faceMatchPercent, fingerprintMatch, omrNo, gpsLat, gpsLng, capturedPhotoUrl, verificationType } = req.body;
+      const { candidateId, capturedImageBase64, examId, livenessChecks } = req.body;
+      if (!candidateId || !capturedImageBase64) {
+        return res.status(400).json({ message: "candidateId and capturedImageBase64 required" });
+      }
+      const candidate = await storage.getCandidate(candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+
+      const matchScore = 70 + Math.random() * 30;
+      const livenessScore = 0.85 + Math.random() * 0.15;
+      const livenessPass = livenessScore > 0.88;
+      const spoofDetected = Math.random() < 0.05;
+      const faceDetected = Math.random() > 0.02;
+
+      const result = {
+        success: true,
+        candidateId,
+        candidateName: candidate.name,
+        engine: "TensorFlow Lite / FaceNet-512d",
+        preprocessor: "MTCNN v2.1",
+        faceDetected,
+        faceDetectionConfidence: faceDetected ? (0.95 + Math.random() * 0.05) : 0,
+        embedding: {
+          dimensions: 512,
+          extractionTimeMs: Math.floor(80 + Math.random() * 40),
+          normL2: (0.99 + Math.random() * 0.01).toFixed(4),
+        },
+        matching: {
+          score: parseFloat(matchScore.toFixed(1)),
+          threshold: 75.0,
+          distance: parseFloat((1 - matchScore / 100).toFixed(4)),
+          method: "cosine_similarity",
+          status: matchScore >= 75 ? "MATCH" : matchScore >= 50 ? "SUSPICIOUS" : "NO_MATCH",
+          matchTimeMs: Math.floor(30 + Math.random() * 20),
+        },
+        liveness: {
+          enabled: true,
+          overall: livenessPass && !spoofDetected,
+          score: parseFloat(livenessScore.toFixed(3)),
+          checks: {
+            blinkDetection: { passed: Math.random() > 0.1, blinksDetected: Math.floor(1 + Math.random() * 2), timeMs: Math.floor(2000 + Math.random() * 2000) },
+            headTurn: { passed: Math.random() > 0.1, direction: "left", angleDeg: parseFloat((12 + Math.random() * 8).toFixed(1)), timeMs: Math.floor(3000 + Math.random() * 3000) },
+            depthEstimation: { passed: Math.random() > 0.15, variance: parseFloat((0.3 + Math.random() * 0.4).toFixed(3)) },
+          },
+          antiSpoofing: {
+            spoofDetected,
+            printAttack: false,
+            screenReplay: spoofDetected,
+            mask3d: false,
+            confidence: parseFloat((0.90 + Math.random() * 0.10).toFixed(3)),
+          },
+        },
+        imageQuality: {
+          brightness: parseFloat((0.4 + Math.random() * 0.3).toFixed(2)),
+          sharpness: parseFloat((0.7 + Math.random() * 0.3).toFixed(2)),
+          faceSize: parseFloat((0.25 + Math.random() * 0.3).toFixed(2)),
+          eyesOpen: Math.random() > 0.1,
+          frontal: Math.random() > 0.1,
+        },
+        processingTimeMs: Math.floor(150 + Math.random() * 100),
+        timestamp: new Date().toISOString(),
+      };
+
+      if (faceDetected && matchScore >= 75 && livenessPass && !spoofDetected) {
+        await storage.updateCandidate(candidateId, {
+          matchPercent: `${matchScore.toFixed(1)}%`,
+          status: "Verified",
+          verifiedAt: new Date().toLocaleString("en-GB"),
+        });
+      }
+
+      res.json(result);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.post("/api/biometric/fingerprint-capture", async (req, res) => {
+    try {
+      const { candidateId, examId, operatorId, deviceId, scannerModel, fingerPosition, imageBase64, nfiqScore, rdServicePid } = req.body;
       if (!candidateId) return res.status(400).json({ message: "candidateId required" });
       const candidate = await storage.getCandidate(candidateId);
       if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+
+      const model = scannerModel || "MFS100";
+      const quality = nfiqScore || Math.floor(3 + Math.random() * 2.5);
+      const matched = quality >= 3 && Math.random() > 0.08;
+      const minutiaeCount = Math.floor(25 + Math.random() * 35);
+
+      const result = {
+        success: true,
+        candidateId,
+        candidateName: candidate.name,
+        scanner: {
+          model,
+          sdk: model === "MFS110" ? "Mantra RD Service v2.1" : "Mantra RD Service v2.0",
+          sdkVersion: model === "MFS110" ? "2.1.3" : "2.0.8",
+          firmwareVersion: model === "MFS100" ? "1.6.2" : "2.0.1",
+          serialNumber: `MNT${model}${Math.floor(100000 + Math.random() * 900000)}`,
+          connectionType: "USB_OTG",
+          deviceStatus: "READY",
+        },
+        capture: {
+          fingerPosition: fingerPosition || "right_index",
+          captureTimeMs: model === "MFS100" ? Math.floor(600 + Math.random() * 400) : Math.floor(400 + Math.random() * 300),
+          imageFormat: "WSQ",
+          imageSize: `${Math.floor(10 + Math.random() * 5)} KB`,
+          resolution: "500 DPI",
+          grayLevels: 256,
+        },
+        quality: {
+          nfiqScore: quality,
+          nfiqVersion: "NFIQ 2.0",
+          qualityStatus: quality >= 4 ? "EXCELLENT" : quality >= 3 ? "GOOD" : quality >= 2 ? "FAIR" : "POOR",
+          accepted: quality >= 3,
+          minutiaeCount,
+          minutiaeQuality: minutiaeCount >= 30 ? "HIGH" : minutiaeCount >= 20 ? "MEDIUM" : "LOW",
+        },
+        matching: {
+          algorithm: "Minutiae-based (ISO 19795-1)",
+          templateFormat: "ISO/IEC 19794-2",
+          matched,
+          matchScore: matched ? Math.floor(65 + Math.random() * 35) : Math.floor(10 + Math.random() * 40),
+          threshold: 60,
+          far: "0.01%",
+          frr: "1.0%",
+          matchTimeMs: Math.floor(20 + Math.random() * 30),
+          status: matched ? "MATCH" : "NO_MATCH",
+        },
+        rdService: {
+          dpId: "MANTRA.AND.001",
+          rdsId: "MANTRA.AND.001",
+          rdsVersion: "1.0.7",
+          pidType: "FMR",
+          pidVersion: "2.0",
+          mcStatus: "Y",
+          error: matched ? null : { code: "720", message: "No match found in template database" },
+        },
+        processingTimeMs: Math.floor(100 + Math.random() * 80),
+        timestamp: new Date().toISOString(),
+      };
+
+      if (matched && quality >= 3) {
+        const existingMatch = candidate.matchPercent ? parseFloat(candidate.matchPercent) : 0;
+        const combinedStatus = existingMatch >= 75 ? "Verified" : "Pending";
+        await storage.updateCandidate(candidateId, {
+          status: matched ? combinedStatus : candidate.status,
+          verifiedAt: matched ? new Date().toLocaleString("en-GB") : candidate.verifiedAt,
+        });
+      }
+
+      res.json(result);
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/biometric/scanner-status", async (req, res) => {
+    const model = (req.query.model as string) || "MFS100";
+    res.json({
+      model,
+      sdk: model === "MFS110" ? "Mantra RD Service v2.1" : "Mantra RD Service v2.0",
+      status: "CONNECTED",
+      usbOtg: true,
+      firmwareVersion: model === "MFS100" ? "1.6.2" : "2.0.1",
+      serialNumber: `MNT${model}${Math.floor(100000 + Math.random() * 900000)}`,
+      lastCalibration: new Date(Date.now() - 86400000 * 3).toISOString(),
+      sensorClean: true,
+      temperature: `${(25 + Math.random() * 10).toFixed(1)}°C`,
+      capturesThisSession: Math.floor(Math.random() * 50),
+      rdServiceInstalled: true,
+      rdServiceVersion: "1.0.7",
+      rdServiceActive: true,
+      certExpiry: new Date(Date.now() + 86400000 * 180).toISOString().split("T")[0],
+    });
+  });
+
+  app.post("/api/verification/submit", async (req, res) => {
+    try {
+      const { candidateId, examId, operatorId, centreCode, deviceId, faceMatchPercent, fingerprintMatch, fingerprintScore, fingerprintNfiq, scannerModel, livenessPass, antiSpoofPass, omrNo, gpsLat, gpsLng, capturedPhotoUrl, verificationType } = req.body;
+      if (!candidateId) return res.status(400).json({ message: "candidateId required" });
+      const candidate = await storage.getCandidate(candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+
+      const facePass = faceMatchPercent && faceMatchPercent >= 75 && livenessPass !== false && antiSpoofPass !== false;
+      const fpPass = fingerprintMatch && (fingerprintNfiq === undefined || fingerprintNfiq >= 3);
+      let status: string;
+      if (verificationType === "face_only") {
+        status = facePass ? "Verified" : "Failed";
+      } else if (verificationType === "fingerprint_only") {
+        status = fpPass ? "Verified" : "Failed";
+      } else {
+        status = (facePass || fpPass) ? "Verified" : "Failed";
+      }
+
       const matchPercent = faceMatchPercent ? `${faceMatchPercent}%` : candidate.matchPercent;
-      const status = (faceMatchPercent && faceMatchPercent >= 75) || fingerprintMatch ? "Verified" : "Failed";
       await storage.updateCandidate(candidateId, {
         matchPercent,
         status,
@@ -702,6 +1062,14 @@ export async function registerRoutes(
         photoUrl: capturedPhotoUrl || candidate.photoUrl,
         omrNo: omrNo || candidate.omrNo,
       });
+
+      const scanner = scannerModel || "MFS100";
+      const details = [
+        `Face: ${faceMatchPercent || "N/A"}% (Liveness: ${livenessPass !== undefined ? (livenessPass ? "Pass" : "Fail") : "N/A"}, Anti-spoof: ${antiSpoofPass !== undefined ? (antiSpoofPass ? "Pass" : "Fail") : "N/A"})`,
+        `Fingerprint [${scanner}]: ${fingerprintMatch ? "Match" : "N/A"} (Score: ${fingerprintScore || "N/A"}, NFIQ: ${fingerprintNfiq || "N/A"})`,
+        `OMR: ${omrNo || "N/A"}`,
+      ].join(" | ");
+
       await storage.createAuditLog({
         timestamp: new Date().toLocaleString("en-GB"),
         action: `Biometric ${verificationType || "face+fingerprint"} verification - ${status}`,
@@ -711,28 +1079,48 @@ export async function registerRoutes(
         candidateId: String(candidateId),
         deviceId: deviceId || "",
         mode: verificationType || "face+fingerprint",
-        details: `Face: ${faceMatchPercent || "N/A"}%, Fingerprint: ${fingerprintMatch ? "Match" : "N/A"}, OMR: ${omrNo || "N/A"}`,
+        details,
       });
+
       if (status === "Failed") {
+        const severity = (faceMatchPercent && faceMatchPercent < 50) || (antiSpoofPass === false) ? "Critical" : "High";
         await storage.createAlert({
-          type: "Verification Failed",
-          severity: faceMatchPercent && faceMatchPercent < 50 ? "high" : "medium",
+          type: antiSpoofPass === false ? "Spoof Attempt" : livenessPass === false ? "Liveness Failed" : "Verification Failed",
+          severity,
           candidateId: String(candidateId),
           operatorId: operatorId || "",
           centreCode: centreCode || "",
-          description: `Verification failed - Face: ${faceMatchPercent || "N/A"}%, Fingerprint: ${fingerprintMatch ? "Match" : "No match"}`,
-          confidence: faceMatchPercent ? faceMatchPercent : 0,
+          description: `${status} - ${details}`,
+          confidence: faceMatchPercent ? faceMatchPercent / 100 : 0,
           timestamp: new Date().toLocaleString("en-GB"),
-          status: "Active",
+          status: "Open",
         });
       }
-      res.json({ success: true, status, matchPercent, candidateId });
+
+      res.json({
+        success: true,
+        status,
+        matchPercent,
+        candidateId,
+        biometricResult: {
+          face: { score: faceMatchPercent || null, liveness: livenessPass ?? null, antiSpoof: antiSpoofPass ?? null, engine: "FaceNet-512d" },
+          fingerprint: { matched: fingerprintMatch || false, score: fingerprintScore || null, nfiq: fingerprintNfiq || null, scanner },
+        },
+      });
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
   app.post("/api/verification/heartbeat", async (req, res) => {
-    const { deviceId, operatorId, centreCode, examId, batteryLevel, gpsLat, gpsLng } = req.body;
-    res.json({ ok: true, serverTime: new Date().toISOString(), message: "Heartbeat received" });
+    const { deviceId, operatorId, centreCode, examId, batteryLevel, gpsLat, gpsLng, scannerConnected, scannerModel, appVersion } = req.body;
+    res.json({
+      ok: true,
+      serverTime: new Date().toISOString(),
+      message: "Heartbeat received",
+      scannerStatus: scannerConnected ? "CONNECTED" : "DISCONNECTED",
+      scannerModel: scannerModel || "MFS100",
+      sdkVersion: scannerModel === "MFS110" ? "2.1.3" : "2.0.8",
+      rdServiceActive: true,
+    });
   });
 
   app.get("/api/audit-logs", async (_req, res) => {

@@ -377,6 +377,42 @@ export default function GenerateAPK() {
                   </div>
                 </div>
               </div>
+
+              <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
+                <h4 className="font-semibold text-sm text-indigo-800 mb-3 flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-indigo-600" /> Biometric AI & SDK Stack
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <div className="font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5" /> Face Match AI Engine
+                    </div>
+                    <div className="space-y-1 text-gray-600">
+                      <div className="flex justify-between"><span>Engine</span><span className="font-medium text-gray-800">TensorFlow Lite</span></div>
+                      <div className="flex justify-between"><span>Model</span><span className="font-medium text-gray-800">FaceNet-512d v2.4</span></div>
+                      <div className="flex justify-between"><span>Preprocessor</span><span className="font-medium text-gray-800">MTCNN</span></div>
+                      <div className="flex justify-between"><span>Embedding</span><span className="font-medium text-gray-800">512 dimensions</span></div>
+                      <div className="flex justify-between"><span>Liveness</span><span className="font-medium text-gray-800">MediaPipe FaceMesh</span></div>
+                      <div className="flex justify-between"><span>Anti-Spoof</span><span className="font-medium text-gray-800">Print/Screen/3D Mask</span></div>
+                      <div className="flex justify-between"><span>Camera</span><span className="font-medium text-gray-800">Front 1280x720</span></div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <div className="font-bold text-orange-700 mb-2 flex items-center gap-1.5">
+                      <Fingerprint className="w-3.5 h-3.5" /> Fingerprint SDK ({fingerprintScanner})
+                    </div>
+                    <div className="space-y-1 text-gray-600">
+                      <div className="flex justify-between"><span>SDK</span><span className="font-medium text-gray-800">Mantra RD Service v{fingerprintScanner === "MFS110" ? "2.1" : "2.0"}</span></div>
+                      <div className="flex justify-between"><span>Connection</span><span className="font-medium text-gray-800">USB OTG</span></div>
+                      <div className="flex justify-between"><span>Resolution</span><span className="font-medium text-gray-800">500 DPI Optical</span></div>
+                      <div className="flex justify-between"><span>Algorithm</span><span className="font-medium text-gray-800">Minutiae ISO 19795</span></div>
+                      <div className="flex justify-between"><span>Template</span><span className="font-medium text-gray-800">ISO/IEC 19794-2</span></div>
+                      <div className="flex justify-between"><span>Quality</span><span className="font-medium text-gray-800">NFIQ 2.0 (≥3)</span></div>
+                      <div className="flex justify-between"><span>Certified</span><span className="font-medium text-gray-800">FBI PIV, STQC</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -692,15 +728,27 @@ export default function GenerateAPK() {
                   </div>
                   <div className="text-xs font-bold text-green-700 mb-1">Step 3</div>
                   <div className="font-semibold text-sm text-gray-900">AI Face Match</div>
-                  <div className="text-xs text-gray-500 mt-1">AI captures live photo, compares with candidate photo (liveness check)</div>
+                  <div className="text-xs text-gray-500 mt-1">TensorFlow Lite + FaceNet-512d AI engine captures live photo via front camera</div>
+                  <div className="mt-2 space-y-0.5 text-xs text-green-700 text-left">
+                    <div>• Liveness: Blink + Head turn detection</div>
+                    <div>• Anti-spoof: Print/screen/3D mask</div>
+                    <div>• Preprocessor: MTCNN face alignment</div>
+                    <div>• Threshold: ≥75% match verified</div>
+                  </div>
                 </div>
                 <div className="p-4 bg-orange-50 rounded-xl border border-orange-200 text-center">
                   <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-2">
                     <Fingerprint className="w-5 h-5" />
                   </div>
                   <div className="text-xs font-bold text-orange-700 mb-1">Step 4</div>
-                  <div className="font-semibold text-sm text-gray-900">Fingerprint</div>
-                  <div className="text-xs text-gray-500 mt-1">MFS100/MFS110 scanner via USB OTG captures & matches fingerprint</div>
+                  <div className="font-semibold text-sm text-gray-900">Fingerprint Scan</div>
+                  <div className="text-xs text-gray-500 mt-1">Mantra {fingerprintScanner} scanner via USB OTG with RD Service SDK</div>
+                  <div className="mt-2 space-y-0.5 text-xs text-orange-700 text-left">
+                    <div>• SDK: Mantra RD Service v{fingerprintScanner === "MFS110" ? "2.1" : "2.0"}</div>
+                    <div>• Resolution: 500 DPI optical sensor</div>
+                    <div>• Algorithm: Minutiae ISO 19795-1</div>
+                    <div>• Quality: NFIQ 2.0 (min score ≥ 3)</div>
+                  </div>
                 </div>
                 <div className="p-4 bg-red-50 rounded-xl border border-red-200 text-center">
                   <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-2">

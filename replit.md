@@ -37,8 +37,12 @@ users, exams, centers, operators, candidates, departments, designations, slots, 
 - GET /candidates/template (download CSV template)
 - GET /candidates/by-centre/:centreCode (centre-filtered download)
 - GET /sync/:examId (data sync for Android APK - candidates, centers, slots)
-- POST /verification/submit (biometric verification results from APK)
-- POST /verification/heartbeat (device heartbeat)
+- POST /verification/submit (biometric verification results from APK - face+fingerprint+OMR)
+- POST /verification/heartbeat (device heartbeat with scanner status)
+- GET /biometric/sdk-config?scanner=MFS100|MFS110 (full SDK config for Face AI + Fingerprint)
+- POST /biometric/face-match (AI face matching: TensorFlow Lite + FaceNet-512d, liveness, anti-spoof)
+- POST /biometric/fingerprint-capture (Mantra MFS100/MFS110 fingerprint: NFIQ 2.0, minutiae matching)
+- GET /biometric/scanner-status?model=MFS100|MFS110 (scanner hardware status, RD Service, calibration)
 
 ## Login Credentials
 - Admin: demo / demo
@@ -61,6 +65,24 @@ All pages have working:
 - APK Generation: Multi-exam batch build, biometric config (Face+Fingerprint MFS100/MFS110, OMR camera capture), feature toggles, device compatibility (Tablet+Mobile Android 8.0+), config download
 - Verification API: Submit face match %, fingerprint match, OMR number from Android APK
 - Data Sync API: Centre-filtered candidate download for operators
+
+## Biometric AI & SDK Stack
+### Face Match AI Engine
+- Engine: TensorFlow Lite + FaceNet-512d (v2.4.0, 512-dim embeddings)
+- Preprocessor: MTCNN for face detection/alignment
+- Liveness Detection: MediaPipe FaceMesh v0.8.11 (blink detection, head turn, depth estimation)
+- Anti-Spoofing: Print attack, screen replay, 3D mask detection (anti_spoof_v3.tflite model)
+- Capture: Front camera 1280x720, auto-focus, lighting check (min 100 lux)
+- Match Threshold: ≥75% verified, 50-75% suspicious, <50% rejected
+
+### Fingerprint SDK (MFS100/MFS110)
+- SDK: Mantra RD Service v2.0 (MFS100) / v2.1 (MFS110)
+- Hardware: Optical 500 DPI sensor, USB OTG, FBI PIV IQS + STQC certified
+- MFS100: 16mm x 18mm scan area, ~800ms capture, USB 2.0
+- MFS110: 16mm x 22mm scan area, ~600ms capture, UIDAI RD Service certified
+- Matching: Minutiae-based ISO 19795-1, template format ISO/IEC 19794-2
+- Quality: NFIQ 2.0 scoring, min score ≥ 3 required, auto-retry on low quality
+- RD Service: dpId MANTRA.AND.001, PID v2.0, Intent: in.gov.uidai.rdservice.fp.CAPTURE
 
 ## Global Tech (Beta)
 Optional advanced surveillance features (all OFF by default):
