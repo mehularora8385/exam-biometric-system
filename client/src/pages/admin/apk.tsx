@@ -577,7 +577,7 @@ export default function GenerateAPK() {
                       <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 w-28 text-center">Size</TableHead>
                       <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 w-32 text-center">Device</TableHead>
                       <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 w-24 text-center">Status</TableHead>
-                      <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 text-center pr-6 w-32">Actions</TableHead>
+                      <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 text-center pr-6 w-48">Download</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="bg-white">
@@ -630,28 +630,29 @@ export default function GenerateAPK() {
                             </div>
                           </TableCell>
                           <TableCell className="py-4 pr-6 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                title="Download APK Config"
-                                onClick={() => api.apkBuilds.downloadConfig(apk.id)}
-                                disabled={apk.status !== "Ready"}
-                                data-testid={`button-config-apk-${apk.id || idx}`}
-                              >
-                                <FileJson className="w-4 h-4" />
-                              </button>
-                              <button
-                                className={`p-1.5 rounded-md transition-colors ${
-                                  apk.status === "Ready" 
-                                    ? "text-green-600 hover:bg-green-50" 
-                                    : "text-gray-300 cursor-not-allowed"
-                                }`}
-                                title="Download APK"
-                                onClick={() => apk.status === "Ready" && api.apkBuilds.downloadApk(apk.id)}
-                                data-testid={`button-download-apk-${apk.id || idx}`}
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
+                            <div className="flex items-center justify-center gap-2">
+                              {apk.status === "Ready" && apk.downloadUrl ? (
+                                <>
+                                  <button
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm"
+                                    onClick={() => api.apkBuilds.downloadApk(apk.id)}
+                                    data-testid={`button-download-apk-${apk.id || idx}`}
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> APK
+                                  </button>
+                                  <button
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                                    onClick={() => api.apkBuilds.downloadConfig(apk.id)}
+                                    data-testid={`button-config-apk-${apk.id || idx}`}
+                                  >
+                                    <FileJson className="w-3.5 h-3.5" /> Config
+                                  </button>
+                                </>
+                              ) : apk.status === "Building" ? (
+                                <span className="text-xs text-yellow-600 font-medium">Building...</span>
+                              ) : (
+                                <span className="text-xs text-gray-400">No download</span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
