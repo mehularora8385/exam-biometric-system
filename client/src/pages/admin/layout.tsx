@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, Users, Building2, Smartphone, FileText, 
-  ChevronLeft, Menu, Shield, Users2, FileArchive, Activity, ShieldAlert, Radar
+  ChevronLeft, Menu, Shield, Users2, FileArchive, Activity, ShieldAlert, Radar, Monitor
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
@@ -76,6 +76,11 @@ export default function AdminLayout({ children, activePage, setActivePage }: Adm
           <div className={navItemClass(activePage === "apk")} onClick={() => setActivePage("apk")}>
             <Smartphone className="w-5 h-5" />
             <span>Generate APK</span>
+          </div>
+
+          <div className={navItemClass(activePage === "device-management")} onClick={() => setActivePage("device-management")}>
+            <Monitor className="w-5 h-5" />
+            <span>Device Management</span>
           </div>
 
           <div className={navItemClass(activePage === "reports")} onClick={() => setActivePage("reports")}>

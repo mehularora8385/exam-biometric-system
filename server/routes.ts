@@ -514,6 +514,63 @@ export async function registerRoutes(
     try { await storage.deleteDevice(Number(req.params.id)); res.json({ message: "Deleted" }); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.post("/api/devices/sync-all", async (req, res) => {
+    try {
+      const { examId } = req.body;
+      const allDevices = await storage.listDevices();
+      const filtered = examId ? allDevices.filter((d: any) => d.examId === examId) : allDevices;
+      const now = new Date().toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+      for (const device of filtered) {
+        await storage.updateDevice(device.id, { lastSyncAt: now });
+      }
+      res.json({ message: `Sync triggered for ${filtered.length} devices`, count: filtered.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/devices/logout-all", async (req, res) => {
+    try {
+      const { examId } = req.body;
+      const allDevices = await storage.listDevices();
+      const filtered = examId ? allDevices.filter((d: any) => d.examId === examId) : allDevices;
+      for (const device of filtered) {
+        await storage.updateDevice(device.id, { loginStatus: "Logged Out" });
+      }
+      res.json({ message: `Logged out ${filtered.length} devices`, count: filtered.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/devices/release-mdm", async (req, res) => {
+    try {
+      const { examId, deviceId } = req.body;
+      if (deviceId) {
+        await storage.updateDevice(deviceId, { mdmStatus: "Inactive" });
+        res.json({ message: "MDM released for 1 device", count: 1 });
+      } else {
+        const allDevices = await storage.listDevices();
+        const filtered = examId ? allDevices.filter((d: any) => d.examId === examId) : allDevices;
+        for (const device of filtered) {
+          await storage.updateDevice(device.id, { mdmStatus: "Inactive" });
+        }
+        res.json({ message: `MDM released for ${filtered.length} devices`, count: filtered.length });
+      }
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/devices/:id/sync", async (req, res) => {
+    try {
+      const now = new Date().toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+      const result = await storage.updateDevice(Number(req.params.id), { lastSyncAt: now });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/devices/:id/logout", async (req, res) => {
+    try {
+      const result = await storage.updateDevice(Number(req.params.id), { loginStatus: "Logged Out" });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/apk-builds", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;

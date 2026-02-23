@@ -115,7 +115,16 @@ export const devices = pgTable("devices", {
   imei: text("imei"),
   operatorId: integer("operator_id"),
   operatorName: text("operator_name"),
+  centerName: text("center_name"),
+  centreCode: text("centre_code"),
+  examId: integer("exam_id"),
+  examName: text("exam_name"),
   model: text("model"),
+  androidVersion: text("android_version"),
+  batteryLevel: integer("battery_level"),
+  lastSyncAt: text("last_sync_at"),
+  mdmStatus: text("mdm_status").default("Active"),
+  loginStatus: text("login_status").default("Logged In"),
   status: text("status").notNull().default("Active"),
 });
 

@@ -63,7 +63,8 @@ All pages have working:
 - Operator Management: edit modal, activate/deactivate, unbind device
 - Candidate filters: exam, centre, slot, status with clear filters
 - Upload Candidates: Excel/CSV upload with template (Centre Code, Centre Name, exam Name, Roll No, Name, Father Name, DOB, Slot, Photo urL) - photo URLs in same file, no separate photo upload
-- APK Generation: Multi-exam batch build, biometric config (Face+Fingerprint MFS100/MFS110, OMR camera capture), feature toggles, device compatibility (Tablet+Mobile Android 8.0+), config download
+- APK Generation: Multi-exam batch build, biometric config (Face+Fingerprint MFS100/MFS110, OMR camera capture), feature toggles, device compatibility (Tablet+Mobile Android 8.0+), config download, MDM info section
+- Device Management: Exam-wise filter, Sync All / Logout All / Release MDM (All) bulk actions, per-device sync/logout/release MDM/unbind, battery %, Android version, login status, MDM status, last sync time, IMEI/MAC display
 - Verification API: Submit face match %, fingerprint match, OMR number from Android APK
 - Data Sync API: Centre-filtered candidate download for operators
 - Client Dashboard: Client-wise exam-wise view-only dashboard with 3 tabs (Dashboard, Operators, Students)

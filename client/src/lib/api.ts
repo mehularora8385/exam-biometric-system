@@ -99,6 +99,11 @@ export const api = {
     create: (data: any) => request<any>("/devices", { method: "POST", body: JSON.stringify(data) }),
     update: (id: number, data: any) => request<any>(`/devices/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/devices/${id}`, { method: "DELETE" }),
+    syncAll: (examId?: number) => request<any>("/devices/sync-all", { method: "POST", body: JSON.stringify({ examId }) }),
+    logoutAll: (examId?: number) => request<any>("/devices/logout-all", { method: "POST", body: JSON.stringify({ examId }) }),
+    releaseMdm: (examId?: number, deviceId?: number) => request<any>("/devices/release-mdm", { method: "POST", body: JSON.stringify({ examId, deviceId }) }),
+    syncOne: (id: number) => request<any>(`/devices/${id}/sync`, { method: "POST" }),
+    logoutOne: (id: number) => request<any>(`/devices/${id}/logout`, { method: "POST" }),
   },
   apkBuilds: {
     list: (examId?: number) => request<any[]>(`/apk-builds${examId ? `?examId=${examId}` : ""}`),

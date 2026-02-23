@@ -13,6 +13,7 @@ import Reports from "@/pages/admin/reports";
 import UploadInstruction from "@/pages/admin/upload-instruction";
 import OmrSetup from "@/pages/admin/omr-setup";
 import DeviceMapping from "@/pages/admin/device-mapping";
+import DeviceManagement from "@/pages/admin/device-management";
 import Candidates from "@/pages/admin/candidate";
 import GenerateAPK from "@/pages/admin/apk";
 import AICommandCenter from "@/pages/admin/ai-command-center";
@@ -44,6 +45,7 @@ export default function AdminPanel() {
       case "upload-instruction": return <UploadInstruction />;
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
+      case "device-management": return <DeviceManagement />;
       default: return <Dashboard />;
     }
   };
