@@ -372,28 +372,47 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getDashboardStats(): Promise<any> {
+  async getDashboardStats(examId?: number): Promise<any> {
+    const examFilter = examId ? eq(candidates.examId, examId) : undefined;
+    const centerExamFilter = examId ? eq(centers.examId, examId) : undefined;
+
     const [examCount] = await db.select({ count: sql<number>`count(*)` }).from(exams);
-    const [centerCount] = await db.select({ count: sql<number>`count(*)` }).from(centers);
+    const [centerCount] = await db.select({ count: sql<number>`count(*)` }).from(centers).where(centerExamFilter);
     const [operatorCount] = await db.select({ count: sql<number>`count(*)` }).from(operators);
-    const [candidateCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates);
-    const [verifiedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.status, "Verified"));
-    const [pendingCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.status, "Pending"));
-    const [presentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.presentMark, "Present"));
-    const [absentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(sql`${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent'`);
-    const [activeOperators] = await db.select({ count: sql<number>`count(*)` }).from(operators).where(eq(operators.status, "Active"));
-    const [activeCenters] = await db.select({ count: sql<number>`count(*)` }).from(centers);
+    const [candidateCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter);
+    const [verifiedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter ? and(eq(candidates.status, "Verified"), examFilter) : eq(candidates.status, "Verified"));
+    const [pendingCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter ? and(eq(candidates.status, "Pending"), examFilter) : eq(candidates.status, "Pending"));
+    const [presentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter ? and(eq(candidates.presentMark, "Present"), examFilter) : eq(candidates.presentMark, "Present"));
+    const [absentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter ? and(sql`(${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent')`, examFilter) : sql`${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent'`);
     const [alertCount] = await db.select({ count: sql<number>`count(*)` }).from(alerts);
 
-    const centerList = await db.select().from(centers);
+    const centerList = await db.select().from(centers).where(centerExamFilter);
+
+    let totalOps = 0;
+    let activeOps = 0;
+    if (examId) {
+      const maps = await db.select().from(centerOperatorMaps).where(eq(centerOperatorMaps.examId, examId));
+      const opIds = Array.from(new Set(maps.map(m => m.operatorId)));
+      if (opIds.length > 0) {
+        const ops = await db.select().from(operators).where(sql`${operators.id} IN (${sql.join(opIds.map(id => sql`${id}`), sql`, `)})`);
+        totalOps = ops.length;
+        activeOps = ops.filter(o => o.status === "Active").length;
+      }
+    } else {
+      const allOps = await db.select().from(operators);
+      totalOps = allOps.length;
+      activeOps = allOps.filter(o => o.status === "Active").length;
+    }
+
     const centerStatsPromises = centerList.map(async (center) => {
       const cFilter = eq(candidates.centreCode, center.code);
-      const [total] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(cFilter);
-      const [verified] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(and(eq(candidates.status, "Verified"), cFilter));
-      const [pending] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(and(eq(candidates.status, "Pending"), cFilter));
-      const [present] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(and(eq(candidates.presentMark, "Present"), cFilter));
+      const combinedFilter = examFilter ? and(cFilter, examFilter) : cFilter;
+      const [total] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter);
+      const [verified] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter ? and(eq(candidates.status, "Verified"), combinedFilter) : and(eq(candidates.status, "Verified"), cFilter));
+      const [pending] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter ? and(eq(candidates.status, "Pending"), combinedFilter) : and(eq(candidates.status, "Pending"), cFilter));
+      const [present] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter ? and(eq(candidates.presentMark, "Present"), combinedFilter) : and(eq(candidates.presentMark, "Present"), cFilter));
       const opsAtCenter = await db.select().from(operators).where(eq(operators.centerId, center.id));
-      const activeOps = opsAtCenter.filter(o => o.status === "Active").length;
+      const activeOpsAtCenter = opsAtCenter.filter(o => o.status === "Active").length;
 
       return {
         centerId: center.id,
@@ -405,7 +424,7 @@ export class DatabaseStorage implements IStorage {
         verified: Number(verified.count),
         pending: Number(pending.count),
         present: Number(present.count),
-        operators: `${activeOps}/${opsAtCenter.length}`,
+        operators: `${activeOpsAtCenter}/${opsAtCenter.length}`,
         progress: Number(total.count) > 0 ? Math.round((Number(verified.count) / Number(total.count)) * 100) : 0,
       };
     });
@@ -421,9 +440,9 @@ export class DatabaseStorage implements IStorage {
       absent: Number(absentCount.count),
       totalExams: Number(examCount.count),
       totalCenters: Number(centerCount.count),
-      totalOperators: Number(operatorCount.count),
-      activeOperators: Number(activeOperators.count),
-      activeCenters: Number(activeCenters.count),
+      totalOperators: totalOps,
+      activeOperators: activeOps,
+      activeCenters: centerList.length,
       totalAlerts: Number(alertCount.count),
       centerStats,
     };

@@ -1362,9 +1362,10 @@ export async function registerRoutes(
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
-  app.get("/api/dashboard/stats", async (_req, res) => {
+  app.get("/api/dashboard/stats", async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats();
+      const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      const stats = await storage.getDashboardStats(examId);
       res.json(stats);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

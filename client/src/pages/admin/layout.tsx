@@ -1,22 +1,31 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { 
   LayoutDashboard, Users, Building2, Smartphone, FileText, 
   ChevronLeft, Menu, Shield, Users2, FileArchive, Activity, ShieldAlert, Radar, Monitor
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
+import { api } from "@/lib/api";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
   activePage: string;
   setActivePage: (page: string) => void;
+  selectedExamId?: number;
+  onExamChange?: (examId: number | undefined) => void;
 }
 
-export default function AdminLayout({ children, activePage, setActivePage }: AdminLayoutProps) {
+export default function AdminLayout({ children, activePage, setActivePage, selectedExamId, onExamChange }: AdminLayoutProps) {
   const [, setLocation] = useLocation();
   const { logout } = useAppStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const { data: examList = [] } = useQuery({
+    queryKey: ["exams"],
+    queryFn: api.exams.list,
+  });
 
   const handleLogout = () => {
     logout();
@@ -126,8 +135,16 @@ export default function AdminLayout({ children, activePage, setActivePage }: Adm
             )}
             
             <div className="relative">
-              <select className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option>All Exams</option>
+              <select 
+                data-testid="select-exam-filter"
+                className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedExamId ?? ""}
+                onChange={(e) => onExamChange?.(e.target.value ? Number(e.target.value) : undefined)}
+              >
+                <option value="">All Exams</option>
+                {examList.map((exam: any) => (
+                  <option key={exam.id} value={exam.id}>{exam.name}</option>
+                ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
                 <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>

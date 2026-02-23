@@ -5,10 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Users, UserCheck, Clock, AlertCircle, Building2, Smartphone, TrendingUp, Search, HandMetal } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
-export default function Dashboard() {
+interface DashboardProps {
+  selectedExamId?: number;
+}
+
+export default function Dashboard({ selectedExamId }: DashboardProps) {
   const { data: stats, isLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: api.dashboard.stats,
+    queryKey: ["dashboard-stats", selectedExamId],
+    queryFn: () => api.dashboard.stats(selectedExamId),
   });
 
   if (isLoading) {

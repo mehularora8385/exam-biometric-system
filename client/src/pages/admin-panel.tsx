@@ -23,10 +23,11 @@ import GlobalSurveillance from "@/pages/admin/global-surveillance";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
+  const [selectedExamId, setSelectedExamId] = useState<number | undefined>(undefined);
 
   const renderPage = () => {
     switch(activePage) {
-      case "dashboard": return <Dashboard />;
+      case "dashboard": return <Dashboard selectedExamId={selectedExamId} />;
       case "department": return <DepartmentMaster />;
       case "designation": return <DesignationMaster />;
       case "exam": return <ExamMaster setActivePage={setActivePage} />;
@@ -46,12 +47,12 @@ export default function AdminPanel() {
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
       case "device-management": return <DeviceManagement />;
-      default: return <Dashboard />;
+      default: return <Dashboard selectedExamId={selectedExamId} />;
     }
   };
 
   return (
-    <AdminLayout activePage={activePage} setActivePage={setActivePage}>
+    <AdminLayout activePage={activePage} setActivePage={setActivePage} selectedExamId={selectedExamId} onExamChange={setSelectedExamId}>
       {renderPage()}
     </AdminLayout>
   );

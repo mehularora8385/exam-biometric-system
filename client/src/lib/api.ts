@@ -126,7 +126,7 @@ export const api = {
     update: (data: any) => request<any>("/global-tech-settings", { method: "PUT", body: JSON.stringify(data) }),
   },
   dashboard: {
-    stats: () => request<any>("/dashboard/stats"),
+    stats: (examId?: number) => request<any>(`/dashboard/stats${examId ? `?examId=${examId}` : ""}`),
   },
   client: {
     exams: (username: string) => request<any[]>(`/client/exams?username=${encodeURIComponent(username)}`),
