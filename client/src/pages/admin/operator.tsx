@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Users, UserCheck, Smartphone, Search, Edit, Trash2, PowerOff, RefreshCw, Loader2 } from "lucide-react";
 
 export default function OperatorMaster() {
@@ -13,6 +15,9 @@ export default function OperatorMaster() {
   const [searchQuery, setSearchQuery] = useState("");
   const [examFilter, setExamFilter] = useState("all");
   const [centerFilter, setCenterFilter] = useState("all_centres");
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", centerId: "", status: "Active" });
 
   const { data: operatorsData = [], isLoading } = useQuery({
     queryKey: ["operators"],
@@ -261,7 +266,17 @@ export default function OperatorMaster() {
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                         title="Edit"
                         data-testid={`button-edit-${operator.id ?? idx}`}
-                        onClick={() => alert(`Edit operator: ${operator.name} (ID: ${operator.id})`)}
+                        onClick={() => {
+                          setEditId(operator.id);
+                          setEditForm({
+                            name: operator.name || "",
+                            phone: operator.phone || "",
+                            email: operator.email || "",
+                            centerId: operator.centerId?.toString() || "",
+                            status: operator.status || "Active",
+                          });
+                          setEditOpen(true);
+                        }}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -291,6 +306,110 @@ export default function OperatorMaster() {
           </div>
         </div>
       </Card>
+
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditId(null); }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Edit Operator</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                data-testid="input-edit-operator-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="Operator name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                data-testid="input-edit-operator-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                placeholder="Phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                data-testid="input-edit-operator-email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="Email address"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Centre</Label>
+              <Select value={editForm.centerId} onValueChange={(val) => setEditForm({ ...editForm, centerId: val })}>
+                <SelectTrigger data-testid="select-edit-operator-center">
+                  <SelectValue placeholder="Select Centre" />
+                </SelectTrigger>
+                <SelectContent>
+                  {centers.map((center: any) => (
+                    <SelectItem key={center.id} value={center.id.toString()}>
+                      {center.code ? `${center.code} - ${center.name}` : center.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={editForm.status} onValueChange={(val) => setEditForm({ ...editForm, status: val })}>
+                <SelectTrigger data-testid="select-edit-operator-status">
+                  <SelectValue placeholder="Select Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                data-testid="button-edit-operator-cancel"
+                onClick={() => { setEditOpen(false); setEditId(null); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                data-testid="button-edit-operator-save"
+                disabled={updateMutation.isPending}
+                onClick={() => {
+                  if (editId === null) return;
+                  const selectedCenter = centers.find((c: any) => c.id.toString() === editForm.centerId);
+                  updateMutation.mutate(
+                    {
+                      id: editId,
+                      name: editForm.name,
+                      phone: editForm.phone,
+                      email: editForm.email,
+                      centerId: editForm.centerId ? parseInt(editForm.centerId) : null,
+                      centerName: selectedCenter ? (selectedCenter.code ? `${selectedCenter.code} - ${selectedCenter.name}` : selectedCenter.name) : null,
+                      status: editForm.status,
+                    },
+                    {
+                      onSuccess: () => {
+                        setEditOpen(false);
+                        setEditId(null);
+                      },
+                    }
+                  );
+                }}
+              >
+                {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

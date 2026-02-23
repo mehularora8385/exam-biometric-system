@@ -58,7 +58,21 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
     clientLoginId: "",
     clientLoginPass: "",
     apkPassword: "",
-    date: todayFormatted,
+  });
+
+  const [slots, setSlots] = useState([{ name: "Slot 1", startTime: "09:00", endTime: "12:00" }]);
+
+  const [settings, setSettings] = useState({
+    biometricMode: "face",
+    flowType: "single",
+    attendanceMode: "both",
+    omrMode: "verification",
+    faceLiveness: true,
+    fingerprintQuality: true,
+    offlineMode: true,
+    gps: false,
+    mdm: false,
+    retryLimit: "3",
   });
 
   const { data: rawExams = [], isLoading } = useQuery({
@@ -87,10 +101,23 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.exams.create(data),
-    onSuccess: () => {
+    onSuccess: async (result: any) => {
+      for (const slot of slots) {
+        await api.slots.create({
+          name: slot.name,
+          examId: result.id,
+          date: new Date().toISOString().split('T')[0],
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          status: "Active",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["exams"] });
+      queryClient.invalidateQueries({ queryKey: ["slots"] });
       setIsAddModalOpen(false);
-      setFormData({ name: "", code: "", client: "", clientLoginId: "", clientLoginPass: "", apkPassword: "", date: todayFormatted });
+      setFormData({ name: "", code: "", client: "", clientLoginId: "", clientLoginPass: "", apkPassword: "" });
+      setSlots([{ name: "Slot 1", startTime: "09:00", endTime: "12:00" }]);
+      setSettings({ biometricMode: "face", flowType: "single", attendanceMode: "both", omrMode: "verification", faceLiveness: true, fingerprintQuality: true, offlineMode: true, gps: false, mdm: false, retryLimit: "3" });
       setActiveStep(1);
     },
   });
@@ -162,10 +189,6 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     <label className="text-sm font-medium text-gray-700">Client Name <span className="text-gray-400">*</span></label>
                     <Input placeholder="e.g., Union Public Service Commission" className="border-gray-200 focus-visible:ring-blue-500" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Date <span className="text-gray-400">*</span></label>
-                    <Input placeholder="DD/MM/YYYY" className="border-gray-200 focus-visible:ring-blue-500" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} />
-                  </div>
                 </div>
 
                 <div>
@@ -196,25 +219,27 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     <h4 className="text-sm font-medium text-gray-900">Time Slots <span className="text-red-500">*</span></h4>
                     <p className="text-xs text-gray-500 mt-1">Define examination time slots (at least one required)</p>
                   </div>
-                  <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 gap-2 h-9 rounded-lg">
+                  <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 gap-2 h-9 rounded-lg" onClick={() => setSlots([...slots, { name: "Slot " + (slots.length + 1), startTime: "", endTime: "" }])}>
                     <Plus className="w-4 h-4" /> Add Slot
                   </Button>
                 </div>
                 
-                <div className="flex items-center gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
-                  <Input defaultValue="Slot 1" className="bg-white border-gray-200" />
+                {slots.map((slot, i) => (
+                <div key={i} className="flex items-center gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                  <Input value={slot.name} onChange={(e) => { const updated = [...slots]; updated[i] = { ...updated[i], name: e.target.value }; setSlots(updated); }} className="bg-white border-gray-200" />
                   <div className="relative flex-1">
-                    <Input defaultValue="09:00" className="bg-white border-gray-200 pr-10" />
+                    <Input value={slot.startTime} onChange={(e) => { const updated = [...slots]; updated[i] = { ...updated[i], startTime: e.target.value }; setSlots(updated); }} className="bg-white border-gray-200 pr-10" />
                     <Clock className="w-4 h-4 text-gray-400 absolute right-3 top-2.5" />
                   </div>
                   <div className="relative flex-1">
-                    <Input defaultValue="12:00" className="bg-white border-gray-200 pr-10" />
+                    <Input value={slot.endTime} onChange={(e) => { const updated = [...slots]; updated[i] = { ...updated[i], endTime: e.target.value }; setSlots(updated); }} className="bg-white border-gray-200 pr-10" />
                     <Clock className="w-4 h-4 text-gray-400 absolute right-3 top-2.5" />
                   </div>
-                  <button className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                  <button className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" onClick={() => setSlots(slots.filter((_, idx) => idx !== i))}>
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+                ))}
               </div>
             )}
 
@@ -226,7 +251,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Biometric Mode</label>
-                      <Select defaultValue="face">
+                      <Select value={settings.biometricMode} onValueChange={(v) => setSettings({...settings, biometricMode: v})}>
                         <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select mode" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="face">Face Only</SelectItem>
@@ -238,7 +263,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Verification Flow</label>
-                      <Select defaultValue="single">
+                      <Select value={settings.flowType} onValueChange={(v) => setSettings({...settings, flowType: v})}>
                         <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select flow" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="single">Single Biometric</SelectItem>
@@ -249,7 +274,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Attendance Mode</label>
-                      <Select defaultValue="both">
+                      <Select value={settings.attendanceMode} onValueChange={(v) => setSettings({...settings, attendanceMode: v})}>
                         <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select mode" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="both">Both</SelectItem>
@@ -260,7 +285,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">OMR/Barcode Mode</label>
-                      <Select defaultValue="verification">
+                      <Select value={settings.omrMode} onValueChange={(v) => setSettings({...settings, omrMode: v})}>
                         <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select mode" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="verification">Verification Only</SelectItem>
@@ -277,35 +302,35 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                   <h4 className="text-[15px] font-semibold text-gray-900 mb-4">Features</h4>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-5">
                     <div className="flex items-start space-x-3">
-                      <Switch id="liveness" defaultChecked className="mt-1 data-[state=checked]:bg-blue-600" />
+                      <Switch id="liveness" checked={settings.faceLiveness} onCheckedChange={(v) => setSettings({...settings, faceLiveness: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
                       <div>
                         <label htmlFor="liveness" className="text-sm font-medium text-gray-900 cursor-pointer">Face Liveness Detection</label>
                         <p className="text-xs text-gray-500">Detect live face vs photo</p>
                       </div>
                     </div>
                     <div className="flex items-start space-x-3">
-                      <Switch id="finger_quality" defaultChecked className="mt-1 data-[state=checked]:bg-blue-600" />
+                      <Switch id="finger_quality" checked={settings.fingerprintQuality} onCheckedChange={(v) => setSettings({...settings, fingerprintQuality: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
                       <div>
                         <label htmlFor="finger_quality" className="text-sm font-medium text-gray-900 cursor-pointer">Fingerprint Quality Check</label>
                         <p className="text-xs text-gray-500">Ensure fingerprint quality</p>
                       </div>
                     </div>
                     <div className="flex items-start space-x-3">
-                      <Switch id="offline" defaultChecked className="mt-1 data-[state=checked]:bg-blue-600" />
+                      <Switch id="offline" checked={settings.offlineMode} onCheckedChange={(v) => setSettings({...settings, offlineMode: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
                       <div>
                         <label htmlFor="offline" className="text-sm font-medium text-gray-900 cursor-pointer">Offline Mode</label>
                         <p className="text-xs text-gray-500">Allow offline operations</p>
                       </div>
                     </div>
                     <div className="flex items-start space-x-3">
-                      <Switch id="gps" className="mt-1 data-[state=checked]:bg-blue-600" />
+                      <Switch id="gps" checked={settings.gps} onCheckedChange={(v) => setSettings({...settings, gps: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
                       <div>
                         <label htmlFor="gps" className="text-sm font-medium text-gray-900 cursor-pointer">GPS Capture</label>
                         <p className="text-xs text-gray-500">Record location</p>
                       </div>
                     </div>
                     <div className="flex items-start space-x-3">
-                      <Switch id="mdm" className="mt-1 data-[state=checked]:bg-blue-600" />
+                      <Switch id="mdm" checked={settings.mdm} onCheckedChange={(v) => setSettings({...settings, mdm: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
                       <div>
                         <label htmlFor="mdm" className="text-sm font-medium text-gray-900 cursor-pointer">MDM Control</label>
                         <p className="text-xs text-gray-500">Enable MDM</p>
@@ -314,7 +339,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     <div className="flex items-start space-x-3">
                       <div className="w-full space-y-1">
                         <label className="text-sm font-medium text-gray-900">Retry Limit</label>
-                        <Input defaultValue="3" className="border-gray-200 w-full focus-visible:ring-blue-500" />
+                        <Input value={settings.retryLimit} onChange={(e) => setSettings({...settings, retryLimit: e.target.value})} className="border-gray-200 w-full focus-visible:ring-blue-500" />
                       </div>
                     </div>
                   </div>
@@ -339,7 +364,21 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => createMutation.mutate(formData)}
+                    onClick={() => createMutation.mutate({
+                      name: formData.name,
+                      code: formData.code,
+                      client: formData.client,
+                      clientLoginId: formData.clientLoginId,
+                      clientLoginPass: formData.clientLoginPass,
+                      apkPassword: formData.apkPassword,
+                      biometricMode: settings.biometricMode,
+                      flowType: settings.flowType,
+                      attendanceMode: settings.attendanceMode,
+                      omrMode: settings.omrMode,
+                      faceLiveness: settings.faceLiveness,
+                      retryLimit: parseInt(settings.retryLimit) || 3,
+                      status: "Draft",
+                    })}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                     disabled={createMutation.isPending}
                   >

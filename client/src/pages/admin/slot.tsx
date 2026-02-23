@@ -16,6 +16,7 @@ export default function SlotMaster() {
   const { toast } = useToast();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [editId, setEditId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     examId: "",
     examDate: "",
@@ -27,6 +28,11 @@ export default function SlotMaster() {
     startTime: "",
     endTime: "",
   });
+
+  const resetForm = () => {
+    setFormData({ examId: "", examDate: "", slotTitle: "", slotSequence: "", reportingStartTime: "", reportingEndTime: "", gateCloseTime: "", startTime: "", endTime: "" });
+    setEditId(null);
+  };
 
   const { data: slots = [], isLoading } = useQuery({
     queryKey: ["/api/slots"],
@@ -43,8 +49,19 @@ export default function SlotMaster() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/slots"] });
       setIsAddModalOpen(false);
-      setFormData({ examId: "", examDate: "", slotTitle: "", slotSequence: "", reportingStartTime: "", reportingEndTime: "", gateCloseTime: "", startTime: "", endTime: "" });
+      resetForm();
       toast({ title: "Slot created successfully" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.slots.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/slots"] });
+      setIsAddModalOpen(false);
+      resetForm();
+      toast({ title: "Slot updated successfully" });
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -59,21 +76,52 @@ export default function SlotMaster() {
   });
 
   const filtered = slots.filter((s: any) =>
-    !search || (s.slotTitle || s.title || "").toLowerCase().includes(search.toLowerCase()) || (s.examName || "").toLowerCase().includes(search.toLowerCase())
+    !search || (s.name || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const getExamName = (examId: number | null | undefined) => {
+    if (!examId) return "—";
+    const exam = exams.find((e: any) => e.id === examId);
+    return exam ? (exam.name || exam.title || "—") : String(examId);
+  };
 
   const handleSave = () => {
     const data: any = {
-      ...formData,
+      name: formData.slotTitle,
       examId: formData.examId ? parseInt(formData.examId) : undefined,
-      slotSequence: formData.slotSequence ? parseInt(formData.slotSequence) : undefined,
+      date: formData.examDate,
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      status: "Active",
     };
-    createMutation.mutate(data);
+    if (editId) {
+      updateMutation.mutate({ id: editId, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (slot: any) => {
+    setEditId(slot.id);
+    setFormData({
+      examId: String(slot.examId || ""),
+      examDate: slot.date || "",
+      slotTitle: slot.name || "",
+      slotSequence: "",
+      reportingStartTime: "",
+      reportingEndTime: "",
+      gateCloseTime: "",
+      startTime: slot.startTime || "",
+      endTime: slot.endTime || "",
+    });
+    setIsAddModalOpen(true);
   };
 
   const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -85,7 +133,7 @@ export default function SlotMaster() {
         <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
           <h3 className="font-semibold text-slate-700">Slot Master List</h3>
           
-          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <Dialog open={isAddModalOpen} onOpenChange={(open) => { setIsAddModalOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-[#1cc88a] hover:bg-[#17a673] text-white gap-2" data-testid="button-add-slot">
                 <Plus className="w-4 h-4" /> Add Slot
@@ -93,7 +141,7 @@ export default function SlotMaster() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle className="text-xl">Add Slot</DialogTitle>
+                <DialogTitle className="text-xl">{editId ? "Edit Slot" : "Add Slot"}</DialogTitle>
               </DialogHeader>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -151,10 +199,10 @@ export default function SlotMaster() {
               </div>
               
               <div className="flex justify-end gap-2 mt-6">
-                <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>Close</Button>
-                <Button className="bg-[#4e73df] hover:bg-[#2e59d9]" onClick={handleSave} disabled={createMutation.isPending} data-testid="button-save-slot">
-                  {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save
+                <Button variant="outline" onClick={() => { setIsAddModalOpen(false); resetForm(); }}>Close</Button>
+                <Button className="bg-[#4e73df] hover:bg-[#2e59d9]" onClick={handleSave} disabled={isSaving} data-testid="button-save-slot">
+                  {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {editId ? "Update" : "Save"}
                 </Button>
               </div>
             </DialogContent>
@@ -206,19 +254,20 @@ export default function SlotMaster() {
                   filtered.map((slot: any, index: number) => (
                     <TableRow key={slot.id} data-testid={`row-slot-${slot.id}`}>
                       <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-medium">{slot.examName || slot.exam || "—"}</TableCell>
-                      <TableCell>{slot.examDate || "—"}</TableCell>
-                      <TableCell>{slot.slotTitle || slot.title || "—"}</TableCell>
-                      <TableCell>{slot.slotSequence || slot.sequence || "—"}</TableCell>
+                      <TableCell className="font-medium">{getExamName(slot.examId)}</TableCell>
+                      <TableCell>{slot.date || "—"}</TableCell>
+                      <TableCell>{slot.name || "—"}</TableCell>
+                      <TableCell>—</TableCell>
                       <TableCell>{slot.startTime || "—"}</TableCell>
                       <TableCell>{slot.endTime || "—"}</TableCell>
-                      <TableCell>{slot.reportingStartTime || "—"}</TableCell>
-                      <TableCell>{slot.reportingEndTime || "—"}</TableCell>
-                      <TableCell>{slot.gateCloseTime || "—"}</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell>—</TableCell>
                       <TableCell><span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-semibold">{slot.status || "Active"}</span></TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" className="h-8 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100" data-testid={`button-edit-slot-${slot.id}`}><Edit className="w-4 h-4" /></Button>
+                          <Button variant="outline" size="sm" className="h-8 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100" onClick={() => handleEdit(slot)} data-testid={`button-edit-slot-${slot.id}`}><Edit className="w-4 h-4" /></Button>
+                          <Button variant="outline" size="sm" className="h-8 bg-red-50 text-red-600 border-red-200 hover:bg-red-100" onClick={() => deleteMutation.mutate(slot.id)} data-testid={`button-delete-slot-${slot.id}`}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>

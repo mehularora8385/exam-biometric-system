@@ -40,6 +40,17 @@ users, exams, centers, operators, candidates, departments, designations, slots, 
 ## Admin Panel Tabs
 Dashboard, Exam Management, Upload Candidates, Centre Management, Operators Management, Candidates Management, Generate APK, Exception Monitor, Fraud Analytics, Biometric Integrity, Global Tech (Beta), plus Master Management pages (Department, Designation, Slot, Center-Operator Map, Device Mapping, OMR Setup, Upload Instructions)
 
+## Functional Features
+All pages have working:
+- Search/filter inputs connected to state
+- Dropdown filters (Exam, Centre, Status, Slot) fetching from API
+- CRUD operations (Create, Edit, Delete) via API mutations
+- Create Exam modal with 3-step wizard (Basic Info, Time Slots, Settings) - all fields functional
+- Slot Master: create, edit, delete slots with proper schema mapping
+- Center-Operator Map: create/delete mappings, filter by exam/center
+- Operator Management: edit modal, activate/deactivate, unbind device
+- Candidate filters: exam, centre, slot, status with clear filters
+
 ## Global Tech (Beta)
 Optional advanced surveillance features (all OFF by default):
 - Kinesics/Micro-expressions analysis

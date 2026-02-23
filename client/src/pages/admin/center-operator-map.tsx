@@ -16,6 +16,8 @@ export default function CenterOperatorMap() {
   const { toast } = useToast();
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterExam, setFilterExam] = useState("");
+  const [filterCenter, setFilterCenter] = useState("");
   const [formData, setFormData] = useState({
     examId: "",
     centerId: "",
@@ -63,16 +65,22 @@ export default function CenterOperatorMap() {
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const filtered = maps.filter((m: any) =>
-    !search || (m.centerName || "").toLowerCase().includes(search.toLowerCase()) || (m.operatorName || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = maps.filter((m: any) => {
+    if (search && !(m.centerName || "").toLowerCase().includes(search.toLowerCase()) && !(m.operatorName || "").toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterExam && String(m.examId) !== filterExam) return false;
+    if (filterCenter && String(m.centerId) !== filterCenter) return false;
+    return true;
+  });
 
   const handleSave = () => {
-    const data: any = {
+    const selectedCenter = centers.find((c: any) => String(c.id) === formData.centerId);
+    const selectedOperator = operators.find((op: any) => String(op.id) === formData.operatorId);
+    const data = {
       examId: formData.examId ? parseInt(formData.examId) : undefined,
-      centerId: formData.centerId ? parseInt(formData.centerId) : undefined,
-      operatorId: formData.operatorId ? parseInt(formData.operatorId) : undefined,
-      deviceTypes: formData.deviceTypes,
+      centerId: parseInt(formData.centerId),
+      operatorId: parseInt(formData.operatorId),
+      centerName: selectedCenter?.name || "",
+      operatorName: selectedOperator?.name || "",
     };
     createMutation.mutate(data);
   };
@@ -167,19 +175,19 @@ export default function CenterOperatorMap() {
         <CardContent className="p-0">
           <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100">
             <div className="flex flex-wrap gap-2 w-full md:w-auto">
-              <select className="border rounded p-1.5 text-sm w-40 text-slate-600">
-                <option>--Select Exam--</option>
+              <select className="border rounded p-1.5 text-sm w-40 text-slate-600" value={filterExam} onChange={(e) => setFilterExam(e.target.value)}>
+                <option value="">--Select Exam--</option>
                 {exams.map((exam: any) => (
-                  <option key={exam.id} value={exam.id}>{exam.name || exam.title}</option>
+                  <option key={exam.id} value={String(exam.id)}>{exam.name || exam.title}</option>
                 ))}
               </select>
-              <select className="border rounded p-1.5 text-sm w-40 text-slate-600">
-                <option>--Select Center--</option>
+              <select className="border rounded p-1.5 text-sm w-40 text-slate-600" value={filterCenter} onChange={(e) => setFilterCenter(e.target.value)}>
+                <option value="">--Select Center--</option>
                 {centers.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
                 ))}
               </select>
-              <Button size="sm" className="bg-[#4e73df] hover:bg-[#2e59d9]">Search</Button>
+              <Button size="sm" className="bg-[#4e73df] hover:bg-[#2e59d9]" onClick={() => {}}>Search</Button>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-500">Search:</span>
