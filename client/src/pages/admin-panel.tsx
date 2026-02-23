@@ -13,6 +13,7 @@ import Reports from "@/pages/admin/reports";
 import UploadInstruction from "@/pages/admin/upload-instruction";
 import OmrSetup from "@/pages/admin/omr-setup";
 import DeviceMapping from "@/pages/admin/device-mapping";
+import Candidates from "@/pages/admin/candidate";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -26,6 +27,7 @@ export default function AdminPanel() {
       case "slot": return <SlotMaster />;
       case "center": return <CenterMaster />;
       case "operator": return <OperatorMaster />;
+      case "candidates": return <Candidates />;
       case "center-operator-map": return <CenterOperatorMap />;
       case "upload-candidate": return <UploadCandidate />;
       case "reports": return <Reports />;

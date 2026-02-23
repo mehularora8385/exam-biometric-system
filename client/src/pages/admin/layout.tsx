@@ -68,7 +68,7 @@ export default function AdminLayout({ children, activePage, setActivePage }: Adm
             <span>Operators</span>
           </div>
 
-          <div className={navItemClass(activePage === "upload-candidate")} onClick={() => setActivePage("upload-candidate")}>
+          <div className={navItemClass(activePage === "candidates")} onClick={() => setActivePage("candidates")}>
             <Users2 className="w-5 h-5" />
             <span>Candidates</span>
           </div>
