@@ -280,21 +280,38 @@ export async function registerRoutes(
       const mapRow = (row: any) => {
         const get = (keys: string[]) => {
           for (const k of keys) {
-            const val = row[k] || row[k.toLowerCase()] || row[k.toUpperCase()] || row[k.replace(/\s/g, "")] || row[k.replace(/\s/g, "_")];
-            if (val !== undefined && val !== null && val !== "") return String(val);
+            if (row[k] !== undefined && row[k] !== null && row[k] !== "") return String(row[k]);
+          }
+          for (const k of keys) {
+            const lower = k.toLowerCase();
+            const upper = k.toUpperCase();
+            const noSpace = k.replace(/\s/g, "");
+            const underscore = k.replace(/\s/g, "_");
+            for (const variant of [lower, upper, noSpace, underscore]) {
+              if (row[variant] !== undefined && row[variant] !== null && row[variant] !== "") return String(row[variant]);
+            }
+          }
+          for (const rowKey of Object.keys(row)) {
+            const normalizedRowKey = rowKey.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+            for (const k of keys) {
+              const normalizedKey = k.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+              if (normalizedRowKey === normalizedKey && row[rowKey] !== undefined && row[rowKey] !== null && row[rowKey] !== "") {
+                return String(row[rowKey]);
+              }
+            }
           }
           return undefined;
         };
         return {
+          centreCode: get(["Centre Code", "centre_code", "CentreCode", "Center Code", "center_code", "CENTRE CODE"]),
+          centreName: get(["Centre Name", "centre_name", "CentreName", "Center Name", "center_name", "CENTRE NAME"]),
           rollNo: get(["Roll No", "RollNo", "roll_no", "Roll Number", "rollno", "roll no", "ROLL NO"]) || "",
           name: get(["Name", "name", "Candidate Name", "candidate_name", "Student Name", "NAME"]) || "",
           fatherName: get(["Father Name", "father_name", "FatherName", "Father's Name", "father name", "FATHER NAME"]),
-          dob: get(["DOB", "dob", "Date of Birth", "date_of_birth", "DateOfBirth", "DOB"]),
-          omrNo: get(["OMR No", "omr_no", "OMR", "omrNo", "OMR NO"]),
-          centreCode: get(["Centre Code", "centre_code", "CentreCode", "Center Code", "center_code", "CENTRE CODE"]),
-          centreName: get(["Centre Name", "centre_name", "CentreName", "Center Name", "center_name", "CENTRE NAME"]),
+          dob: get(["DOB", "dob", "Date of Birth", "date_of_birth", "DateOfBirth"]),
           slot: get(["Slot", "slot", "Time Slot", "SLOT"]),
-          photoUrl: get(["Photo", "photo", "Photo URL", "photo_url", "PhotoURL", "Image", "PHOTO"]),
+          photoUrl: get(["Photo urL", "Photo URL", "Photo url", "photo_url", "PhotoURL", "Photo", "photo", "Image", "PHOTO", "PHOTO URL"]),
+          omrNo: get(["OMR No", "omr_no", "OMR", "omrNo", "OMR NO"]),
           status: "Pending",
           examId: examId,
         };
@@ -351,8 +368,8 @@ export async function registerRoutes(
   app.use("/uploads", (await import("express")).default.static("uploads"));
 
   app.get("/api/candidates/template", (_req, res) => {
-    const headers = "Roll No,Name,Father Name,DOB,OMR No,Centre Code,Centre Name,Slot,Photo\n";
-    const sample = "2024001,Rahul Kumar,Suresh Kumar,01/01/1995,OMR001,DEL001,Delhi Public School,Slot 1,\n";
+    const headers = "Centre Code,Centre Name,exam Name,Roll No,Name,Father Name,DOB,Slot,Photo urL\n";
+    const sample = "DEL001,Delhi Public School,UPSC,2024001,Rahul Kumar,Suresh Kumar,01-01-1995,Slot 1,\n";
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=candidate_template.csv");
     res.send(headers + sample);

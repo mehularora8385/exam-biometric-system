@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Users, Building2, CalendarDays, Upload, Download,
-  FileSpreadsheet, Image, CheckCircle, XCircle, Loader2, AlertCircle
+  FileSpreadsheet, CheckCircle, XCircle, Loader2, AlertCircle
 } from "lucide-react";
 
 export default function UploadCandidate() {
@@ -17,15 +17,11 @@ export default function UploadCandidate() {
 
   const [selectedExam, setSelectedExam] = useState("");
   const [uploadResult, setUploadResult] = useState<{ inserted: number; total: number; skipped: number; message: string } | null>(null);
-  const [photoResult, setPhotoResult] = useState<{ uploaded: number; matched: number; results: any[] } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [dragActivePhoto, setDragActivePhoto] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: exams = [] } = useQuery({ queryKey: ["exams"], queryFn: api.exams.list });
 
@@ -99,54 +95,12 @@ export default function UploadCandidate() {
     }
   };
 
-  const handlePhotoDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActivePhoto(true);
-    } else if (e.type === "dragleave") {
-      setDragActivePhoto(false);
-    }
-  };
-
-  const handlePhotoDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActivePhoto(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await uploadPhotos(e.dataTransfer.files);
-    }
-  };
-
-  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      await uploadPhotos(e.target.files);
-    }
-  };
-
-  const uploadPhotos = async (files: FileList) => {
-    setIsUploadingPhotos(true);
-    setPhotoResult(null);
-    try {
-      const result = await api.candidates.uploadPhotos(files);
-      setPhotoResult(result);
-      if (photoInputRef.current) photoInputRef.current.value = "";
-      toast({ title: "Photos uploaded", description: `${result.uploaded || 0} photos uploaded, ${result.matched || 0} matched to candidates` });
-    } catch (error: any) {
-      toast({ title: "Photo upload failed", description: error.message || "Something went wrong", variant: "destructive" });
-    } finally {
-      setIsUploadingPhotos(false);
-    }
-  };
-
-  const selectedExamData = exams.find((e: any) => String(e.id) === selectedExam);
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Upload Candidates</h1>
-          <p className="text-sm text-gray-500 mt-1">Upload candidate data and photos for examination</p>
+          <p className="text-sm text-gray-500 mt-1">Upload candidate data with photo URLs via Excel or CSV</p>
         </div>
         <div className="w-full sm:w-72">
           <Select value={selectedExam} onValueChange={setSelectedExam} data-testid="select-exam">
@@ -216,7 +170,7 @@ export default function UploadCandidate() {
                 <FileSpreadsheet className="w-5 h-5 text-blue-600" />
                 Upload Candidate Data
               </h3>
-              <p className="text-sm text-gray-500 mt-1">Upload an Excel or CSV file with candidate information</p>
+              <p className="text-sm text-gray-500 mt-1">Upload an Excel or CSV file with candidate details and photo URLs in a single file</p>
             </div>
             <Button
               variant="outline"
@@ -226,6 +180,40 @@ export default function UploadCandidate() {
             >
               <Download className="w-4 h-4" /> Download Template
             </Button>
+          </div>
+
+          <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+            <p className="text-sm font-medium text-blue-800 mb-2">Template Format (CSV / Excel)</p>
+            <div className="overflow-x-auto">
+              <table className="text-xs text-blue-700 border-collapse w-full">
+                <thead>
+                  <tr className="border-b border-blue-200">
+                    <th className="py-1.5 px-3 text-left font-semibold">Centre Code</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">Centre Name</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">exam Name</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">Roll No</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">Name</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">Father Name</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">DOB</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">Slot</th>
+                    <th className="py-1.5 px-3 text-left font-semibold">Photo urL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="py-1.5 px-3">DEL001</td>
+                    <td className="py-1.5 px-3">Delhi Public School</td>
+                    <td className="py-1.5 px-3">UPSC</td>
+                    <td className="py-1.5 px-3">2024001</td>
+                    <td className="py-1.5 px-3">Rahul Kumar</td>
+                    <td className="py-1.5 px-3">Suresh Kumar</td>
+                    <td className="py-1.5 px-3">01-01-1995</td>
+                    <td className="py-1.5 px-3">Slot 1</td>
+                    <td className="py-1.5 px-3 text-blue-500">https://...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div
@@ -263,16 +251,22 @@ export default function UploadCandidate() {
                   <p className="text-base font-medium text-blue-600 mb-1">
                     Click to upload <span className="text-gray-500 font-normal">or drag and drop</span>
                   </p>
-                  <p className="text-sm text-gray-500">Upload Excel (.xlsx, .xls) or CSV file</p>
-                  <p className="text-xs text-gray-400 mt-2">Accepted: .xlsx, .xls, .csv</p>
-                  <p className="text-xs text-gray-400">Max size: 10MB</p>
+                  <p className="text-sm text-gray-500">Upload Excel (.xlsx, .xls) or CSV file with candidate data & photo URLs</p>
+                  <p className="text-xs text-gray-400 mt-2">Accepted: .xlsx, .xls, .csv | Max size: 10MB</p>
                 </div>
               )}
             </div>
           </div>
 
           {selectedFile && (
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                className="gap-2 text-gray-600 border-gray-200"
+                onClick={(e) => { e.stopPropagation(); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+              >
+                <XCircle className="w-4 h-4" /> Clear
+              </Button>
               <Button
                 data-testid="button-upload-file"
                 className="gap-2 bg-blue-600 hover:bg-blue-700"
@@ -305,79 +299,15 @@ export default function UploadCandidate() {
               <div>
                 <p className="font-semibold text-green-800">Upload Complete</p>
                 <p className="text-sm text-green-700">
-                  {uploadResult.inserted} candidates inserted, {uploadResult.skipped} skipped out of {uploadResult.total} total
+                  {uploadResult.inserted} candidates inserted
+                  {uploadResult.skipped > 0 && <>, {uploadResult.skipped} skipped (missing Roll No or Name)</>}
+                  {" "}out of {uploadResult.total} total rows
                 </p>
-                {uploadResult.message && (
-                  <p className="text-sm text-green-600 mt-1">{uploadResult.message}</p>
-                )}
               </div>
             </div>
           </CardContent>
         </Card>
       )}
-
-      <Card className="shadow-sm border-gray-100 rounded-xl">
-        <CardContent className="p-8">
-          <div className="mb-6">
-            <h3 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
-              <Image className="w-5 h-5 text-purple-600" />
-              Upload Candidate Photos
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Upload candidate photos. Filename should match the roll number (e.g., 12345.jpg)
-            </p>
-          </div>
-
-          <div
-            className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer
-              ${dragActivePhoto ? "border-purple-500 bg-purple-50" : "border-gray-200 hover:bg-gray-50 bg-white"}`}
-            onDragEnter={handlePhotoDrag}
-            onDragLeave={handlePhotoDrag}
-            onDragOver={handlePhotoDrag}
-            onDrop={handlePhotoDrop}
-            onClick={() => photoInputRef.current?.click()}
-          >
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handlePhotoSelect}
-              data-testid="button-upload-photos"
-            />
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
-                {isUploadingPhotos ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <Image className="w-6 h-6" />
-                )}
-              </div>
-              <div>
-                <p className="text-base font-medium text-purple-600 mb-1">
-                  {isUploadingPhotos ? "Uploading photos..." : "Click to upload photos"}{" "}
-                  {!isUploadingPhotos && <span className="text-gray-500 font-normal">or drag and drop</span>}
-                </p>
-                <p className="text-sm text-gray-500">Accepts JPG, PNG, GIF, BMP, WebP</p>
-                <p className="text-xs text-gray-400 mt-2">Photos are matched by filename (roll number = filename)</p>
-              </div>
-            </div>
-          </div>
-
-          {photoResult && (
-            <div className="mt-4 flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-              <CheckCircle className="w-6 h-6 text-purple-600 flex-shrink-0" />
-              <div>
-                <p className="font-semibold text-purple-800">Photos Uploaded</p>
-                <p className="text-sm text-purple-700">
-                  {photoResult.uploaded} photos uploaded, {photoResult.matched} matched to candidates
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {candidates.length > 0 && selectedExam && (
         <Card className="shadow-sm border-gray-100 rounded-xl">
@@ -389,26 +319,34 @@ export default function UploadCandidate() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Centre Code</TableHead>
+                    <TableHead>Centre Name</TableHead>
                     <TableHead>Roll No</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Centre</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Father Name</TableHead>
+                    <TableHead>DOB</TableHead>
+                    <TableHead>Slot</TableHead>
+                    <TableHead>Photo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {candidates.slice(0, 50).map((candidate: any, idx: number) => (
                     <TableRow key={candidate.id || idx}>
-                      <TableCell className="font-mono">{candidate.rollNumber || candidate.roll_number || "-"}</TableCell>
-                      <TableCell>{candidate.name || "-"}</TableCell>
-                      <TableCell>{candidate.centerCode || candidate.center_code || "-"}</TableCell>
+                      <TableCell className="font-mono text-xs">{candidate.centreCode || "-"}</TableCell>
+                      <TableCell className="text-sm">{candidate.centreName || "-"}</TableCell>
+                      <TableCell className="font-mono text-xs">{candidate.rollNo || "-"}</TableCell>
+                      <TableCell className="text-sm font-medium">{candidate.name || "-"}</TableCell>
+                      <TableCell className="text-sm">{candidate.fatherName || "-"}</TableCell>
+                      <TableCell className="text-xs">{candidate.dob || "-"}</TableCell>
+                      <TableCell className="text-sm">{candidate.slot || "-"}</TableCell>
                       <TableCell>
-                        {candidate.photoUrl || candidate.photo_url ? (
+                        {candidate.photoUrl ? (
                           <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
-                            <CheckCircle className="w-3 h-3" /> Photo
+                            <CheckCircle className="w-3 h-3" /> Yes
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-gray-400 text-xs font-medium">
-                            <XCircle className="w-3 h-3" /> No Photo
+                            <XCircle className="w-3 h-3" /> No
                           </span>
                         )}
                       </TableCell>
@@ -435,23 +373,23 @@ export default function UploadCandidate() {
           <div className="space-y-4 text-sm text-gray-600">
             <div className="flex gap-3">
               <span className="font-semibold text-gray-900">1.</span>
-              <p>Download the template file to see the required format</p>
+              <p>Download the template file to see the required column format</p>
             </div>
             <div className="flex gap-3">
               <span className="font-semibold text-gray-900">2.</span>
-              <p>Fill in the candidate data following the template structure (all formats accepted for student photos etc)</p>
+              <p>Fill in candidate data following the template: <strong>Centre Code, Centre Name, exam Name, Roll No, Name, Father Name, DOB, Slot, Photo urL</strong></p>
             </div>
             <div className="flex gap-3">
               <span className="font-semibold text-gray-900">3.</span>
-              <p>Ensure mandatory fields (Roll No, Name, Centre Code) are not empty</p>
+              <p>Include the photo URL for each candidate directly in the <strong>Photo urL</strong> column (no separate photo upload needed)</p>
             </div>
             <div className="flex gap-3">
               <span className="font-semibold text-gray-900">4.</span>
-              <p>Upload the completed file using the drag and drop area above</p>
+              <p>Ensure mandatory fields (<strong>Roll No</strong> and <strong>Name</strong>) are filled — rows without these will be skipped</p>
             </div>
             <div className="flex gap-3">
               <span className="font-semibold text-gray-900">5.</span>
-              <p>Upload candidate photos with filenames matching roll numbers (e.g., 12345.jpg)</p>
+              <p>Select the exam and upload the completed file using the drag & drop area above</p>
             </div>
           </div>
         </CardContent>
