@@ -912,7 +912,7 @@ export default function GenerateAPK() {
                       { icon: "⚙️", title: "Settings Access", desc: "Cannot open device Settings from anywhere" },
                       { icon: "📱", title: "Other Apps", desc: "All other installed apps are inaccessible during exam" },
                       { icon: "🔌", title: "USB Debugging", desc: "ADB and USB debugging are blocked to prevent sideloading" },
-                      { icon: "📶", title: "WiFi / Mobile Data Toggle", desc: "Cannot change network settings to disrupt sync" },
+                      { icon: "📶", title: "WiFi / Data Settings Change", desc: "Cannot switch WiFi networks or turn off data — connection stays active for sync" },
                       { icon: "✈️", title: "Airplane Mode", desc: "Toggling airplane mode is blocked" },
                       { icon: "📸", title: "Screenshot / Screen Recording", desc: "Screen capture is disabled to prevent data leak" },
                       { icon: "⬇️", title: "App Install / Uninstall", desc: "Cannot install or uninstall any app during exam" },
@@ -939,7 +939,7 @@ export default function GenerateAPK() {
                       { icon: "🔊", title: "Volume Control", desc: "Volume up/down buttons remain functional for accessibility" },
                       { icon: "🔌", title: "USB OTG (Scanner)", desc: "Mantra MFS100/MFS110 fingerprint scanner via USB OTG works normally" },
                       { icon: "🔋", title: "Charging", desc: "Device charging continues normally during exam" },
-                      { icon: "📡", title: "Data Sync (Background)", desc: "APK syncs verification data in background over WiFi/mobile data" },
+                      { icon: "📶", title: "WiFi / Mobile Data Connection", desc: "Existing WiFi & mobile data stay active — APK syncs verification data in real-time" },
                       { icon: "🔒", title: "Power Button (Screen Lock)", desc: "Power button locks screen but returns to APK on unlock" },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5 p-2 bg-green-50/60 rounded-lg border border-green-100">
