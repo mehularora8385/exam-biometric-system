@@ -82,6 +82,20 @@ export default function AdminLayout({ children, activePage, setActivePage }: Adm
             <FileArchive className="w-5 h-5" />
             <span>Audit Logs</span>
           </div>
+
+          <div className="pt-4 pb-2 px-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Advanced Security</p>
+          </div>
+
+          <div className={navItemClass(activePage === "ai-command")} onClick={() => setActivePage("ai-command")}>
+            <Activity className="w-5 h-5" />
+            <span>Live Command Center</span>
+          </div>
+
+          <div className={navItemClass(activePage === "fraud-analytics")} onClick={() => setActivePage("fraud-analytics")}>
+            <Shield className="w-5 h-5" />
+            <span>Fraud Analytics</span>
+          </div>
         </div>
       </aside>
 

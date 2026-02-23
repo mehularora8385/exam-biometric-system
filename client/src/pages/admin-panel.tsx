@@ -15,6 +15,8 @@ import OmrSetup from "@/pages/admin/omr-setup";
 import DeviceMapping from "@/pages/admin/device-mapping";
 import Candidates from "@/pages/admin/candidate";
 import GenerateAPK from "@/pages/admin/apk";
+import AICommandCenter from "@/pages/admin/ai-command-center";
+import FraudAnalytics from "@/pages/admin/fraud-analytics";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -33,6 +35,8 @@ export default function AdminPanel() {
       case "upload-candidate": return <UploadCandidate />;
       case "apk": return <GenerateAPK />;
       case "reports": return <Reports />;
+      case "ai-command": return <AICommandCenter />;
+      case "fraud-analytics": return <FraudAnalytics />;
       case "upload-instruction": return <UploadInstruction />;
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
