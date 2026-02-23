@@ -9,7 +9,7 @@ export async function seedDatabase() {
 
   console.log("Seeding database with initial data...");
 
-  await storage.createUser({ username: "demo", password: "demo", role: "admin", displayName: "Admin User" });
+  await storage.createUser({ username: "Mehul_7300", password: "Mehul@7300", role: "admin", displayName: "Mehul Admin" });
   await storage.createUser({ username: "upsc_client", password: "upsc@123", role: "client", displayName: "UPSC Client" });
 
   const exam1 = await storage.createExam({

@@ -126,7 +126,7 @@ export default function AdminLogin() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between p-2 bg-gray-50 rounded">
               <span className="text-gray-600">Admin:</span>
-              <span className="font-mono text-gray-900 font-semibold">demo / demo</span>
+              <span className="font-mono text-gray-900 font-semibold">Mehul_7300 / Mehul@7300</span>
             </div>
             <div className="flex justify-between p-2 bg-gray-50 rounded">
               <span className="text-gray-600">Client:</span>

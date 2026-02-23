@@ -155,10 +155,10 @@ export default function AdminLayout({ children, activePage, setActivePage, selec
           <div className="flex items-center gap-3 cursor-pointer" onClick={handleLogout} title="Click to logout">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
-                DA
+                MA
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold text-gray-800 leading-none">Demo Admin</span>
+                <span className="text-sm font-semibold text-gray-800 leading-none">Mehul Admin</span>
                 <span className="text-xs text-gray-500">Admin</span>
               </div>
               <ChevronLeft className="w-4 h-4 text-gray-400 -rotate-90 ml-1" />
