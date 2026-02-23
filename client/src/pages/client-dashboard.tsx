@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/store";
@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { 
   Users, UserCheck, Clock, AlertCircle, Building2, Smartphone, TrendingUp, Search, 
   Shield, ChevronLeft, LayoutDashboard, GraduationCap, Eye, Loader2,
-  Phone, Mail, MapPin, CheckCircle2, XCircle, Monitor
+  Phone, Mail, MapPin, CheckCircle2, XCircle, Monitor, Fingerprint, Camera, FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,54 +15,72 @@ type TabType = "dashboard" | "operators" | "students";
 
 export default function ClientDashboard() {
   const [, setLocation] = useLocation();
-  const { logout, operator } = useAppStore();
+  const { logout, state } = useAppStore();
+  const operator = state.operator;
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
-  const [selectedExamId, setSelectedExamId] = useState<number | undefined>(undefined);
   const [operatorSearch, setOperatorSearch] = useState("");
+  const [operatorCentreFilter, setOperatorCentreFilter] = useState("all");
   const [studentSearch, setStudentSearch] = useState("");
   const [studentStatusFilter, setStudentStatusFilter] = useState("all");
+  const [studentCentreFilter, setStudentCentreFilter] = useState("all");
 
   const handleLogout = () => {
+    localStorage.removeItem("role");
+    localStorage.removeItem("displayName");
+    localStorage.removeItem("username");
     logout();
     setLocation("/login");
   };
 
-  const { data: examList = [] } = useQuery({
-    queryKey: ["exams"],
-    queryFn: () => api.exams.list(),
+  const clientUsername = localStorage.getItem("username") || "";
+  const clientName = operator?.name || localStorage.getItem("displayName") || "Client";
+
+  const { data: clientExams = [] } = useQuery({
+    queryKey: ["client-exams", clientUsername],
+    queryFn: () => api.client.exams(clientUsername),
+    enabled: !!clientUsername,
   });
 
+  const clientExam = clientExams.length > 0 ? clientExams[0] : null;
+  const examId = clientExam?.id;
+  const examTitle = clientExam?.name || "Loading...";
+
   const { data: dashStats, isLoading: statsLoading } = useQuery({
-    queryKey: ["client-dashboard", selectedExamId],
-    queryFn: () => api.client.dashboard(selectedExamId),
+    queryKey: ["client-dashboard", examId],
+    queryFn: () => api.client.dashboard(examId),
+    enabled: !!examId,
   });
 
   const { data: operatorList = [], isLoading: opsLoading } = useQuery({
-    queryKey: ["client-operators", selectedExamId],
-    queryFn: () => api.client.operators(selectedExamId),
-    enabled: activeTab === "operators",
+    queryKey: ["client-operators", examId],
+    queryFn: () => api.client.operators(examId),
+    enabled: !!examId,
   });
 
   const { data: candidateList = [], isLoading: candidatesLoading } = useQuery({
-    queryKey: ["client-candidates", selectedExamId],
-    queryFn: () => api.client.candidates(selectedExamId),
-    enabled: activeTab === "students",
+    queryKey: ["client-candidates", examId],
+    queryFn: () => api.client.candidates(examId),
+    enabled: !!examId,
   });
 
-  const selectedExam = examList.find((e: any) => e.id === selectedExamId);
-  const examTitle = selectedExam ? selectedExam.name : "All Exams";
-  const clientName = operator?.name || "Client";
+  const centreOptions = Array.from(new Set((dashStats?.centerStats || []).map((c: any) => c.code))).map(code => {
+    const cs = (dashStats?.centerStats || []).find((c: any) => c.code === code);
+    return { code, name: cs?.name || code };
+  });
 
   const filteredOperators = operatorList.filter((op: any) => {
     const q = operatorSearch.toLowerCase();
-    return !q || op.name?.toLowerCase().includes(q) || op.phone?.includes(q) || op.email?.toLowerCase().includes(q) || op.centerName?.toLowerCase().includes(q);
+    const matchesSearch = !q || op.name?.toLowerCase().includes(q) || op.phone?.includes(q) || op.email?.toLowerCase().includes(q) || op.centerName?.toLowerCase().includes(q);
+    const matchesCentre = operatorCentreFilter === "all" || op.centerName === centreOptions.find((c: any) => c.code === operatorCentreFilter)?.name;
+    return matchesSearch && matchesCentre;
   });
 
   const filteredCandidates = candidateList.filter((c: any) => {
     const q = studentSearch.toLowerCase();
-    const matchesSearch = !q || c.name?.toLowerCase().includes(q) || c.rollNo?.includes(q) || c.fatherName?.toLowerCase().includes(q) || c.centreCode?.includes(q);
+    const matchesSearch = !q || c.name?.toLowerCase().includes(q) || c.rollNo?.includes(q) || c.fatherName?.toLowerCase().includes(q) || c.omrNo?.toLowerCase().includes(q);
     const matchesStatus = studentStatusFilter === "all" || c.status?.toLowerCase() === studentStatusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
+    const matchesCentre = studentCentreFilter === "all" || c.centreCode === studentCentreFilter;
+    return matchesSearch && matchesStatus && matchesCentre;
   });
 
   const tabs = [
@@ -82,21 +100,12 @@ export default function ClientDashboard() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <select
-              data-testid="select-exam-filter"
-              value={selectedExamId ?? ""}
-              onChange={(e) => setSelectedExamId(e.target.value ? Number(e.target.value) : undefined)}
-              className="appearance-none bg-white border border-gray-200 text-gray-700 py-1.5 pl-3 pr-8 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
-            >
-              <option value="">All Exams</option>
-              {examList.map((exam: any) => (
-                <option key={exam.id} value={exam.id}>{exam.name}</option>
-              ))}
-            </select>
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-900 text-sm leading-tight" data-testid="text-exam-name">{examTitle}</span>
+            <span className="text-[11px] text-gray-400">{clientExam?.client || ""}</span>
           </div>
 
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 ml-4">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -137,9 +146,18 @@ export default function ClientDashboard() {
       </header>
 
       <main className="flex-1 p-6 max-w-[1400px] w-full mx-auto pb-10">
-        {activeTab === "dashboard" && <DashboardTab stats={dashStats} loading={statsLoading} examTitle={examTitle} />}
-        {activeTab === "operators" && <OperatorsTab operators={filteredOperators} loading={opsLoading} search={operatorSearch} setSearch={setOperatorSearch} examTitle={examTitle} />}
-        {activeTab === "students" && <StudentsTab candidates={filteredCandidates} loading={candidatesLoading} search={studentSearch} setSearch={setStudentSearch} statusFilter={studentStatusFilter} setStatusFilter={setStudentStatusFilter} examTitle={examTitle} />}
+        {!examId && !statsLoading && (
+          <div className="flex items-center justify-center h-64 text-gray-400">
+            <div className="text-center">
+              <Shield className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-lg font-medium">No exam assigned to this client</p>
+              <p className="text-sm mt-1">Please contact the administrator</p>
+            </div>
+          </div>
+        )}
+        {activeTab === "dashboard" && examId && <DashboardTab stats={dashStats} loading={statsLoading} examTitle={examTitle} />}
+        {activeTab === "operators" && examId && <OperatorsTab operators={filteredOperators} loading={opsLoading} search={operatorSearch} setSearch={setOperatorSearch} centreFilter={operatorCentreFilter} setCentreFilter={setOperatorCentreFilter} centreOptions={centreOptions} examTitle={examTitle} />}
+        {activeTab === "students" && examId && <StudentsTab candidates={filteredCandidates} loading={candidatesLoading} search={studentSearch} setSearch={setStudentSearch} statusFilter={studentStatusFilter} setStatusFilter={setStudentStatusFilter} centreFilter={studentCentreFilter} setCentreFilter={setStudentCentreFilter} centreOptions={centreOptions} examTitle={examTitle} />}
       </main>
     </div>
   );
@@ -352,9 +370,10 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
           <CardContent className="p-6">
             <h3 className="font-semibold text-gray-900 mb-6 text-[17px]">Centre Performance</h3>
             <div className="space-y-3">
-              {(s.centerStats || []).slice(0, 5).map((cs: any, i: number) => (
+              {(s.centerStats || []).slice(0, 6).map((cs: any, i: number) => (
                 <div key={i} className="flex items-center gap-4">
                   <span className="text-sm font-medium text-gray-600 w-20 truncate">{cs.code}</span>
+                  <span className="text-xs text-gray-400 w-32 truncate">{cs.name}</span>
                   <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                     <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${cs.progress}%` }} />
                   </div>
@@ -420,7 +439,7 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
   );
 }
 
-function OperatorsTab({ operators, loading, search, setSearch, examTitle }: { operators: any[]; loading: boolean; search: string; setSearch: (s: string) => void; examTitle: string }) {
+function OperatorsTab({ operators, loading, search, setSearch, centreFilter, setCentreFilter, centreOptions, examTitle }: { operators: any[]; loading: boolean; search: string; setSearch: (s: string) => void; centreFilter: string; setCentreFilter: (s: string) => void; centreOptions: any[]; examTitle: string }) {
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
   }
@@ -473,16 +492,29 @@ function OperatorsTab({ operators, loading, search, setSearch, examTitle }: { op
 
       <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
         <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/50 border-b border-gray-100">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-            <input 
-              type="text"
-              data-testid="input-search-operators"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search operators..." 
-              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow" 
-            />
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+              <input 
+                type="text"
+                data-testid="input-search-operators"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search operators..." 
+                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow" 
+              />
+            </div>
+            <select
+              data-testid="select-centre-filter-operators"
+              value={centreFilter}
+              onChange={(e) => setCentreFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]"
+            >
+              <option value="all">All Centres</option>
+              {centreOptions.map((c: any) => (
+                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+              ))}
+            </select>
           </div>
           <div className="text-sm text-gray-500 font-medium">
             Showing {operators.length} operator{operators.length !== 1 ? "s" : ""}
@@ -549,7 +581,7 @@ function OperatorsTab({ operators, loading, search, setSearch, examTitle }: { op
   );
 }
 
-function StudentsTab({ candidates, loading, search, setSearch, statusFilter, setStatusFilter, examTitle }: { candidates: any[]; loading: boolean; search: string; setSearch: (s: string) => void; statusFilter: string; setStatusFilter: (s: string) => void; examTitle: string }) {
+function StudentsTab({ candidates, loading, search, setSearch, statusFilter, setStatusFilter, centreFilter, setCentreFilter, centreOptions, examTitle }: { candidates: any[]; loading: boolean; search: string; setSearch: (s: string) => void; statusFilter: string; setStatusFilter: (s: string) => void; centreFilter: string; setCentreFilter: (s: string) => void; centreOptions: any[]; examTitle: string }) {
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
   }
@@ -557,6 +589,8 @@ function StudentsTab({ candidates, loading, search, setSearch, statusFilter, set
   const verifiedCount = candidates.filter(c => c.status === "Verified").length;
   const pendingCount = candidates.filter(c => c.status === "Pending").length;
   const rejectedCount = candidates.filter(c => c.status === "Rejected").length;
+  const presentCount = candidates.filter(c => c.presentMark === "Present").length;
+  const absentCount = candidates.filter(c => c.presentMark === "Absent" || !c.presentMark).length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -565,48 +599,59 @@ function StudentsTab({ candidates, loading, search, setSearch, statusFilter, set
         <p className="text-gray-500 text-[15px]">View-only candidate details for {examTitle}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="shadow-sm border-gray-100 rounded-xl">
-          <CardContent className="p-5 flex justify-between items-center">
+          <CardContent className="p-4 flex justify-between items-center">
             <div>
-              <div className="text-[15px] font-medium text-gray-500">Total Students</div>
-              <div className="text-3xl font-bold text-gray-900 mt-1" data-testid="text-total-students">{candidates.length.toLocaleString()}</div>
+              <div className="text-xs font-medium text-gray-500">Total</div>
+              <div className="text-2xl font-bold text-gray-900 mt-0.5" data-testid="text-total-students">{candidates.length}</div>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <GraduationCap className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <GraduationCap className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
         <Card className="shadow-sm border-gray-100 rounded-xl">
-          <CardContent className="p-5 flex justify-between items-center">
+          <CardContent className="p-4 flex justify-between items-center">
             <div>
-              <div className="text-[15px] font-medium text-gray-500">Verified</div>
-              <div className="text-3xl font-bold text-green-600 mt-1">{verifiedCount.toLocaleString()}</div>
+              <div className="text-xs font-medium text-gray-500">Verified</div>
+              <div className="text-2xl font-bold text-green-600 mt-0.5">{verifiedCount}</div>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
-              <UserCheck className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
+              <UserCheck className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
         <Card className="shadow-sm border-gray-100 rounded-xl">
-          <CardContent className="p-5 flex justify-between items-center">
+          <CardContent className="p-4 flex justify-between items-center">
             <div>
-              <div className="text-[15px] font-medium text-gray-500">Pending</div>
-              <div className="text-3xl font-bold text-amber-500 mt-1">{pendingCount.toLocaleString()}</div>
+              <div className="text-xs font-medium text-gray-500">Pending</div>
+              <div className="text-2xl font-bold text-amber-500 mt-0.5">{pendingCount}</div>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-yellow-50 flex items-center justify-center text-yellow-600">
-              <Clock className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-yellow-50 flex items-center justify-center text-yellow-600">
+              <Clock className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
         <Card className="shadow-sm border-gray-100 rounded-xl">
-          <CardContent className="p-5 flex justify-between items-center">
+          <CardContent className="p-4 flex justify-between items-center">
             <div>
-              <div className="text-[15px] font-medium text-gray-500">Rejected</div>
-              <div className="text-3xl font-bold text-red-500 mt-1">{rejectedCount.toLocaleString()}</div>
+              <div className="text-xs font-medium text-gray-500">Present</div>
+              <div className="text-2xl font-bold text-blue-600 mt-0.5">{presentCount}</div>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-500">
-              <XCircle className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm border-gray-100 rounded-xl">
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <div className="text-xs font-medium text-gray-500">Absent</div>
+              <div className="text-2xl font-bold text-red-500 mt-0.5">{absentCount}</div>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-500">
+              <XCircle className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
@@ -614,18 +659,29 @@ function StudentsTab({ candidates, loading, search, setSearch, statusFilter, set
 
       <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
         <div className="p-4 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/50 border-b border-gray-100">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-72">
+          <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+            <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
               <input 
                 type="text"
                 data-testid="input-search-students"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, roll no, centre..." 
+                placeholder="Search name, roll no, OMR..." 
                 className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow" 
               />
             </div>
+            <select
+              data-testid="select-centre-filter-students"
+              value={centreFilter}
+              onChange={(e) => setCentreFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]"
+            >
+              <option value="all">All Centres</option>
+              {centreOptions.map((c: any) => (
+                <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+              ))}
+            </select>
             <select
               data-testid="select-status-filter"
               value={statusFilter}
@@ -636,10 +692,11 @@ function StudentsTab({ candidates, loading, search, setSearch, statusFilter, set
               <option value="verified">Verified</option>
               <option value="pending">Pending</option>
               <option value="rejected">Rejected</option>
+              <option value="absent">Absent</option>
             </select>
           </div>
-          <div className="text-sm text-gray-500 font-medium">
-            Showing {candidates.length.toLocaleString()} student{candidates.length !== 1 ? "s" : ""}
+          <div className="text-sm text-gray-500 font-medium whitespace-nowrap">
+            {candidates.length} student{candidates.length !== 1 ? "s" : ""}
           </div>
         </div>
 
@@ -647,71 +704,115 @@ function StudentsTab({ candidates, loading, search, setSearch, statusFilter, set
           <table className="w-full text-sm text-left whitespace-nowrap" data-testid="table-students">
             <thead className="text-[11px] text-gray-500 uppercase bg-gray-50/80">
               <tr>
-                <th className="px-6 py-4 font-semibold tracking-wider">#</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Roll No</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Name</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Father Name</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">DOB</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Centre</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Slot</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Match %</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Status</th>
-                <th className="px-6 py-4 font-semibold tracking-wider">Verified At</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">#</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Photo</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Roll No</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">OMR No</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Name</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Father Name</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Centre</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Slot</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Face Match</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Fingerprint</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Present</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Status</th>
+                <th className="px-4 py-4 font-semibold tracking-wider">Verified At</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {candidates.map((c: any, i: number) => (
                 <tr key={c.id} className="hover:bg-blue-50/30 transition-colors" data-testid={`row-student-${c.id}`}>
-                  <td className="px-6 py-4 text-gray-500">{i + 1}</td>
-                  <td className="px-6 py-4 font-mono font-semibold text-gray-800">{c.rollNo}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                  <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
                       {c.photoUrl ? (
-                        <img src={c.photoUrl} className="w-8 h-8 rounded-full object-cover border border-gray-200" alt="" />
+                        <img src={c.photoUrl} className="w-10 h-10 rounded-lg object-cover border border-gray-200" alt="Upload" title="Uploaded Photo" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-xs font-bold">
-                          {c.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] border border-gray-200">
+                          <Camera className="w-4 h-4" />
                         </div>
                       )}
-                      <span className="font-medium text-gray-900">{c.name}</span>
+                      {c.capturedPhotoUrl ? (
+                        <img src={c.capturedPhotoUrl} className="w-10 h-10 rounded-lg object-cover border-2 border-green-300" alt="Captured" title="Real-time Captured Photo" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-50 text-gray-300 flex items-center justify-center text-[10px] border border-dashed border-gray-200" title="No captured photo">
+                          <Camera className="w-4 h-4" />
+                        </div>
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{c.fatherName || "-"}</td>
-                  <td className="px-6 py-4 text-gray-600">{c.dob || "-"}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 font-mono font-semibold text-gray-800 text-xs">{c.rollNo}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="font-mono text-xs text-gray-700">{c.omrNo || "-"}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.fatherName || "-"}</td>
+                  <td className="px-4 py-3">
                     <div className="flex flex-col">
-                      <span className="text-gray-700 font-medium">{c.centreCode || "-"}</span>
-                      <span className="text-[11px] text-gray-400">{c.centreName || ""}</span>
+                      <span className="text-gray-700 font-medium text-xs">{c.centreCode || "-"}</span>
+                      <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{c.centreName || ""}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{c.slot || "-"}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 text-gray-600 text-xs">{c.slot || "-"}</td>
+                  <td className="px-4 py-3">
                     {c.matchPercent ? (
-                      <span className={cn(
-                        "font-semibold",
-                        Number(c.matchPercent) >= 75 ? "text-green-600" :
-                        Number(c.matchPercent) >= 50 ? "text-amber-500" : "text-red-500"
-                      )}>
-                        {c.matchPercent}%
-                      </span>
-                    ) : <span className="text-gray-400">-</span>}
+                      <div className="flex items-center gap-1.5">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          Number(c.matchPercent) >= 75 ? "bg-green-500" :
+                          Number(c.matchPercent) >= 50 ? "bg-amber-500" : "bg-red-500"
+                        )} />
+                        <span className={cn(
+                          "font-semibold text-xs",
+                          Number(c.matchPercent) >= 75 ? "text-green-600" :
+                          Number(c.matchPercent) >= 50 ? "text-amber-500" : "text-red-500"
+                        )}>
+                          {c.matchPercent}%
+                        </span>
+                      </div>
+                    ) : <span className="text-gray-300 text-xs">-</span>}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3">
+                    {c.fingerprintVerified ? (
+                      <div className="flex items-center gap-1.5">
+                        <Fingerprint className="w-4 h-4 text-green-500" />
+                        <span className="text-xs font-semibold text-green-600">Done</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <Fingerprint className="w-4 h-4 text-gray-300" />
+                        <span className="text-xs text-gray-400">Pending</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <span className={cn(
-                      "px-2.5 py-1 rounded-full text-xs font-semibold",
+                      "px-2 py-0.5 rounded-full text-[11px] font-semibold",
+                      c.presentMark === "Present" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"
+                    )}>
+                      {c.presentMark || "Absent"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[11px] font-semibold",
                       c.status === "Verified" ? "bg-green-50 text-green-700" :
                       c.status === "Pending" ? "bg-amber-50 text-amber-700" :
                       c.status === "Rejected" ? "bg-red-50 text-red-600" :
+                      c.status === "Absent" ? "bg-gray-100 text-gray-600" :
                       "bg-gray-50 text-gray-600"
                     )}>
                       {c.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-500 text-xs">{c.verifiedAt || "-"}</td>
+                  <td className="px-4 py-3 text-gray-500 text-[11px]">{c.verifiedAt || "-"}</td>
                 </tr>
               ))}
               {candidates.length === 0 && (
-                <tr><td colSpan={10} className="px-6 py-12 text-center text-gray-400">No students found</td></tr>
+                <tr><td colSpan={13} className="px-6 py-12 text-center text-gray-400">No students found</td></tr>
               )}
             </tbody>
           </table>

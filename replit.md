@@ -67,12 +67,16 @@ All pages have working:
 - Verification API: Submit face match %, fingerprint match, OMR number from Android APK
 - Data Sync API: Centre-filtered candidate download for operators
 - Client Dashboard: Client-wise exam-wise view-only dashboard with 3 tabs (Dashboard, Operators, Students)
+  - Auto-detects client's exam via clientLoginId (no exam dropdown - shows only assigned exam)
   - Dashboard tab: Stats cards, centre-wise bar chart, donut chart, circular progress, centre table
-  - Operators tab: Operator list with search, status counts, all view-only
-  - Students tab: Candidate list with search + status filter, photo display, match %, all view-only
-  - Exam filter dropdown filters all data across all tabs
+  - Operators tab: Operator list with search + centre name filter, status counts, all view-only
+  - Students tab: Full candidate table with search + centre filter + status filter, showing:
+    - Uploaded photo + real-time captured photo (side by side)
+    - OMR No, Roll No, Face Match %, Fingerprint scan status (Done/Pending)
+    - Present mark (Present/Absent), Verification status, Verified timestamp
   - "VIEW ONLY" badge shown in header, no edit/delete/create actions
-  - API: /api/client/dashboard, /api/client/operators, /api/client/candidates (all support ?examId filter)
+  - API: /api/client/exams, /api/client/dashboard, /api/client/operators, /api/client/candidates
+  - Candidate schema: fingerprintVerified, presentMark, capturedPhotoUrl fields added
   - Login: upsc_client / upsc@123
 
 ## Biometric AI & SDK Stack

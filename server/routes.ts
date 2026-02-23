@@ -46,7 +46,7 @@ export async function registerRoutes(
       if (!user || user.password !== password) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-      res.json({ id: user.id, username: user.username, role: user.role, displayName: user.displayName });
+      res.json({ id: user.id, username: user.username, role: user.role, displayName: user.displayName, name: user.displayName });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -1309,6 +1309,19 @@ export async function registerRoutes(
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/client/exams", async (req, res) => {
+    try {
+      const username = req.query.username as string;
+      const allExams = await storage.listExams();
+      if (username) {
+        const clientExams = allExams.filter(e => e.clientLoginId === username);
+        res.json(clientExams);
+      } else {
+        res.json(allExams);
+      }
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

@@ -71,6 +71,9 @@ export const candidates = pgTable("candidates", {
   verifiedAt: text("verified_at"),
   photoUrl: text("photo_url"),
   examId: integer("exam_id"),
+  fingerprintVerified: boolean("fingerprint_verified").default(false),
+  presentMark: text("present_mark").default("Absent"),
+  capturedPhotoUrl: text("captured_photo_url"),
 });
 
 export const departments = pgTable("departments", {

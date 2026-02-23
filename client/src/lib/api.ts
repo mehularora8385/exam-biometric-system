@@ -124,6 +124,7 @@ export const api = {
     stats: () => request<any>("/dashboard/stats"),
   },
   client: {
+    exams: (username: string) => request<any[]>(`/client/exams?username=${encodeURIComponent(username)}`),
     dashboard: (examId?: number) => request<any>(`/client/dashboard${examId ? `?examId=${examId}` : ""}`),
     operators: (examId?: number) => request<any[]>(`/client/operators${examId ? `?examId=${examId}` : ""}`),
     candidates: (examId?: number) => request<any[]>(`/client/candidates${examId ? `?examId=${examId}` : ""}`),

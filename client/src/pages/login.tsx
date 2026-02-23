@@ -23,6 +23,7 @@ export default function AdminLogin() {
 
       localStorage.setItem("role", user.role);
       localStorage.setItem("displayName", user.displayName || user.name);
+      localStorage.setItem("username", user.username || username);
 
       login({
         id: user.id || username,
