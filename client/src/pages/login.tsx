@@ -120,20 +120,6 @@ export default function AdminLogin() {
             Sign In
           </button>
         </form>
-
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-500 text-center mb-3">Demo Credentials</p>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between p-2 bg-gray-50 rounded">
-              <span className="text-gray-600">Admin:</span>
-              <span className="font-mono text-gray-900 font-semibold">Mehul_7300 / Mehul@7300</span>
-            </div>
-            <div className="flex justify-between p-2 bg-gray-50 rounded">
-              <span className="text-gray-600">Client:</span>
-              <span className="font-mono text-gray-900 font-semibold">upsc_client / upsc@123</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
