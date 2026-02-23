@@ -1,82 +1,21 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ShieldAlert, AlertTriangle, Fingerprint, History, Settings2, Download, Filter, Search, Shield, Wifi, WifiOff } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Fingerprint, History, Settings2, Download, Filter, Search, Shield, Wifi, WifiOff, Loader2 } from "lucide-react";
 
 export default function BiometricIntegrity() {
   const [activeTab, setActiveTab] = useState<'monitoring' | 'config'>('monitoring');
 
-  const alertsData = [
-    {
-      id: 1,
-      type: "Invalid Photo Attempt",
-      centre: "Delhi Public School",
-      rollNo: "UPSC2024001",
-      operator: "Rajesh Kumar",
-      device: "DEV001",
-      matchPercent: "0%",
-      timestamp: "25/01/2024, 04:00 pm",
-      delay: "-",
-      mode: "Online",
-      status: "Open"
-    },
-    {
-      id: 2,
-      type: "Operator Face Misuse",
-      centre: "Kendriya Vidyalaya",
-      rollNo: "UPSC2024105",
-      operator: "Amit Patel",
-      device: "DEV005",
-      matchPercent: "99.8%",
-      timestamp: "25/01/2024, 03:55 pm",
-      delay: "-",
-      mode: "Offline",
-      status: "Open"
-    },
-    {
-      id: 3,
-      type: "Face Mismatch Approved",
-      centre: "St. Xaviers College",
-      rollNo: "UPSC2024312",
-      operator: "Sunita Verma",
-      device: "DEV012",
-      matchPercent: "65.4%",
-      timestamp: "25/01/2024, 03:45 pm",
-      delay: "-",
-      mode: "Online",
-      status: "Reviewed"
-    },
-    {
-      id: 4,
-      type: "Duplicate Image Attempt",
-      centre: "IIT Bombay",
-      rollNo: "SSC2024055",
-      operator: "Vikram Singh",
-      device: "DEV020",
-      matchPercent: "100%",
-      timestamp: "25/01/2024, 03:30 pm",
-      delay: "-",
-      mode: "Online",
-      status: "Open"
-    },
-    {
-      id: 5,
-      type: "Post-Exam Biometric Activity",
-      centre: "Christ University",
-      rollNo: "SSC2024188",
-      operator: "Priya Sharma",
-      device: "DEV008",
-      matchPercent: "92.1%",
-      timestamp: "25/01/2024, 05:45 pm",
-      delay: "+45 mins",
-      mode: "Offline",
-      status: "Reviewed"
-    }
-  ];
+  const { data: alertsData = [], isLoading } = useQuery({
+    queryKey: ["alerts"],
+    queryFn: api.alerts.list,
+  });
 
   const getAlertColor = (type: string) => {
     switch (type) {
@@ -222,7 +161,23 @@ export default function BiometricIntegrity() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="bg-white">
-                  {alertsData.map((alert) => (
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                          <span className="text-sm text-gray-500">Loading alerts...</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : alertsData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center text-sm text-gray-500">
+                        No alerts found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    alertsData.map((alert: any) => (
                     <TableRow key={alert.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                       <TableCell className="py-4 pl-6">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${getAlertColor(alert.type)}`}>
@@ -230,26 +185,22 @@ export default function BiometricIntegrity() {
                         </span>
                       </TableCell>
                       <TableCell className="py-4">
-                        <div className="font-medium text-gray-900 text-[13px]">{alert.centre}</div>
-                        <div className="text-[11px] text-gray-500 font-mono mt-0.5">{alert.rollNo}</div>
+                        <div className="font-medium text-gray-900 text-[13px]">{alert.centreCode}</div>
+                        <div className="text-[11px] text-gray-500 font-mono mt-0.5">{alert.candidateId}</div>
                       </TableCell>
                       <TableCell className="py-4">
-                        <div className="font-medium text-gray-900 text-[13px]">{alert.operator}</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">{alert.device}</div>
+                        <div className="font-medium text-gray-900 text-[13px]">{alert.operatorId}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">{alert.description}</div>
                       </TableCell>
                       <TableCell className="py-4 font-medium text-[13px] text-gray-900">
-                        {alert.matchPercent}
+                        {alert.confidence != null ? `${alert.confidence}%` : "-"}
                       </TableCell>
                       <TableCell className="py-4">
-                        <div className="text-[13px] text-gray-600">{alert.timestamp}</div>
-                        {alert.delay !== "-" && (
-                          <div className="text-[11px] text-orange-600 font-medium mt-0.5">Delay: {alert.delay}</div>
-                        )}
+                        <div className="text-[13px] text-gray-600">{alert.timestamp ? new Date(alert.timestamp).toLocaleString() : "-"}</div>
                       </TableCell>
                       <TableCell className="py-4">
-                        <div className={`flex items-center gap-1.5 text-[13px] font-medium ${alert.mode === 'Online' ? 'text-green-600' : 'text-gray-500'}`}>
-                          {alert.mode === 'Online' ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-                          {alert.mode}
+                        <div className={`flex items-center gap-1.5 text-[13px] font-medium ${alert.severity === 'critical' ? 'text-red-600' : alert.severity === 'high' ? 'text-orange-600' : 'text-green-600'}`}>
+                          {alert.severity}
                         </div>
                       </TableCell>
                       <TableCell className="py-4 pr-6 text-right">
@@ -260,7 +211,8 @@ export default function BiometricIntegrity() {
                         </span>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>

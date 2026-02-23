@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useAppStore } from "@/lib/store";
+import { api } from "@/lib/api";
 import { User, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function AdminLogin() {
@@ -18,32 +19,29 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      // Mock login validation
-      await new Promise(r => setTimeout(r, 1000));
-      
-      if (username === "demo" && password === "demo") {
-        login({
-          id: "HQ-ADMIN-01",
-          name: "Demo Admin",
-          mobile: "N/A",
-          aadhaar: "N/A",
-          photoUrl: "https://github.com/shadcn.png",
-          role: "ADMIN"
-        });
+      const user = await api.auth.login(username, password);
+
+      localStorage.setItem("role", user.role);
+      localStorage.setItem("displayName", user.displayName || user.name);
+
+      login({
+        id: user.id || username,
+        name: user.displayName || user.name || username,
+        mobile: user.mobile || "N/A",
+        aadhaar: user.aadhaar || "N/A",
+        photoUrl: user.photoUrl || "https://github.com/shadcn.png",
+        role: user.role,
+      });
+
+      if (user.role === "admin" || user.role === "ADMIN") {
         setLocation("/admin-panel");
-      } else if (username === "upsc_client" && password === "upsc@123") {
-        login({
-          id: "CLIENT-01",
-          name: "UPSC Client",
-          mobile: "N/A",
-          aadhaar: "N/A",
-          photoUrl: "https://github.com/shadcn.png",
-          role: "CLIENT"
-        });
+      } else if (user.role === "client" || user.role === "CLIENT") {
         setLocation("/client-dashboard");
       } else {
-        setError("Invalid credentials");
+        setLocation("/dashboard");
       }
+    } catch (err: any) {
+      setError(err.message || "Invalid credentials");
     } finally {
       setLoading(false);
     }

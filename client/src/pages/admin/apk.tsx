@@ -1,14 +1,58 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw, Upload, Download, Settings, LogOut, Clock, NavigationOff, Lock } from "lucide-react";
+import { Loader2, Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw, Upload, Download, Settings, LogOut, Clock, NavigationOff, Lock } from "lucide-react";
 
 export default function GenerateAPK() {
   const [dragActive, setDragActive] = useState(false);
+  const [selectedExam, setSelectedExam] = useState("upsc");
+  const [biometricMode, setBiometricMode] = useState("face_fingerprint");
+  const [verificationFlow, setVerificationFlow] = useState("face_then_fingerprint");
+  const [attendanceMode, setAttendanceMode] = useState("both");
+  const [omrMode, setOmrMode] = useState("verif_omr");
+
+  const faceLivenessRef = useRef<HTMLButtonElement>(null);
+  const fingerprintQualityRef = useRef<HTMLButtonElement>(null);
+  const offlineModeRef = useRef<HTMLButtonElement>(null);
+  const gpsCaptureRef = useRef<HTMLButtonElement>(null);
+  const mdmControlRef = useRef<HTMLButtonElement>(null);
+  const mockLocationRef = useRef<HTMLButtonElement>(null);
+  const kioskModeRef = useRef<HTMLButtonElement>(null);
+
+  const queryClient = useQueryClient();
+
+  const { data: generatedApks = [], isLoading } = useQuery({
+    queryKey: ["apk-builds"],
+    queryFn: () => api.apkBuilds.list(),
+  });
+
+  const createApkMutation = useMutation({
+    mutationFn: (data: any) => api.apkBuilds.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["apk-builds"] });
+    },
+  });
+
+  const handleGenerateApk = () => {
+    createApkMutation.mutate({
+      examId: selectedExam,
+      version: `2.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`,
+      description: `APK build with ${biometricMode} biometric, ${verificationFlow} flow, ${attendanceMode} attendance, ${omrMode} OMR mode`,
+      status: "Building",
+      features: {
+        biometricMode,
+        verificationFlow,
+        attendanceMode,
+        omrMode,
+      },
+    });
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -26,27 +70,6 @@ export default function GenerateAPK() {
     setDragActive(false);
   };
 
-  const generatedApks = [
-    {
-      version: "2.1.0",
-      description: "Added face liveness detection Improved fingerprint scanner compatibility Bug fixes",
-      date: "20/01/2024",
-      status: "Ready"
-    },
-    {
-      version: "2.0.5",
-      description: "Fixed offline sync issues Performance improvements",
-      date: "10/01/2024",
-      status: "Ready"
-    },
-    {
-      version: "2.0.0",
-      description: "Major UI redesign Added MDM support New biometric modes",
-      date: "15/12/2023",
-      status: "Ready"
-    }
-  ];
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
       {/* Header */}
@@ -56,7 +79,7 @@ export default function GenerateAPK() {
           <p className="text-sm text-gray-500 mt-1">Configure and generate APK for examination</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select defaultValue="upsc">
+          <Select defaultValue="upsc" value={selectedExam} onValueChange={setSelectedExam}>
             <SelectTrigger className="w-[200px] h-10 border-gray-200 text-gray-700 bg-white shadow-sm rounded-lg">
               <SelectValue placeholder="Select Exam" />
             </SelectTrigger>
@@ -66,8 +89,13 @@ export default function GenerateAPK() {
             </SelectContent>
           </Select>
 
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-10 px-6 rounded-lg font-medium gap-2">
-            <Box className="w-4 h-4" /> Generate APK
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-10 px-6 rounded-lg font-medium gap-2"
+            onClick={handleGenerateApk}
+            disabled={createApkMutation.isPending}
+            data-testid="button-generate-apk"
+          >
+            {createApkMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Box className="w-4 h-4" />} Generate APK
           </Button>
         </div>
       </div>
@@ -86,7 +114,7 @@ export default function GenerateAPK() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Biometric Mode</label>
-                  <Select defaultValue="face_fingerprint">
+                  <Select defaultValue="face_fingerprint" value={biometricMode} onValueChange={setBiometricMode}>
                     <SelectTrigger className="w-full h-11 border-blue-500 ring-2 ring-blue-100 rounded-lg text-gray-900">
                       <SelectValue placeholder="Select Biometric Mode" />
                     </SelectTrigger>
@@ -101,7 +129,7 @@ export default function GenerateAPK() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Verification Flow</label>
-                  <Select defaultValue="face_then_fingerprint">
+                  <Select defaultValue="face_then_fingerprint" value={verificationFlow} onValueChange={setVerificationFlow}>
                     <SelectTrigger className="w-full h-11 border-blue-500 ring-2 ring-blue-100 rounded-lg text-gray-900">
                       <SelectValue placeholder="Select Verification Flow" />
                     </SelectTrigger>
@@ -115,7 +143,7 @@ export default function GenerateAPK() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Attendance Mode</label>
-                  <Select defaultValue="both">
+                  <Select defaultValue="both" value={attendanceMode} onValueChange={setAttendanceMode}>
                     <SelectTrigger className="w-full h-11 border-blue-500 ring-2 ring-blue-100 rounded-lg text-gray-900">
                       <SelectValue placeholder="Select Attendance Mode" />
                     </SelectTrigger>
@@ -129,7 +157,7 @@ export default function GenerateAPK() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">OMR/Barcode Mode</label>
-                  <Select defaultValue="verif_omr">
+                  <Select defaultValue="verif_omr" value={omrMode} onValueChange={setOmrMode}>
                     <SelectTrigger className="w-full h-11 border-blue-500 ring-2 ring-blue-100 rounded-lg text-gray-900">
                       <SelectValue placeholder="Select OMR/Barcode Mode" />
                     </SelectTrigger>
@@ -376,30 +404,47 @@ export default function GenerateAPK() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="bg-white">
-                    {generatedApks.map((apk, idx) => (
-                      <TableRow key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="py-4 pl-6 text-[13px] font-medium text-blue-600">{apk.version}</TableCell>
-                        <TableCell className="py-4 text-[13px] text-gray-600 pr-8">{apk.description}</TableCell>
-                        <TableCell className="py-4 text-[13px] text-gray-600 text-center">{apk.date}</TableCell>
-                        <TableCell className="py-4 text-center">
-                          <div className="inline-flex items-center gap-1.5 bg-green-50 px-2.5 py-1 rounded-md text-xs font-medium text-green-700">
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                            {apk.status}
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-12 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                            <span className="text-sm text-gray-500">Loading APK builds...</span>
                           </div>
                         </TableCell>
-                        <TableCell className="py-4 pr-6 text-center">
-                          <button className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors mx-auto">
-                            <Download className="w-4 h-4" />
-                          </button>
+                      </TableRow>
+                    ) : generatedApks.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-12 text-center text-sm text-gray-500">
+                          No APK builds found. Click "Generate APK" to create one.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      generatedApks.map((apk: any, idx: number) => (
+                        <TableRow key={apk.id || idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors" data-testid={`row-apk-${apk.id || idx}`}>
+                          <TableCell className="py-4 pl-6 text-[13px] font-medium text-blue-600">{apk.version}</TableCell>
+                          <TableCell className="py-4 text-[13px] text-gray-600 pr-8">{apk.description}</TableCell>
+                          <TableCell className="py-4 text-[13px] text-gray-600 text-center">{apk.date}</TableCell>
+                          <TableCell className="py-4 text-center">
+                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${apk.status === "Ready" ? "bg-green-50 text-green-700" : apk.status === "Building" ? "bg-yellow-50 text-yellow-700" : "bg-green-50 text-green-700"}`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${apk.status === "Ready" ? "bg-green-500" : apk.status === "Building" ? "bg-yellow-500" : "bg-green-500"}`}></div>
+                              {apk.status}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-4 pr-6 text-center">
+                            <button className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors mx-auto" data-testid={`button-download-apk-${apk.id || idx}`}>
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
               
               <div className="pt-2 flex items-center justify-between text-sm text-gray-500">
-                <div>Showing 1 to 3 of 3 entries</div>
+                <div>Showing {generatedApks.length > 0 ? 1 : 0} to {generatedApks.length} of {generatedApks.length} entries</div>
                 <div className="flex gap-2 items-center">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" disabled>
                     <span className="text-xs">«</span>

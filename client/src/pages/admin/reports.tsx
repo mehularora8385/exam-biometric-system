@@ -1,76 +1,25 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, UserCheck, Wifi, WifiOff, Search, Filter, RefreshCw, Download, Calendar as CalendarIcon } from "lucide-react";
+import { Clock, UserCheck, Wifi, WifiOff, Search, Filter, RefreshCw, Download, Calendar as CalendarIcon, Loader2 } from "lucide-react";
 
 export default function Reports() {
   const [showFilters, setShowFilters] = useState(false);
 
-  const logsData = [
-    {
-      id: 1,
-      timestamp: "25/01/2024, 04:00 pm",
-      action: "Candidate Verified",
-      biometric: "Both",
-      operatorName: "Rajesh Kumar",
-      operatorId: "op-1",
-      device: "DEV001",
-      candidateName: "Arun Kumar",
-      candidateId: "cand-1",
-      status: "Online"
-    },
-    {
-      id: 2,
-      timestamp: "25/01/2024, 04:05 pm",
-      action: "Candidate Verified",
-      biometric: "Both",
-      operatorName: "Rajesh Kumar",
-      operatorId: "op-1",
-      device: "DEV001",
-      candidateName: "Neha Singh",
-      candidateId: "cand-2",
-      status: "Online"
-    },
-    {
-      id: 3,
-      timestamp: "25/01/2024, 03:58 pm",
-      action: "Operator Login",
-      biometric: "-",
-      operatorName: "Rajesh Kumar",
-      operatorId: "op-1",
-      device: "DEV001",
-      candidateName: "-",
-      candidateId: "",
-      status: "Online"
-    },
-    {
-      id: 4,
-      timestamp: "25/01/2024, 02:45 pm",
-      action: "Candidate Verified",
-      biometric: "Face",
-      operatorName: "Vikram Singh",
-      operatorId: "op-5",
-      device: "DEV004",
-      candidateName: "Deepak Verma",
-      candidateId: "cand-6",
-      status: "Online"
-    },
-    {
-      id: 5,
-      timestamp: "25/01/2024, 02:40 pm",
-      action: "Data Sync",
-      biometric: "-",
-      operatorName: "Vikram Singh",
-      operatorId: "op-5",
-      device: "DEV004",
-      candidateName: "-",
-      candidateId: "",
-      status: "Offline"
-    }
-  ];
+  const { data: logsData = [], isLoading } = useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: api.auditLogs.list,
+  });
+
+  const totalEvents = logsData.length;
+  const verifications = logsData.filter((log: any) => log.action === "Candidate Verified").length;
+  const onlineEvents = logsData.filter((log: any) => log.mode === "online" || log.mode === "Online").length;
+  const offlineEvents = logsData.filter((log: any) => log.mode === "offline" || log.mode === "Offline").length;
 
   const getActionColor = (action: string) => {
     switch (action) {
@@ -80,6 +29,14 @@ export default function Reports() {
       default: return "text-gray-700 bg-gray-50";
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
@@ -168,7 +125,7 @@ export default function Reports() {
               <Clock className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">6</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-total-events">{totalEvents}</div>
               <div className="text-sm font-medium text-gray-500">Total Events</div>
             </div>
           </CardContent>
@@ -180,7 +137,7 @@ export default function Reports() {
               <UserCheck className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">4</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-verifications">{verifications}</div>
               <div className="text-sm font-medium text-gray-500">Verifications</div>
             </div>
           </CardContent>
@@ -192,7 +149,7 @@ export default function Reports() {
               <Wifi className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">5</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-online-events">{onlineEvents}</div>
               <div className="text-sm font-medium text-gray-500">Online Events</div>
             </div>
           </CardContent>
@@ -204,7 +161,7 @@ export default function Reports() {
               <WifiOff className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">1</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-offline-events">{offlineEvents}</div>
               <div className="text-sm font-medium text-gray-500">Offline Events</div>
             </div>
           </CardContent>
@@ -243,20 +200,20 @@ export default function Reports() {
               <TableRow className="border-b border-gray-100">
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 pl-6 w-56">Timestamp ↑↓</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Action ↑↓</TableHead>
-                <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Biometric</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Mode</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Operator</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Device</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4">Candidate</TableHead>
-                <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 pr-6">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-4 pr-6">Centre</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {logsData.map((log) => (
+              {logsData.map((log: any) => (
                 <TableRow key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-4 pl-6 text-[13px] text-gray-600 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-gray-400" />
-                      {log.timestamp}
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : "-"}
                     </div>
                   </TableCell>
                   <TableCell className="py-4">
@@ -265,7 +222,7 @@ export default function Reports() {
                     </span>
                   </TableCell>
                   <TableCell className="py-4 text-[13px] font-medium text-gray-700">
-                    {log.biometric}
+                    {log.mode || "-"}
                   </TableCell>
                   <TableCell className="py-4">
                     <div className="flex items-center gap-2">
@@ -273,8 +230,8 @@ export default function Reports() {
                         <UserCheck className="w-3 h-3 text-gray-500" />
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 text-[13px]">{log.operatorName}</div>
-                        <div className="text-[11px] text-gray-500">{log.operatorId}</div>
+                        <div className="font-medium text-gray-900 text-[13px]">{log.operatorName || "-"}</div>
+                        <div className="text-[11px] text-gray-500">{log.operatorId || "-"}</div>
                       </div>
                     </div>
                   </TableCell>
@@ -283,23 +240,21 @@ export default function Reports() {
                       <div className="w-3.5 h-5 border border-gray-400 rounded-sm flex items-center justify-center">
                         <div className="w-1.5 h-[1px] bg-gray-400"></div>
                       </div>
-                      {log.device}
+                      {log.deviceId || "-"}
                     </div>
                   </TableCell>
                   <TableCell className="py-4">
-                    {log.candidateName !== "-" ? (
+                    {log.candidateId ? (
                       <div>
-                        <div className="font-medium text-gray-900 text-[13px]">{log.candidateName}</div>
-                        <div className="text-[11px] text-gray-500">{log.candidateId}</div>
+                        <div className="font-medium text-gray-900 text-[13px]">{log.candidateId}</div>
                       </div>
                     ) : (
                       <span className="text-gray-400">-</span>
                     )}
                   </TableCell>
                   <TableCell className="py-4 pr-6">
-                    <div className={`flex items-center gap-1.5 text-[13px] font-medium ${log.status === 'Online' ? 'text-green-600' : 'text-gray-500'}`}>
-                      {log.status === 'Online' ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-                      {log.status}
+                    <div className="text-[13px] font-medium text-gray-700">
+                      {log.centreCode || "-"}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -309,11 +264,10 @@ export default function Reports() {
         </div>
         
         <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-white">
-          <div>Showing 1 to 5 of 6 entries</div>
+          <div>Showing 1 to {logsData.length} of {logsData.length} entries</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-8 border-gray-200" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-blue-50 border-blue-200 text-blue-600">1</Button>
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0 border-gray-200">2</Button>
             <Button variant="outline" size="sm" className="h-8 border-gray-200">Next</Button>
           </div>
         </div>

@@ -160,7 +160,7 @@ export default function GlobalSurveillance() {
                     <div className="mt-1"><Zap className="w-5 h-5 text-blue-600" /></div>
                     <div>
                       <div className="font-bold text-gray-900">Multi-Tag Collision (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Detects if two candidate tags are suspiciously close to each other for >5 mins.</div>
+                      <div className="text-sm text-gray-500 mt-1">Detects if two candidate tags are suspiciously close to each other for &gt;5 mins.</div>
                     </div>
                   </div>
                   <Switch />

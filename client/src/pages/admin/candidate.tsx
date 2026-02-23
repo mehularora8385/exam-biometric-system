@@ -1,74 +1,29 @@
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, UserCheck, Clock, XCircle, UserX, CheckCircle2, Search, Filter, Download, FileText, Eye, ImageIcon, Fingerprint } from "lucide-react";
+import { Users, UserCheck, Clock, XCircle, UserX, CheckCircle2, Search, Filter, Download, FileText, Eye, ImageIcon, Fingerprint, Loader2 } from "lucide-react";
 
 export default function Candidates() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
 
-  const candidatesData = [
-    {
-      id: 1,
-      omrNo: "OMR001234",
-      rollNo: "UPSC2024001",
-      name: "Arun Kumar",
-      fatherName: "Suresh Kumar",
-      dob: "1995-05-15",
-      centreCode: "DEL001",
-      centreName: "Delhi Public School",
-      slot: "Morning Slot",
-      matchPercent: "98.5%",
-      status: "Verified",
-      verifiedAt: "25/01/2024, 03:00 pm"
-    },
-    {
-      id: 2,
-      omrNo: "OMR001235",
-      rollNo: "UPSC2024002",
-      name: "Neha Singh",
-      fatherName: "Ram Singh",
-      dob: "1996-08-22",
-      centreCode: "DEL001",
-      centreName: "Delhi Public School",
-      slot: "Morning Slot",
-      matchPercent: "96.2%",
-      status: "Verified",
-      verifiedAt: "25/01/2024, 03:05 pm"
-    },
-    {
-      id: 3,
-      omrNo: "OMR001236",
-      rollNo: "UPSC2024003",
-      name: "Rahul Gupta",
-      fatherName: "Mohan Gupta",
-      dob: "1994-12-10",
-      centreCode: "DEL001",
-      centreName: "Delhi Public School",
-      slot: "Morning Slot",
-      matchPercent: "-",
-      status: "Pending",
-      verifiedAt: null
-    },
-    {
-      id: 4,
-      omrNo: "OMR001237",
-      rollNo: "UPSC2024004",
-      name: "Pooja Sharma",
-      fatherName: "Vijay Sharma",
-      dob: "1997-03-28",
-      centreCode: "DEL002",
-      centreName: "Kendriya Vidyalaya",
-      slot: "Afternoon Slot",
-      matchPercent: "-",
-      status: "Present",
-      verifiedAt: null
-    }
-  ];
+  const { data: candidatesData = [], isLoading } = useQuery({
+    queryKey: ["candidates"],
+    queryFn: () => api.candidates.list(),
+  });
+
+  const totalCount = candidatesData.length;
+  const verifiedCount = candidatesData.filter((c: any) => c.status === "Verified").length;
+  const pendingCount = candidatesData.filter((c: any) => c.status === "Pending").length;
+  const notVerifiedCount = candidatesData.filter((c: any) => c.status === "Not Verified").length;
+  const presentCount = candidatesData.filter((c: any) => c.status === "Present").length;
+  const percentDone = totalCount > 0 ? Math.round((verifiedCount / totalCount) * 100) : 0;
 
   const handleViewDetails = (candidate: any) => {
     setSelectedCandidate(candidate);
@@ -94,6 +49,14 @@ export default function Candidates() {
       default: return "bg-gray-500";
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
@@ -124,7 +87,7 @@ export default function Candidates() {
               <Users className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-gray-900">5</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-total-count">{totalCount}</div>
               <div className="text-xs font-medium text-gray-500">Total</div>
             </div>
           </CardContent>
@@ -136,7 +99,7 @@ export default function Candidates() {
               <UserCheck className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-gray-900">2</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-verified-count">{verifiedCount}</div>
               <div className="text-xs font-medium text-gray-500">Verified</div>
             </div>
           </CardContent>
@@ -148,7 +111,7 @@ export default function Candidates() {
               <Clock className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-gray-900">1</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-pending-count">{pendingCount}</div>
               <div className="text-xs font-medium text-gray-500">Pending</div>
             </div>
           </CardContent>
@@ -160,7 +123,7 @@ export default function Candidates() {
               <XCircle className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-gray-900">1</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-not-verified-count">{notVerifiedCount}</div>
               <div className="text-xs font-medium text-gray-500">Not Verified</div>
             </div>
           </CardContent>
@@ -172,7 +135,7 @@ export default function Candidates() {
               <UserX className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-gray-900">1</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-present-count">{presentCount}</div>
               <div className="text-xs font-medium text-gray-500">Present</div>
             </div>
           </CardContent>
@@ -184,7 +147,7 @@ export default function Candidates() {
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-gray-900">40%</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-percent-done">{percentDone}%</div>
               <div className="text-xs font-medium text-gray-500">% Done</div>
             </div>
           </CardContent>
@@ -302,14 +265,20 @@ export default function Candidates() {
               {candidatesData.map((candidate) => (
                 <TableRow key={candidate.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-3 pl-6">
-                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center mx-auto border border-gray-200">
-                      <ImageIcon className="w-4 h-4 text-green-500" />
+                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center mx-auto border border-gray-200 overflow-hidden">
+                      {candidate.photoUrl ? (
+                        <img src={candidate.photoUrl} alt="Upload" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-4 h-4 text-green-500" />
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="py-3">
-                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center mx-auto border border-gray-200">
+                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center mx-auto border border-gray-200 overflow-hidden">
                       {candidate.status === "Pending" ? (
                          <ImageIcon className="w-4 h-4 text-gray-300" />
+                      ) : candidate.photoUrl ? (
+                        <img src={candidate.photoUrl} alt="Verified" className="w-full h-full object-cover" />
                       ) : (
                         <ImageIcon className="w-4 h-4 text-green-500" />
                       )}
@@ -334,8 +303,8 @@ export default function Candidates() {
                   </TableCell>
                   <TableCell className="py-3 text-[13px] text-gray-600">{candidate.slot}</TableCell>
                   <TableCell className="py-3">
-                    <span className={`text-[13px] font-medium ${candidate.matchPercent !== '-' ? 'text-green-600' : 'text-gray-400'}`}>
-                      {candidate.matchPercent}
+                    <span className={`text-[13px] font-medium ${candidate.matchPercent != null && candidate.matchPercent !== '-' ? 'text-green-600' : 'text-gray-400'}`}>
+                      {candidate.matchPercent != null && candidate.matchPercent !== '-' ? (typeof candidate.matchPercent === 'number' ? `${candidate.matchPercent}%` : candidate.matchPercent) : '-'}
                     </span>
                   </TableCell>
                   <TableCell className="py-3">
@@ -376,22 +345,28 @@ export default function Candidates() {
                 <div className="flex flex-col items-center gap-2">
                   <span className="text-sm font-medium text-gray-600">Upload Photo</span>
                   <div className="w-32 h-36 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden">
-                     {/* Using a placeholder since we don't have real images */}
-                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                        <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
-                        <span className="text-xs">Upload</span>
-                     </div>
+                     {selectedCandidate.photoUrl ? (
+                       <img src={selectedCandidate.photoUrl} alt="Upload" className="w-full h-full object-cover" />
+                     ) : (
+                       <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                          <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
+                          <span className="text-xs">Upload</span>
+                       </div>
+                     )}
                   </div>
                 </div>
                 
                 <div className="flex flex-col items-center gap-2">
                   <span className="text-sm font-medium text-gray-600">Verified Photo</span>
                   <div className="w-32 h-36 bg-gray-100 rounded-xl border border-gray-200 flex items-center justify-center relative overflow-hidden">
-                     {/* Using a placeholder since we don't have real images */}
-                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                        <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
-                        <span className="text-xs">Verified</span>
-                     </div>
+                     {selectedCandidate.photoUrl && selectedCandidate.status !== "Pending" ? (
+                       <img src={selectedCandidate.photoUrl} alt="Verified" className="w-full h-full object-cover" />
+                     ) : (
+                       <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                          <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
+                          <span className="text-xs">Verified</span>
+                       </div>
+                     )}
                   </div>
                 </div>
               </div>
@@ -438,8 +413,8 @@ export default function Candidates() {
 
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Face Match</div>
-                  <div className={`text-[15px] font-bold ${selectedCandidate.matchPercent !== '-' ? 'text-green-600' : 'text-gray-400'}`}>
-                    {selectedCandidate.matchPercent}
+                  <div className={`text-[15px] font-bold ${selectedCandidate.matchPercent != null && selectedCandidate.matchPercent !== '-' ? 'text-green-600' : 'text-gray-400'}`}>
+                    {selectedCandidate.matchPercent != null && selectedCandidate.matchPercent !== '-' ? (typeof selectedCandidate.matchPercent === 'number' ? `${selectedCandidate.matchPercent}%` : selectedCandidate.matchPercent) : '-'}
                   </div>
                 </div>
                 <div>

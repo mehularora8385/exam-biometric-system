@@ -5,78 +5,95 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, MoreVertical, Key, User, Clock, Trash2, Edit, UploadCloud, SquareSquare } from "lucide-react";
+import { Plus, Search, MoreVertical, Key, User, Clock, Trash2, Edit, UploadCloud, SquareSquare, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+
+const COLOR_OPTIONS = [
+  "bg-blue-100 text-blue-600",
+  "bg-indigo-100 text-indigo-600",
+  "bg-purple-100 text-purple-600",
+  "bg-green-100 text-green-600",
+  "bg-amber-100 text-amber-600",
+  "bg-rose-100 text-rose-600",
+  "bg-cyan-100 text-cyan-600",
+  "bg-teal-100 text-teal-600",
+];
+
+function getColorFromCode(code: string): string {
+  let hash = 0;
+  for (let i = 0; i < code.length; i++) {
+    hash = code.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return COLOR_OPTIONS[Math.abs(hash) % COLOR_OPTIONS.length];
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString();
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
 
 export default function ExamMaster({ setActivePage }: { setActivePage?: (page: string) => void }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(1);
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
-  // Mock data for exams
-  const exams = [
-    {
-      id: "UP",
-      name: "UPSC Civil Services 2024",
-      code: "UPSC-CS-2024",
-      client: "Union Public Service Commission",
-      status: "Active",
-      candidates: "15,420",
-      verified: "12,350",
-      verifiedPercent: "80%",
-      created: "15/01/2024",
-      apkPass: "UPSC2024X",
-      loginId: "upsc_client",
-      loginPass: "upsc@123",
-      color: "bg-blue-100 text-blue-600",
+  const [formData, setFormData] = useState({
+    name: "",
+    code: "",
+    client: "",
+    clientLoginId: "",
+    clientLoginPass: "",
+    apkPassword: "",
+  });
+
+  const { data: rawExams = [], isLoading } = useQuery({
+    queryKey: ["exams"],
+    queryFn: api.exams.list,
+  });
+
+  const exams = rawExams.map((exam: any) => ({
+    id: exam.code ? exam.code.substring(0, 2).toUpperCase() : "??",
+    examId: exam.id,
+    name: exam.name,
+    code: exam.code,
+    client: exam.client,
+    status: exam.status || "Draft",
+    candidates: formatNumber(exam.candidatesCount || 0),
+    verified: formatNumber(exam.verifiedCount || 0),
+    verifiedPercent: exam.candidatesCount > 0
+      ? Math.round((exam.verifiedCount / exam.candidatesCount) * 100) + "%"
+      : "0%",
+    created: exam.createdAt ? formatDate(exam.createdAt) : "-",
+    apkPass: exam.apkPassword || "-",
+    loginId: exam.clientLoginId || "-",
+    loginPass: exam.clientLoginPass || "-",
+    color: getColorFromCode(exam.code || ""),
+  }));
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => api.exams.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exams"] });
+      setIsAddModalOpen(false);
+      setFormData({ name: "", code: "", client: "", clientLoginId: "", clientLoginPass: "", apkPassword: "" });
+      setActiveStep(1);
     },
-    {
-      id: "SS",
-      name: "SSC CGL 2024",
-      code: "SSC-CGL-2024",
-      client: "Staff Selection Commission",
-      status: "Active",
-      candidates: "28,500",
-      verified: "18,200",
-      verifiedPercent: "64%",
-      created: "01/02/2024",
-      apkPass: "SSC2024Y",
-      loginId: "ssc_client",
-      loginPass: "ssc@123",
-      color: "bg-indigo-100 text-indigo-600",
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.exams.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exams"] });
     },
-    {
-      id: "RR",
-      name: "RRB NTPC 2024",
-      code: "RRB-NTPC-2024",
-      client: "Railway Recruitment Board",
-      status: "Draft",
-      candidates: "0",
-      verified: "0",
-      verifiedPercent: "0%",
-      created: "01/03/2024",
-      apkPass: "-",
-      loginId: "-",
-      loginPass: "-",
-      color: "bg-blue-100 text-blue-600",
-    },
-    {
-      id: "IB",
-      name: "IBPS PO 2023",
-      code: "IBPS-PO-2023",
-      client: "Institute of Banking Personnel Selec...",
-      status: "Active",
-      candidates: "12,000",
-      verified: "11,500",
-      verifiedPercent: "95%",
-      created: "10/11/2023",
-      apkPass: "IBPS2023Z",
-      loginId: "ibps_client",
-      loginPass: "ibps@123",
-      color: "bg-blue-100 text-blue-600",
-    }
-  ];
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
@@ -128,15 +145,15 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Exam Name <span className="text-gray-400">*</span></label>
-                    <Input placeholder="e.g., UPSC Civil Services 2024" className="border-gray-200 focus-visible:ring-blue-500" />
+                    <Input placeholder="e.g., UPSC Civil Services 2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Exam Code <span className="text-gray-400">*</span></label>
-                    <Input placeholder="e.g., UPSC-CS-2024" className="border-gray-200 focus-visible:ring-blue-500" />
+                    <Input placeholder="e.g., UPSC-CS-2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} />
                   </div>
                   <div className="space-y-2 col-span-2">
                     <label className="text-sm font-medium text-gray-700">Client Name <span className="text-gray-400">*</span></label>
-                    <Input placeholder="e.g., Union Public Service Commission" className="border-gray-200 focus-visible:ring-blue-500" />
+                    <Input placeholder="e.g., Union Public Service Commission" className="border-gray-200 focus-visible:ring-blue-500" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} />
                   </div>
                 </div>
 
@@ -145,15 +162,15 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Login ID <span className="text-gray-400">*</span></label>
-                      <Input placeholder="e.g., upsc_client" className="border-gray-200 focus-visible:ring-blue-500" />
+                      <Input placeholder="e.g., upsc_client" className="border-gray-200 focus-visible:ring-blue-500" value={formData.clientLoginId} onChange={(e) => setFormData({ ...formData, clientLoginId: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Login Password <span className="text-gray-400">*</span></label>
-                      <Input placeholder="Enter password" type="password" className="border-gray-200 focus-visible:ring-blue-500" />
+                      <Input placeholder="Enter password" type="password" className="border-gray-200 focus-visible:ring-blue-500" value={formData.clientLoginPass} onChange={(e) => setFormData({ ...formData, clientLoginPass: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">APK Password <span className="text-gray-400">*</span></label>
-                      <Input placeholder="Enter APK password" type="password" className="border-gray-200 focus-visible:ring-blue-500" />
+                      <Input placeholder="Enter APK password" type="password" className="border-gray-200 focus-visible:ring-blue-500" value={formData.apkPassword} onChange={(e) => setFormData({ ...formData, apkPassword: e.target.value })} />
                     </div>
                   </div>
                 </div>
@@ -310,8 +327,12 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     Next
                   </Button>
                 ) : (
-                  <Button onClick={() => setIsAddModalOpen(false)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Create Exam
+                  <Button
+                    onClick={() => createMutation.mutate(formData)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={createMutation.isPending}
+                  >
+                    {createMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Creating...</> : "Create Exam"}
                   </Button>
                 )}
               </div>
@@ -328,8 +349,14 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
         />
       </div>
 
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      )}
+
       {/* Exam Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {!isLoading && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {exams.map((exam, i) => (
           <Card key={i} className="shadow-sm border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow bg-white">
             <CardContent className="p-0">
@@ -367,7 +394,14 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                         <SquareSquare className="w-4 h-4" /> Stop Exam
                       </DropdownMenuItem>
                       <div className="h-px bg-gray-100 my-1 mx-2" />
-                      <DropdownMenuItem className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600">
+                      <DropdownMenuItem
+                        className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this exam?")) {
+                            deleteMutation.mutate(exam.examId);
+                          }
+                        }}
+                      >
                         <Trash2 className="w-4 h-4" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -415,7 +449,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

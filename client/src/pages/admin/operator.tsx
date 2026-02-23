@@ -1,19 +1,46 @@
 import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, UserCheck, Smartphone, Search, Edit, Trash2, PowerOff, RefreshCw } from "lucide-react";
+import { Users, UserCheck, Smartphone, Search, Edit, Trash2, PowerOff, RefreshCw, Loader2 } from "lucide-react";
 
 export default function OperatorMaster() {
-  const operatorsData = [
-    { name: "Rajesh Kumar", phone: "9876543210", email: "rajesh@example.com", center: "Delhi Public School", device: "Samsung Tab A7", lastActive: "25/01/2024, 04:00 pm", status: "Active" },
-    { name: "Priya Sharma", phone: "9876543211", email: "priya@example.com", center: "Delhi Public School", device: "Lenovo Tab M10", lastActive: "25/01/2024, 03:55 pm", status: "Active" },
-    { name: "Amit Patel", phone: "9876543212", email: "amit@example.com", center: "Kendriya Vidyalaya", device: "Samsung Tab A7", lastActive: "25/01/2024, 03:50 pm", status: "Active" },
-    { name: "Sunita Verma", phone: "9876543213", email: "sunita@example.com", center: "St. Xaviers College", device: "Not bound", lastActive: "Never", status: "Inactive" },
-    { name: "Vikram Singh", phone: "9876543214", email: "vikram@example.com", center: "IIT Bombay", device: "iPad 9th Gen", lastActive: "25/01/2024, 03:45 pm", status: "Active" },
-  ];
+  const queryClient = useQueryClient();
+
+  const { data: operatorsData = [], isLoading } = useQuery({
+    queryKey: ["operators"],
+    queryFn: api.operators.list,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: api.operators.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["operators"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.operators.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["operators"] });
+    },
+  });
+
+  const totalOperators = operatorsData.length;
+  const activeOperators = operatorsData.filter((op: any) => op.status === "Active").length;
+  const deviceBound = operatorsData.filter((op: any) => op.device && op.device !== "Not bound").length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
@@ -64,7 +91,7 @@ export default function OperatorMaster() {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">6</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-total-operators">{totalOperators}</div>
               <div className="text-sm font-medium text-gray-500">Total Operators</div>
             </div>
           </CardContent>
@@ -76,7 +103,7 @@ export default function OperatorMaster() {
               <UserCheck className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">5</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-active-operators">{activeOperators}</div>
               <div className="text-sm font-medium text-gray-500">Active</div>
             </div>
           </CardContent>
@@ -88,7 +115,7 @@ export default function OperatorMaster() {
               <Smartphone className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">5</div>
+              <div className="text-2xl font-bold text-gray-900" data-testid="text-device-bound">{deviceBound}</div>
               <div className="text-sm font-medium text-gray-500">Device Bound</div>
             </div>
           </CardContent>
@@ -135,8 +162,8 @@ export default function OperatorMaster() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {operatorsData.map((operator, idx) => (
-                <TableRow key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+              {operatorsData.map((operator: any, idx: number) => (
+                <TableRow key={operator.id ?? idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-4 pl-6">
                     <div>
                       <div className="font-medium text-gray-900 text-[13px]">{operator.name}</div>
@@ -144,15 +171,15 @@ export default function OperatorMaster() {
                     </div>
                   </TableCell>
                   <TableCell className="py-4 text-[13px] text-gray-600">{operator.email}</TableCell>
-                  <TableCell className="py-4 text-[13px] text-gray-900">{operator.center}</TableCell>
+                  <TableCell className="py-4 text-[13px] text-gray-900">{operator.centerName || operator.center}</TableCell>
                   <TableCell className="py-4 text-[13px]">
-                    {operator.device !== "Not bound" ? (
+                    {operator.device && operator.device !== "Not bound" ? (
                       <div className="flex items-center gap-1.5 text-gray-600">
                         <Smartphone className="w-3.5 h-3.5 text-green-500" />
                         {operator.device}
                       </div>
                     ) : (
-                      <span className="text-gray-400">{operator.device}</span>
+                      <span className="text-gray-400">{operator.device || "Not bound"}</span>
                     )}
                   </TableCell>
                   <TableCell className="py-4 text-[13px] text-gray-600">{operator.lastActive}</TableCell>
@@ -167,25 +194,30 @@ export default function OperatorMaster() {
                   <TableCell className="py-4 pr-6 text-right">
                     <div className="flex justify-end gap-1.5">
                       {operator.status === 'Active' ? (
-                        <button className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Deactivate">
+                        <button className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Deactivate" data-testid={`button-deactivate-${operator.id ?? idx}`}>
                           <PowerOff className="w-4 h-4" />
                         </button>
                       ) : (
-                        <button className="p-1.5 text-green-500 hover:bg-green-50 rounded-md transition-colors" title="Activate">
+                        <button className="p-1.5 text-green-500 hover:bg-green-50 rounded-md transition-colors" title="Activate" data-testid={`button-activate-${operator.id ?? idx}`}>
                           <PowerOff className="w-4 h-4" />
                         </button>
                       )}
                       
-                      {operator.device !== "Not bound" && (
-                        <button className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-colors" title="Unbind Device">
+                      {operator.device && operator.device !== "Not bound" && (
+                        <button className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-colors" title="Unbind Device" data-testid={`button-unbind-${operator.id ?? idx}`}>
                           <RefreshCw className="w-4 h-4" />
                         </button>
                       )}
                       
-                      <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit">
+                      <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit" data-testid={`button-edit-${operator.id ?? idx}`}>
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete">
+                      <button
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        title="Delete"
+                        data-testid={`button-delete-${operator.id ?? idx}`}
+                        onClick={() => operator.id && deleteMutation.mutate(operator.id)}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -198,11 +230,10 @@ export default function OperatorMaster() {
         
         {/* Pagination placeholder matching the design */}
         <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-white">
-          <div>Showing 1 to 5 of 6 entries</div>
+          <div>Showing 1 to {operatorsData.length} of {totalOperators} entries</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-8 border-gray-200" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-blue-50 border-blue-200 text-blue-600">1</Button>
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0 border-gray-200">2</Button>
             <Button variant="outline" size="sm" className="h-8 border-gray-200">Next</Button>
           </div>
         </div>

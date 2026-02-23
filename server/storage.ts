@@ -1,38 +1,379 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { eq, sql, and, desc } from "drizzle-orm";
+import { db } from "./db";
+import {
+  users, exams, centers, operators, candidates,
+  departments, designations, slots, centerOperatorMaps,
+  devices, apkBuilds, auditLogs, alerts, globalTechSettings,
+  type User, type InsertUser,
+  type Exam, type InsertExam,
+  type Center, type InsertCenter,
+  type Operator, type InsertOperator,
+  type Candidate, type InsertCandidate,
+  type Department, type InsertDepartment,
+  type Designation, type InsertDesignation,
+  type Slot, type InsertSlot,
+  type CenterOperatorMap, type InsertCenterOperatorMap,
+  type Device, type InsertDevice,
+  type ApkBuild, type InsertApkBuild,
+  type AuditLog, type InsertAuditLog,
+  type Alert, type InsertAlert,
+  type GlobalTechSettings, type InsertGlobalTechSettings,
+} from "@shared/schema";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
+  getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+
+  listExams(): Promise<Exam[]>;
+  getExam(id: number): Promise<Exam | undefined>;
+  createExam(exam: InsertExam): Promise<Exam>;
+  updateExam(id: number, exam: Partial<InsertExam>): Promise<Exam | undefined>;
+  deleteExam(id: number): Promise<void>;
+
+  listCenters(examId?: number): Promise<Center[]>;
+  getCenter(id: number): Promise<Center | undefined>;
+  createCenter(center: InsertCenter): Promise<Center>;
+  updateCenter(id: number, center: Partial<InsertCenter>): Promise<Center | undefined>;
+  deleteCenter(id: number): Promise<void>;
+
+  listOperators(): Promise<Operator[]>;
+  getOperator(id: number): Promise<Operator | undefined>;
+  createOperator(operator: InsertOperator): Promise<Operator>;
+  updateOperator(id: number, operator: Partial<InsertOperator>): Promise<Operator | undefined>;
+  deleteOperator(id: number): Promise<void>;
+
+  listCandidates(examId?: number): Promise<Candidate[]>;
+  getCandidate(id: number): Promise<Candidate | undefined>;
+  createCandidate(candidate: InsertCandidate): Promise<Candidate>;
+  updateCandidate(id: number, candidate: Partial<InsertCandidate>): Promise<Candidate | undefined>;
+  deleteCandidate(id: number): Promise<void>;
+
+  listDepartments(): Promise<Department[]>;
+  createDepartment(dept: InsertDepartment): Promise<Department>;
+  updateDepartment(id: number, dept: Partial<InsertDepartment>): Promise<Department | undefined>;
+  deleteDepartment(id: number): Promise<void>;
+
+  listDesignations(): Promise<Designation[]>;
+  createDesignation(des: InsertDesignation): Promise<Designation>;
+  updateDesignation(id: number, des: Partial<InsertDesignation>): Promise<Designation | undefined>;
+  deleteDesignation(id: number): Promise<void>;
+
+  listSlots(examId?: number): Promise<Slot[]>;
+  createSlot(slot: InsertSlot): Promise<Slot>;
+  updateSlot(id: number, slot: Partial<InsertSlot>): Promise<Slot | undefined>;
+  deleteSlot(id: number): Promise<void>;
+
+  listCenterOperatorMaps(): Promise<CenterOperatorMap[]>;
+  createCenterOperatorMap(map: InsertCenterOperatorMap): Promise<CenterOperatorMap>;
+  deleteCenterOperatorMap(id: number): Promise<void>;
+
+  listDevices(): Promise<Device[]>;
+  createDevice(device: InsertDevice): Promise<Device>;
+  updateDevice(id: number, device: Partial<InsertDevice>): Promise<Device | undefined>;
+  deleteDevice(id: number): Promise<void>;
+
+  listApkBuilds(examId?: number): Promise<ApkBuild[]>;
+  createApkBuild(build: InsertApkBuild): Promise<ApkBuild>;
+
+  listAuditLogs(): Promise<AuditLog[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+
+  listAlerts(): Promise<Alert[]>;
+  createAlert(alert: InsertAlert): Promise<Alert>;
+  updateAlertStatus(id: number, status: string): Promise<Alert | undefined>;
+
+  getGlobalTechSettings(examId: number): Promise<GlobalTechSettings | undefined>;
+  upsertGlobalTechSettings(settings: InsertGlobalTechSettings): Promise<GlobalTechSettings>;
+
+  getDashboardStats(): Promise<any>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createUser(user: InsertUser): Promise<User> {
+    const [created] = await db.insert(users).values(user).returning();
+    return created;
+  }
+
+  async listExams(): Promise<Exam[]> {
+    return db.select().from(exams).orderBy(desc(exams.createdAt));
+  }
+
+  async getExam(id: number): Promise<Exam | undefined> {
+    const [exam] = await db.select().from(exams).where(eq(exams.id, id));
+    return exam;
+  }
+
+  async createExam(exam: InsertExam): Promise<Exam> {
+    const [created] = await db.insert(exams).values(exam).returning();
+    return created;
+  }
+
+  async updateExam(id: number, exam: Partial<InsertExam>): Promise<Exam | undefined> {
+    const [updated] = await db.update(exams).set(exam).where(eq(exams.id, id)).returning();
+    return updated;
+  }
+
+  async deleteExam(id: number): Promise<void> {
+    await db.delete(exams).where(eq(exams.id, id));
+  }
+
+  async listCenters(examId?: number): Promise<Center[]> {
+    if (examId) {
+      return db.select().from(centers).where(eq(centers.examId, examId));
+    }
+    return db.select().from(centers);
+  }
+
+  async getCenter(id: number): Promise<Center | undefined> {
+    const [center] = await db.select().from(centers).where(eq(centers.id, id));
+    return center;
+  }
+
+  async createCenter(center: InsertCenter): Promise<Center> {
+    const [created] = await db.insert(centers).values(center).returning();
+    return created;
+  }
+
+  async updateCenter(id: number, center: Partial<InsertCenter>): Promise<Center | undefined> {
+    const [updated] = await db.update(centers).set(center).where(eq(centers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCenter(id: number): Promise<void> {
+    await db.delete(centers).where(eq(centers.id, id));
+  }
+
+  async listOperators(): Promise<Operator[]> {
+    return db.select().from(operators);
+  }
+
+  async getOperator(id: number): Promise<Operator | undefined> {
+    const [op] = await db.select().from(operators).where(eq(operators.id, id));
+    return op;
+  }
+
+  async createOperator(operator: InsertOperator): Promise<Operator> {
+    const [created] = await db.insert(operators).values(operator).returning();
+    return created;
+  }
+
+  async updateOperator(id: number, operator: Partial<InsertOperator>): Promise<Operator | undefined> {
+    const [updated] = await db.update(operators).set(operator).where(eq(operators.id, id)).returning();
+    return updated;
+  }
+
+  async deleteOperator(id: number): Promise<void> {
+    await db.delete(operators).where(eq(operators.id, id));
+  }
+
+  async listCandidates(examId?: number): Promise<Candidate[]> {
+    if (examId) {
+      return db.select().from(candidates).where(eq(candidates.examId, examId));
+    }
+    return db.select().from(candidates);
+  }
+
+  async getCandidate(id: number): Promise<Candidate | undefined> {
+    const [c] = await db.select().from(candidates).where(eq(candidates.id, id));
+    return c;
+  }
+
+  async createCandidate(candidate: InsertCandidate): Promise<Candidate> {
+    const [created] = await db.insert(candidates).values(candidate).returning();
+    return created;
+  }
+
+  async updateCandidate(id: number, candidate: Partial<InsertCandidate>): Promise<Candidate | undefined> {
+    const [updated] = await db.update(candidates).set(candidate).where(eq(candidates.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCandidate(id: number): Promise<void> {
+    await db.delete(candidates).where(eq(candidates.id, id));
+  }
+
+  async listDepartments(): Promise<Department[]> {
+    return db.select().from(departments);
+  }
+
+  async createDepartment(dept: InsertDepartment): Promise<Department> {
+    const [created] = await db.insert(departments).values(dept).returning();
+    return created;
+  }
+
+  async updateDepartment(id: number, dept: Partial<InsertDepartment>): Promise<Department | undefined> {
+    const [updated] = await db.update(departments).set(dept).where(eq(departments.id, id)).returning();
+    return updated;
+  }
+
+  async deleteDepartment(id: number): Promise<void> {
+    await db.delete(departments).where(eq(departments.id, id));
+  }
+
+  async listDesignations(): Promise<Designation[]> {
+    return db.select().from(designations);
+  }
+
+  async createDesignation(des: InsertDesignation): Promise<Designation> {
+    const [created] = await db.insert(designations).values(des).returning();
+    return created;
+  }
+
+  async updateDesignation(id: number, des: Partial<InsertDesignation>): Promise<Designation | undefined> {
+    const [updated] = await db.update(designations).set(des).where(eq(designations.id, id)).returning();
+    return updated;
+  }
+
+  async deleteDesignation(id: number): Promise<void> {
+    await db.delete(designations).where(eq(designations.id, id));
+  }
+
+  async listSlots(examId?: number): Promise<Slot[]> {
+    if (examId) {
+      return db.select().from(slots).where(eq(slots.examId, examId));
+    }
+    return db.select().from(slots);
+  }
+
+  async createSlot(slot: InsertSlot): Promise<Slot> {
+    const [created] = await db.insert(slots).values(slot).returning();
+    return created;
+  }
+
+  async updateSlot(id: number, slot: Partial<InsertSlot>): Promise<Slot | undefined> {
+    const [updated] = await db.update(slots).set(slot).where(eq(slots.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSlot(id: number): Promise<void> {
+    await db.delete(slots).where(eq(slots.id, id));
+  }
+
+  async listCenterOperatorMaps(): Promise<CenterOperatorMap[]> {
+    return db.select().from(centerOperatorMaps);
+  }
+
+  async createCenterOperatorMap(map: InsertCenterOperatorMap): Promise<CenterOperatorMap> {
+    const [created] = await db.insert(centerOperatorMaps).values(map).returning();
+    return created;
+  }
+
+  async deleteCenterOperatorMap(id: number): Promise<void> {
+    await db.delete(centerOperatorMaps).where(eq(centerOperatorMaps.id, id));
+  }
+
+  async listDevices(): Promise<Device[]> {
+    return db.select().from(devices);
+  }
+
+  async createDevice(device: InsertDevice): Promise<Device> {
+    const [created] = await db.insert(devices).values(device).returning();
+    return created;
+  }
+
+  async updateDevice(id: number, device: Partial<InsertDevice>): Promise<Device | undefined> {
+    const [updated] = await db.update(devices).set(device).where(eq(devices.id, id)).returning();
+    return updated;
+  }
+
+  async deleteDevice(id: number): Promise<void> {
+    await db.delete(devices).where(eq(devices.id, id));
+  }
+
+  async listApkBuilds(examId?: number): Promise<ApkBuild[]> {
+    if (examId) {
+      return db.select().from(apkBuilds).where(eq(apkBuilds.examId, examId));
+    }
+    return db.select().from(apkBuilds).orderBy(desc(apkBuilds.id));
+  }
+
+  async createApkBuild(build: InsertApkBuild): Promise<ApkBuild> {
+    const [created] = await db.insert(apkBuilds).values(build).returning();
+    return created;
+  }
+
+  async listAuditLogs(): Promise<AuditLog[]> {
+    return db.select().from(auditLogs).orderBy(desc(auditLogs.id));
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [created] = await db.insert(auditLogs).values(log).returning();
+    return created;
+  }
+
+  async listAlerts(): Promise<Alert[]> {
+    return db.select().from(alerts).orderBy(desc(alerts.id));
+  }
+
+  async createAlert(alert: InsertAlert): Promise<Alert> {
+    const [created] = await db.insert(alerts).values(alert).returning();
+    return created;
+  }
+
+  async updateAlertStatus(id: number, status: string): Promise<Alert | undefined> {
+    const [updated] = await db.update(alerts).set({ status }).where(eq(alerts.id, id)).returning();
+    return updated;
+  }
+
+  async getGlobalTechSettings(examId: number): Promise<GlobalTechSettings | undefined> {
+    const [settings] = await db.select().from(globalTechSettings).where(eq(globalTechSettings.examId, examId));
+    return settings;
+  }
+
+  async upsertGlobalTechSettings(settings: InsertGlobalTechSettings): Promise<GlobalTechSettings> {
+    if (settings.examId) {
+      const existing = await this.getGlobalTechSettings(settings.examId);
+      if (existing) {
+        const [updated] = await db.update(globalTechSettings).set(settings).where(eq(globalTechSettings.id, existing.id)).returning();
+        return updated;
+      }
+    }
+    const [created] = await db.insert(globalTechSettings).values(settings).returning();
+    return created;
+  }
+
+  async getDashboardStats(): Promise<any> {
+    const [examCount] = await db.select({ count: sql<number>`count(*)` }).from(exams);
+    const [centerCount] = await db.select({ count: sql<number>`count(*)` }).from(centers);
+    const [operatorCount] = await db.select({ count: sql<number>`count(*)` }).from(operators);
+    const [candidateCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates);
+    const [verifiedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.status, "Verified"));
+    const [pendingCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.status, "Pending"));
+    const [activeOperators] = await db.select({ count: sql<number>`count(*)` }).from(operators).where(eq(operators.status, "Active"));
+    const [activeCenters] = await db.select({ count: sql<number>`count(*)` }).from(centers);
+    const [alertCount] = await db.select({ count: sql<number>`count(*)` }).from(alerts);
+
+    const centerStats = await db.select({
+      code: centers.code,
+      name: centers.name,
+      capacity: centers.capacity,
+    }).from(centers);
+
+    return {
+      totalCandidates: Number(candidateCount.count),
+      verified: Number(verifiedCount.count),
+      pending: Number(pendingCount.count),
+      notVerified: Number(candidateCount.count) - Number(verifiedCount.count) - Number(pendingCount.count),
+      totalExams: Number(examCount.count),
+      totalCenters: Number(centerCount.count),
+      totalOperators: Number(operatorCount.count),
+      activeOperators: Number(activeOperators.count),
+      activeCenters: Number(activeCenters.count),
+      totalAlerts: Number(alertCount.count),
+      centerStats,
+    };
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
