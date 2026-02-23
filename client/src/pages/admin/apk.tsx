@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw,
   Download, Settings, LogOut, Clock, NavigationOff, Lock, Smartphone, Tablet,
-  CheckCircle, XCircle, FileJson, Cpu, Scan, Eye
+  CheckCircle, XCircle, FileJson, Cpu, Scan, Eye, Key, Monitor
 } from "lucide-react";
 
 export default function GenerateAPK() {
@@ -542,7 +542,7 @@ export default function GenerateAPK() {
                     <Shield className="w-5 h-5 text-orange-500 mt-0.5" />
                     <div>
                       <div className="font-medium text-gray-900 text-sm">MDM Control</div>
-                      <div className="text-xs text-gray-500">Mobile Device Management lock</div>
+                      <div className="text-xs text-gray-500">Full device lockdown — blocks Home, Back, Recent, notifications, settings & other apps</div>
                     </div>
                   </div>
                   <Switch checked={mdmControl} onCheckedChange={setMdmControl} />
@@ -564,7 +564,7 @@ export default function GenerateAPK() {
                     <Lock className="w-5 h-5 text-slate-500 mt-0.5" />
                     <div>
                       <div className="font-medium text-gray-900 text-sm">Kiosk Mode</div>
-                      <div className="text-xs text-gray-500">Lock device to APK during exam</div>
+                      <div className="text-xs text-gray-500">Screen pinning — locks device to APK, exits only via admin password</div>
                     </div>
                   </div>
                   <Switch checked={kioskMode} onCheckedChange={setKioskMode} />
@@ -883,6 +883,140 @@ export default function GenerateAPK() {
                   <div className="text-xs font-bold text-red-700 mb-1">Step 5</div>
                   <div className="font-semibold text-sm text-gray-900">OMR Capture</div>
                   <div className="text-xs text-gray-500 mt-1">Rear camera scans OMR sheet, extracts OMR number automatically</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden" data-testid="card-mdm-info">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-orange-600" /> MDM Mode — How It Works
+              </h3>
+              <p className="text-sm text-gray-600 mb-5">
+                When MDM (Mobile Device Management) is enabled in the APK, the device enters a fully locked state. 
+                The candidate or operator cannot leave the verification app, ensuring exam integrity and preventing tampering.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <h4 className="font-semibold text-sm text-red-700 mb-3 flex items-center gap-2">
+                    <XCircle className="w-4 h-4" /> What MDM Blocks
+                  </h4>
+                  <div className="space-y-2">
+                    {[
+                      { icon: "🏠", title: "Home Button", desc: "Pressing Home does nothing — user stays in the APK" },
+                      { icon: "◀️", title: "Back Button", desc: "Android Back button is intercepted and disabled" },
+                      { icon: "⬜", title: "Recent Apps / App Switcher", desc: "Cannot switch to other apps or see task manager" },
+                      { icon: "🔔", title: "Notification Bar", desc: "Pull-down notification shade is completely blocked" },
+                      { icon: "⚙️", title: "Settings Access", desc: "Cannot open device Settings from anywhere" },
+                      { icon: "📱", title: "Other Apps", desc: "All other installed apps are inaccessible during exam" },
+                      { icon: "🔌", title: "USB Debugging", desc: "ADB and USB debugging are blocked to prevent sideloading" },
+                      { icon: "📶", title: "WiFi / Mobile Data Toggle", desc: "Cannot change network settings to disrupt sync" },
+                      { icon: "✈️", title: "Airplane Mode", desc: "Toggling airplane mode is blocked" },
+                      { icon: "📸", title: "Screenshot / Screen Recording", desc: "Screen capture is disabled to prevent data leak" },
+                      { icon: "⬇️", title: "App Install / Uninstall", desc: "Cannot install or uninstall any app during exam" },
+                      { icon: "🔄", title: "Force Stop / Clear Data", desc: "Cannot force stop the MPA app from background" },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-start gap-2.5 p-2 bg-red-50/60 rounded-lg border border-red-100">
+                        <span className="text-base mt-0.5 w-5 text-center flex-shrink-0">{item.icon}</span>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-800">{item.title}</div>
+                          <div className="text-xs text-gray-500">{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-sm text-green-700 mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> What MDM Allows
+                  </h4>
+                  <div className="space-y-2 mb-6">
+                    {[
+                      { icon: "📷", title: "Camera Access", desc: "Front & rear cameras work for face match and OMR capture" },
+                      { icon: "🔊", title: "Volume Control", desc: "Volume up/down buttons remain functional for accessibility" },
+                      { icon: "🔌", title: "USB OTG (Scanner)", desc: "Mantra MFS100/MFS110 fingerprint scanner via USB OTG works normally" },
+                      { icon: "🔋", title: "Charging", desc: "Device charging continues normally during exam" },
+                      { icon: "📡", title: "Data Sync (Background)", desc: "APK syncs verification data in background over WiFi/mobile data" },
+                      { icon: "🔒", title: "Power Button (Screen Lock)", desc: "Power button locks screen but returns to APK on unlock" },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-start gap-2.5 p-2 bg-green-50/60 rounded-lg border border-green-100">
+                        <span className="text-base mt-0.5 w-5 text-center flex-shrink-0">{item.icon}</span>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-800">{item.title}</div>
+                          <div className="text-xs text-gray-500">{item.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <h4 className="font-semibold text-sm text-blue-700 mb-3 flex items-center gap-2">
+                    <Key className="w-4 h-4" /> How to Exit MDM Mode
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                      <div className="text-xs font-bold text-blue-800 mb-2">Method 1: Admin Password Exit</div>
+                      <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside">
+                        <li>Tap the <span className="font-semibold text-gray-800">hidden admin icon</span> (3 rapid taps on the MPA logo)</li>
+                        <li>Enter the <span className="font-semibold text-gray-800">APK Admin Password</span> (set during exam creation)</li>
+                        <li>Select <span className="font-semibold text-gray-800">"Exit MDM & Close App"</span></li>
+                        <li>Device returns to normal Android mode</li>
+                      </ol>
+                    </div>
+                    <div className="p-3 bg-purple-50 rounded-xl border border-purple-200">
+                      <div className="text-xs font-bold text-purple-800 mb-2">Method 2: Remote Exit from HQ</div>
+                      <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside">
+                        <li>Admin goes to <span className="font-semibold text-gray-800">Device Management</span> in HQ panel</li>
+                        <li>Selects the device and clicks <span className="font-semibold text-gray-800">"Release MDM Lock"</span></li>
+                        <li>Command is sent to device over network</li>
+                        <li>Device exits MDM mode automatically within 30 seconds</li>
+                      </ol>
+                    </div>
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                      <div className="text-xs font-bold text-amber-800 mb-2">Method 3: Exam Completion Auto-Exit</div>
+                      <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside">
+                        <li>When all candidates at the centre are verified</li>
+                        <li>Or when the exam slot end time is reached</li>
+                        <li>APK automatically prompts <span className="font-semibold text-gray-800">"Exam Complete — Exit MDM?"</span></li>
+                        <li>Operator confirms with password to exit</li>
+                      </ol>
+                    </div>
+                    <div className="p-3 bg-red-50 rounded-xl border border-red-200">
+                      <div className="text-xs font-bold text-red-800 mb-2">Emergency: Hard Reset (Last Resort)</div>
+                      <div className="text-xs text-gray-600">If all methods fail, hold <span className="font-semibold">Power + Volume Down</span> for 15 seconds to force reboot. MDM will re-activate on app launch unless disabled from HQ.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <h4 className="font-semibold text-sm text-gray-800 mb-3 flex items-center gap-2">
+                  <Monitor className="w-4 h-4 text-gray-600" /> MDM vs Kiosk Mode — Difference
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left border-b border-gray-200">
+                        <th className="py-2 px-3 font-semibold text-gray-600">Feature</th>
+                        <th className="py-2 px-3 font-semibold text-orange-600">MDM Control</th>
+                        <th className="py-2 px-3 font-semibold text-slate-600">Kiosk Mode</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      <tr><td className="py-2 px-3 text-gray-700">Android API Used</td><td className="py-2 px-3">Device Admin + Device Owner</td><td className="py-2 px-3">Screen Pinning (startLockTask)</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Home/Back/Recent Block</td><td className="py-2 px-3 text-green-600 font-semibold">Yes — fully blocked</td><td className="py-2 px-3 text-green-600 font-semibold">Yes — screen pinned</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Notification Bar</td><td className="py-2 px-3 text-green-600 font-semibold">Blocked</td><td className="py-2 px-3 text-amber-600">Partially blocked</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Settings Access</td><td className="py-2 px-3 text-green-600 font-semibold">Fully blocked</td><td className="py-2 px-3 text-amber-600">Blocked via pin</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">USB Debugging Block</td><td className="py-2 px-3 text-green-600 font-semibold">Yes</td><td className="py-2 px-3 text-red-600">No</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">App Install/Uninstall Block</td><td className="py-2 px-3 text-green-600 font-semibold">Yes</td><td className="py-2 px-3 text-red-600">No</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Remote Control from HQ</td><td className="py-2 px-3 text-green-600 font-semibold">Yes — full remote</td><td className="py-2 px-3 text-red-600">No</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Screenshot Block</td><td className="py-2 px-3 text-green-600 font-semibold">Yes</td><td className="py-2 px-3 text-red-600">No</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Setup Complexity</td><td className="py-2 px-3 text-amber-600">Device Owner provisioning needed</td><td className="py-2 px-3 text-green-600 font-semibold">Simple — no special setup</td></tr>
+                      <tr><td className="py-2 px-3 text-gray-700">Recommended For</td><td className="py-2 px-3 font-semibold text-orange-700">High-security exams (UPSC, SSC, Bank)</td><td className="py-2 px-3 font-semibold text-slate-700">Standard exams, quick setup</td></tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </CardContent>

@@ -105,6 +105,13 @@ All pages have working:
 - Overall limit: configurable (default 10), fallback sequence: retry → alternate biometric → supervisor override
 - Supervisor Override: requires 6-digit PIN + reason selection + selfie, max 5 overrides per session, fully audit logged
 
+### MDM Mode (Mobile Device Management)
+- When enabled: Device enters full lockdown — blocks Home, Back, Recent buttons, notification bar, settings, other apps, USB debugging, WiFi toggle, airplane mode, screenshot/screen recording, app install/uninstall
+- Allows: Camera (face/OMR), volume control, USB OTG (fingerprint scanner), charging, background data sync, power button (returns to APK on unlock)
+- Exit methods: (1) Admin password — 3 taps on MPA logo → enter APK admin password → Exit MDM, (2) Remote exit from HQ Device Management, (3) Auto-exit on exam completion + operator password, (4) Emergency hard reset (Power+Vol Down 15s)
+- Kiosk Mode (lighter alternative): Uses Android screen pinning (startLockTask), blocks Home/Back/Recent but doesn't block USB debug, screenshot, app install
+- MDM recommended for high-security exams (UPSC, SSC, Bank); Kiosk for standard/quick setup
+
 ### Offline Encrypted Template Storage
 - Encryption: AES-256-GCM, PBKDF2-HMAC-SHA256 key derivation (100K iterations)
 - Device Binding: IMEI + Android ID + Hardware Serial + MAC Address, SHA-256 binding hash
