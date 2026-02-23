@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,42 @@ import { Clock, UserCheck, Wifi, WifiOff, Search, Filter, RefreshCw, Download, C
 
 export default function Reports() {
   const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
+  const queryClient = useQueryClient();
 
   const { data: logsData = [], isLoading } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: api.auditLogs.list,
   });
 
-  const totalEvents = logsData.length;
-  const verifications = logsData.filter((log: any) => log.action === "Candidate Verified").length;
-  const onlineEvents = logsData.filter((log: any) => log.mode === "online" || log.mode === "Online").length;
-  const offlineEvents = logsData.filter((log: any) => log.mode === "offline" || log.mode === "Offline").length;
+  const actionFilterMap: Record<string, string> = {
+    verify: "Candidate Verified",
+    login: "Operator Login",
+    sync: "Data Sync",
+  };
+
+  const filteredLogs = logsData.filter((log: any) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        log.action?.toLowerCase().includes(q) ||
+        log.operatorName?.toLowerCase().includes(q) ||
+        log.candidateId?.toLowerCase().includes(q) ||
+        log.centreCode?.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+    }
+    if (actionFilter !== "all") {
+      const mappedAction = actionFilterMap[actionFilter];
+      if (mappedAction && log.action !== mappedAction) return false;
+    }
+    return true;
+  });
+
+  const totalEvents = filteredLogs.length;
+  const verifications = filteredLogs.filter((log: any) => log.action === "Candidate Verified").length;
+  const onlineEvents = filteredLogs.filter((log: any) => log.mode === "online" || log.mode === "Online").length;
+  const offlineEvents = filteredLogs.filter((log: any) => log.mode === "offline" || log.mode === "Offline").length;
 
   const getActionColor = (action: string) => {
     switch (action) {
@@ -54,10 +80,10 @@ export default function Reports() {
           >
             <Filter className="w-4 h-4" /> Filters
           </Button>
-          <Button variant="outline" className="border-gray-200 text-gray-700 bg-white hover:bg-gray-50 h-10 px-4 rounded-lg font-medium shadow-sm gap-2">
+          <Button variant="outline" className="border-gray-200 text-gray-700 bg-white hover:bg-gray-50 h-10 px-4 rounded-lg font-medium shadow-sm gap-2" onClick={() => queryClient.invalidateQueries({ queryKey: ["audit-logs"] })}>
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-10 px-4 rounded-lg font-medium gap-2">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm h-10 px-4 rounded-lg font-medium gap-2" onClick={() => alert("Export feature coming soon")}>
             <Download className="w-4 h-4" /> Export
           </Button>
         </div>
@@ -83,7 +109,7 @@ export default function Reports() {
             
             <div className="space-y-1.5 flex-1 min-w-[200px]">
               <label className="text-xs font-medium text-gray-600">Action</label>
-              <Select defaultValue="all">
+              <Select value={actionFilter} onValueChange={setActionFilter}>
                 <SelectTrigger className="w-full h-10 border-gray-200">
                   <SelectValue placeholder="All Actions" />
                 </SelectTrigger>
@@ -110,7 +136,7 @@ export default function Reports() {
               </div>
             </div>
 
-            <Button variant="ghost" className="text-gray-500 h-10 px-4 hover:bg-gray-100" onClick={() => setShowFilters(false)}>
+            <Button variant="ghost" className="text-gray-500 h-10 px-4 hover:bg-gray-100" onClick={() => { setShowFilters(false); setActionFilter("all"); setSearchQuery(""); }}>
               Clear Filters
             </Button>
           </CardContent>
@@ -176,6 +202,8 @@ export default function Reports() {
             <Input 
               placeholder="Search logs..." 
               className="pl-9 h-10 border-gray-200 focus-visible:ring-1 focus-visible:ring-blue-500 rounded-lg shadow-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -208,7 +236,7 @@ export default function Reports() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {logsData.map((log: any) => (
+              {filteredLogs.map((log: any) => (
                 <TableRow key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-4 pl-6 text-[13px] text-gray-600 whitespace-nowrap">
                     <div className="flex items-center gap-2">
@@ -264,7 +292,7 @@ export default function Reports() {
         </div>
         
         <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-white">
-          <div>Showing 1 to {logsData.length} of {logsData.length} entries</div>
+          <div>Showing 1 to {filteredLogs.length} of {filteredLogs.length} entries</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-8 border-gray-200" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-blue-50 border-blue-200 text-blue-600">1</Button>

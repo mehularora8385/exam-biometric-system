@@ -8,26 +8,79 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Users, UserCheck, Clock, XCircle, UserX, CheckCircle2, Search, Filter, Download, FileText, Eye, ImageIcon, Fingerprint, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Candidates() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [examFilter, setExamFilter] = useState("all");
+  const [centerFilter, setCenterFilter] = useState("all");
+  const [slotFilter, setSlotFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { toast } = useToast();
 
   const { data: candidatesData = [], isLoading } = useQuery({
     queryKey: ["candidates"],
     queryFn: () => api.candidates.list(),
   });
 
-  const totalCount = candidatesData.length;
-  const verifiedCount = candidatesData.filter((c: any) => c.status === "Verified").length;
-  const pendingCount = candidatesData.filter((c: any) => c.status === "Pending").length;
-  const notVerifiedCount = candidatesData.filter((c: any) => c.status === "Not Verified").length;
-  const presentCount = candidatesData.filter((c: any) => c.status === "Present").length;
+  const { data: exams = [] } = useQuery({
+    queryKey: ["exams"],
+    queryFn: () => api.exams.list(),
+  });
+
+  const { data: centers = [] } = useQuery({
+    queryKey: ["centers"],
+    queryFn: () => api.centers.list(),
+  });
+
+  const { data: slotsData = [] } = useQuery({
+    queryKey: ["slots"],
+    queryFn: () => api.slots.list(),
+  });
+
+  const filteredCandidates = candidatesData.filter((c: any) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        c.name?.toLowerCase().includes(q) ||
+        c.rollNo?.toLowerCase().includes(q) ||
+        c.omrNo?.toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+    }
+    if (examFilter !== "all" && String(c.examId) !== examFilter) return false;
+    if (centerFilter !== "all" && String(c.centerId) !== centerFilter) return false;
+    if (slotFilter !== "all" && String(c.slotId) !== slotFilter) return false;
+    if (statusFilter !== "all" && c.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
+    return true;
+  });
+
+  const totalCount = filteredCandidates.length;
+  const verifiedCount = filteredCandidates.filter((c: any) => c.status === "Verified").length;
+  const pendingCount = filteredCandidates.filter((c: any) => c.status === "Pending").length;
+  const notVerifiedCount = filteredCandidates.filter((c: any) => c.status === "Not Verified").length;
+  const presentCount = filteredCandidates.filter((c: any) => c.status === "Present").length;
   const percentDone = totalCount > 0 ? Math.round((verifiedCount / totalCount) * 100) : 0;
 
   const handleViewDetails = (candidate: any) => {
     setSelectedCandidate(candidate);
     setIsModalOpen(true);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setExamFilter("all");
+    setCenterFilter("all");
+    setSlotFilter("all");
+    setStatusFilter("all");
+  };
+
+  const handleExport = (type: string) => {
+    toast({
+      title: "Export feature coming soon",
+      description: `${type} export will be available in a future update.`,
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -70,10 +123,10 @@ export default function Candidates() {
           <Button variant="outline" className="border-gray-200 text-gray-700 bg-white h-10 px-4 rounded-lg font-medium shadow-sm gap-2">
             <Filter className="w-4 h-4" /> Filters
           </Button>
-          <Button variant="outline" className="border-gray-200 text-gray-700 bg-white h-10 px-4 rounded-lg font-medium shadow-sm gap-2">
+          <Button variant="outline" className="border-gray-200 text-gray-700 bg-white h-10 px-4 rounded-lg font-medium shadow-sm gap-2" onClick={() => handleExport("Excel")} data-testid="button-export-excel">
             <Download className="w-4 h-4" /> Excel
           </Button>
-          <Button variant="outline" className="border-gray-200 text-gray-700 bg-white h-10 px-4 rounded-lg font-medium shadow-sm gap-2">
+          <Button variant="outline" className="border-gray-200 text-gray-700 bg-white h-10 px-4 rounded-lg font-medium shadow-sm gap-2" onClick={() => handleExport("PDF")} data-testid="button-export-pdf">
             <FileText className="w-4 h-4" /> PDF
           </Button>
         </div>
@@ -159,60 +212,66 @@ export default function Candidates() {
         <CardContent className="p-5 flex flex-wrap items-end gap-4">
           <div className="space-y-1.5 flex-1 min-w-[200px]">
             <label className="text-xs font-medium text-gray-600">Exam</label>
-            <Select defaultValue="upsc">
-              <SelectTrigger className="w-full h-10 border-gray-200">
+            <Select value={examFilter} onValueChange={setExamFilter}>
+              <SelectTrigger className="w-full h-10 border-gray-200" data-testid="select-exam-filter">
                 <SelectValue placeholder="Select Exam" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="upsc">UPSC Civil Services 2024</SelectItem>
-                <SelectItem value="ssc">SSC CGL 2024</SelectItem>
+                <SelectItem value="all">All Exams</SelectItem>
+                {exams.map((exam: any) => (
+                  <SelectItem key={exam.id} value={String(exam.id)}>{exam.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           
           <div className="space-y-1.5 flex-1 min-w-[150px]">
             <label className="text-xs font-medium text-gray-600">Centre</label>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-full h-10 border-gray-200">
+            <Select value={centerFilter} onValueChange={setCenterFilter}>
+              <SelectTrigger className="w-full h-10 border-gray-200" data-testid="select-center-filter">
                 <SelectValue placeholder="All Centres" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Centres</SelectItem>
-                <SelectItem value="del001">Delhi Public School</SelectItem>
-                <SelectItem value="del002">Kendriya Vidyalaya</SelectItem>
+                {centers.map((center: any) => (
+                  <SelectItem key={center.id} value={String(center.id)}>{center.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           
           <div className="space-y-1.5 flex-1 min-w-[150px]">
             <label className="text-xs font-medium text-gray-600">Slot</label>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-full h-10 border-gray-200">
+            <Select value={slotFilter} onValueChange={setSlotFilter}>
+              <SelectTrigger className="w-full h-10 border-gray-200" data-testid="select-slot-filter">
                 <SelectValue placeholder="All Slots" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Slots</SelectItem>
-                <SelectItem value="morning">Morning Slot</SelectItem>
-                <SelectItem value="afternoon">Afternoon Slot</SelectItem>
+                {slotsData.map((slot: any) => (
+                  <SelectItem key={slot.id} value={String(slot.id)}>{slot.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           
           <div className="space-y-1.5 flex-1 min-w-[150px]">
             <label className="text-xs font-medium text-gray-600">Status</label>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-full h-10 border-gray-200">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full h-10 border-gray-200" data-testid="select-status-filter">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="verified">Verified</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="Verified">Verified</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Present">Present</SelectItem>
+                <SelectItem value="Not Verified">Not Verified</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <Button variant="ghost" className="text-gray-500 h-10 px-4 hover:bg-gray-100">
+          <Button variant="ghost" className="text-gray-500 h-10 px-4 hover:bg-gray-100" onClick={handleClearFilters} data-testid="button-clear-filters">
             Clear Filters
           </Button>
         </CardContent>
@@ -226,6 +285,9 @@ export default function Candidates() {
             <Input 
               placeholder="Search by name, roll no, OMR no..." 
               className="pl-9 h-10 border-gray-200 focus-visible:ring-1 focus-visible:ring-blue-500 rounded-lg shadow-sm w-full"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-candidates"
             />
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -262,7 +324,7 @@ export default function Candidates() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {candidatesData.map((candidate) => (
+              {filteredCandidates.map((candidate) => (
                 <TableRow key={candidate.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-3 pl-6">
                     <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center mx-auto border border-gray-200 overflow-hidden">

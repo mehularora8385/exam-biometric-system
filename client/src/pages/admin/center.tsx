@@ -12,6 +12,9 @@ import { Building2, MapPin, Search, Edit, Trash2, Plus, Filter, Loader2 } from "
 export default function CenterMaster() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [editId, setEditId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [examFilter, setExamFilter] = useState("all");
   const [formData, setFormData] = useState({
     code: "",
     name: "",
@@ -43,6 +46,16 @@ export default function CenterMaster() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.centers.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["centers"] });
+      setIsModalOpen(false);
+      setEditId(null);
+      setFormData({ code: "", name: "", examId: "", city: "", state: "", address: "", capacity: "" });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.centers.delete(id),
     onSuccess: () => {
@@ -50,34 +63,53 @@ export default function CenterMaster() {
     },
   });
 
-  const handleEditClick = () => {
+  const handleEditClick = (center: any) => {
     setModalMode("edit");
+    setEditId(center.id);
+    setFormData({
+      code: center.code,
+      name: center.name,
+      examId: center.examId ? String(center.examId) : "",
+      city: center.city,
+      state: center.state,
+      address: center.address || "",
+      capacity: center.capacity ? String(center.capacity) : "",
+    });
     setIsModalOpen(true);
   };
 
   const handleAddClick = () => {
     setModalMode("add");
+    setEditId(null);
     setFormData({ code: "", name: "", examId: "", city: "", state: "", address: "", capacity: "" });
     setIsModalOpen(true);
   };
 
   const handleSubmit = () => {
+    const payload = {
+      code: formData.code,
+      name: formData.name,
+      examId: formData.examId ? parseInt(formData.examId) : undefined,
+      city: formData.city,
+      state: formData.state,
+      address: formData.address,
+      capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
+    };
     if (modalMode === "add") {
-      createMutation.mutate({
-        code: formData.code,
-        name: formData.name,
-        examId: formData.examId ? parseInt(formData.examId) : undefined,
-        city: formData.city,
-        state: formData.state,
-        address: formData.address,
-        capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
-      });
+      createMutation.mutate(payload);
+    } else if (modalMode === "edit" && editId !== null) {
+      updateMutation.mutate({ id: editId, data: payload });
     }
   };
 
   const handleDelete = (id: number) => {
     deleteMutation.mutate(id);
   };
+
+  const filteredCenters = centersData.filter((c: any) =>
+    (!searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.code.toLowerCase().includes(searchQuery.toLowerCase()) || c.city?.toLowerCase().includes(searchQuery.toLowerCase())) &&
+    (!examFilter || examFilter === "all" || String(c.examId) === examFilter)
+  );
 
   const uniqueCities = new Set(centersData.map((c: any) => c.city).filter(Boolean));
 
@@ -88,6 +120,8 @@ export default function CenterMaster() {
       </div>
     );
   }
+
+  const isMutating = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
@@ -100,7 +134,7 @@ export default function CenterMaster() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Select defaultValue="all">
+            <Select value={examFilter} onValueChange={setExamFilter}>
               <SelectTrigger className="w-[200px] h-10 pl-9 border-blue-200 text-blue-900 bg-white shadow-sm ring-offset-0 focus:ring-1 focus:ring-blue-500 rounded-lg">
                 <SelectValue placeholder="All Exams" />
               </SelectTrigger>
@@ -162,6 +196,8 @@ export default function CenterMaster() {
             <Input 
               placeholder="Search centres..." 
               className="pl-9 h-10 border-gray-200 focus-visible:ring-1 focus-visible:ring-blue-500 rounded-lg shadow-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -194,7 +230,7 @@ export default function CenterMaster() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {centersData.map((center: any, idx: number) => (
+              {filteredCenters.map((center: any, idx: number) => (
                 <TableRow key={center.id || idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-4 pl-6 font-medium text-blue-600 text-[13px]">{center.code}</TableCell>
                   <TableCell className="py-4 text-[13px] text-gray-900 font-medium">{center.name}</TableCell>
@@ -211,7 +247,7 @@ export default function CenterMaster() {
                     <div className="flex justify-end gap-2">
                       <button 
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                        onClick={handleEditClick}
+                        onClick={() => handleEditClick(center)}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -231,7 +267,7 @@ export default function CenterMaster() {
         
         {/* Pagination placeholder matching the design */}
         <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-white">
-          <div>Showing 1 to {centersData.length} of {centersData.length} entries</div>
+          <div>Showing 1 to {filteredCenters.length} of {filteredCenters.length} entries</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-8 border-gray-200" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-blue-50 border-blue-200 text-blue-600">1</Button>
@@ -342,9 +378,9 @@ export default function CenterMaster() {
             <Button 
               className="px-6 h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm"
               onClick={handleSubmit}
-              disabled={createMutation.isPending}
+              disabled={isMutating}
             >
-              {createMutation.isPending ? (
+              {isMutating ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
               ) : null}
               {modalMode === "edit" ? "Update Centre" : "Add Centre"}

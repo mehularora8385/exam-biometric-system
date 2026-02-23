@@ -44,6 +44,12 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
   const [activeStep, setActiveStep] = useState(1);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const todayFormatted = (() => {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  })();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -52,6 +58,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
     clientLoginId: "",
     clientLoginPass: "",
     apkPassword: "",
+    date: todayFormatted,
   });
 
   const { data: rawExams = [], isLoading } = useQuery({
@@ -83,7 +90,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exams"] });
       setIsAddModalOpen(false);
-      setFormData({ name: "", code: "", client: "", clientLoginId: "", clientLoginPass: "", apkPassword: "" });
+      setFormData({ name: "", code: "", client: "", clientLoginId: "", clientLoginPass: "", apkPassword: "", date: todayFormatted });
       setActiveStep(1);
     },
   });
@@ -151,9 +158,13 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                     <label className="text-sm font-medium text-gray-700">Exam Code <span className="text-gray-400">*</span></label>
                     <Input placeholder="e.g., UPSC-CS-2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} />
                   </div>
-                  <div className="space-y-2 col-span-2">
+                  <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Client Name <span className="text-gray-400">*</span></label>
                     <Input placeholder="e.g., Union Public Service Commission" className="border-gray-200 focus-visible:ring-blue-500" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Date <span className="text-gray-400">*</span></label>
+                    <Input placeholder="DD/MM/YYYY" className="border-gray-200 focus-visible:ring-blue-500" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} />
                   </div>
                 </div>
 
@@ -345,7 +356,9 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
         <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
         <Input 
           placeholder="Search exams..." 
-          className="pl-9 bg-white border-gray-200 rounded-lg focus-visible:ring-blue-500" 
+          className="pl-9 bg-white border-gray-200 rounded-lg focus-visible:ring-blue-500"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
 
@@ -357,7 +370,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
 
       {/* Exam Cards Grid */}
       {!isLoading && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {exams.map((exam, i) => (
+        {exams.filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.code.toLowerCase().includes(searchQuery.toLowerCase()) || e.client.toLowerCase().includes(searchQuery.toLowerCase())).map((exam, i) => (
           <Card key={i} className="shadow-sm border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow bg-white">
             <CardContent className="p-0">
               <div className="p-5">

@@ -10,10 +10,23 @@ import { Users, UserCheck, Smartphone, Search, Edit, Trash2, PowerOff, RefreshCw
 
 export default function OperatorMaster() {
   const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [examFilter, setExamFilter] = useState("all");
+  const [centerFilter, setCenterFilter] = useState("all_centres");
 
   const { data: operatorsData = [], isLoading } = useQuery({
     queryKey: ["operators"],
     queryFn: api.operators.list,
+  });
+
+  const { data: exams = [] } = useQuery({
+    queryKey: ["exams"],
+    queryFn: api.exams.list,
+  });
+
+  const { data: centers = [] } = useQuery({
+    queryKey: ["centers"],
+    queryFn: () => api.centers.list(),
   });
 
   const createMutation = useMutation({
@@ -28,6 +41,26 @@ export default function OperatorMaster() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["operators"] });
     },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => api.operators.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["operators"] });
+    },
+  });
+
+  const filteredOperators = operatorsData.filter((op: any) => {
+    const matchesSearch = !searchQuery ||
+      op.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      op.phone?.includes(searchQuery) ||
+      op.email?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesExam = examFilter === "all" || op.examId?.toString() === examFilter;
+
+    const matchesCentre = centerFilter === "all_centres" || op.centerId?.toString() === centerFilter || op.center === centerFilter;
+
+    return matchesSearch && matchesExam && matchesCentre;
   });
 
   const totalOperators = operatorsData.length;
@@ -51,33 +84,31 @@ export default function OperatorMaster() {
           <p className="text-sm text-gray-500 mt-1">Manage verification operators and device bindings</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select defaultValue="all">
+          <Select value={examFilter} onValueChange={setExamFilter}>
             <SelectTrigger className="w-[180px] h-10 border-blue-200 text-blue-900 bg-white shadow-sm rounded-lg">
               <SelectValue placeholder="All Exams" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Exams</SelectItem>
-              <SelectItem value="upsc">UPSC Civil Services 2024</SelectItem>
-              <SelectItem value="ssc">SSC CGL 2024</SelectItem>
-              <SelectItem value="rrb">RRB NTPC 2024</SelectItem>
-              <SelectItem value="ibps">IBPS PO 2023</SelectItem>
+              {exams.map((exam: any) => (
+                <SelectItem key={exam.id} value={exam.id.toString()}>
+                  {exam.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          <Select defaultValue="all_centres">
+          <Select value={centerFilter} onValueChange={setCenterFilter}>
             <SelectTrigger className="w-[200px] h-10 border-gray-200 text-gray-700 bg-white shadow-sm rounded-lg">
               <SelectValue placeholder="All Centres" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all_centres">All Centres</SelectItem>
-              <SelectItem value="del001">DEL001 - Delhi Public School</SelectItem>
-              <SelectItem value="del002">DEL002 - Kendriya Vidyalaya</SelectItem>
-              <SelectItem value="mum001">MUM001 - St. Xaviers College</SelectItem>
-              <SelectItem value="mum002">MUM002 - IIT Bombay</SelectItem>
-              <SelectItem value="blr001">BLR001 - Christ University</SelectItem>
-              <SelectItem value="blr002">BLR002 - RV College</SelectItem>
-              <SelectItem value="chn001">CHN001 - IIT Madras</SelectItem>
-              <SelectItem value="kol001">KOL001 - Jadavpur University</SelectItem>
+              {centers.map((center: any) => (
+                <SelectItem key={center.id} value={center.id.toString()}>
+                  {center.code ? `${center.code} - ${center.name}` : center.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -130,6 +161,8 @@ export default function OperatorMaster() {
             <Input 
               placeholder="Search operators..." 
               className="pl-9 h-10 border-gray-200 focus-visible:ring-1 focus-visible:ring-blue-500 rounded-lg shadow-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -162,7 +195,7 @@ export default function OperatorMaster() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {operatorsData.map((operator: any, idx: number) => (
+              {filteredOperators.map((operator: any, idx: number) => (
                 <TableRow key={operator.id ?? idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="py-4 pl-6">
                     <div>
@@ -194,22 +227,42 @@ export default function OperatorMaster() {
                   <TableCell className="py-4 pr-6 text-right">
                     <div className="flex justify-end gap-1.5">
                       {operator.status === 'Active' ? (
-                        <button className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Deactivate" data-testid={`button-deactivate-${operator.id ?? idx}`}>
+                        <button
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                          title="Deactivate"
+                          data-testid={`button-deactivate-${operator.id ?? idx}`}
+                          onClick={() => updateMutation.mutate({ id: operator.id, status: "Inactive" })}
+                        >
                           <PowerOff className="w-4 h-4" />
                         </button>
                       ) : (
-                        <button className="p-1.5 text-green-500 hover:bg-green-50 rounded-md transition-colors" title="Activate" data-testid={`button-activate-${operator.id ?? idx}`}>
+                        <button
+                          className="p-1.5 text-green-500 hover:bg-green-50 rounded-md transition-colors"
+                          title="Activate"
+                          data-testid={`button-activate-${operator.id ?? idx}`}
+                          onClick={() => updateMutation.mutate({ id: operator.id, status: "Active" })}
+                        >
                           <PowerOff className="w-4 h-4" />
                         </button>
                       )}
                       
                       {operator.device && operator.device !== "Not bound" && (
-                        <button className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-colors" title="Unbind Device" data-testid={`button-unbind-${operator.id ?? idx}`}>
+                        <button
+                          className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+                          title="Unbind Device"
+                          data-testid={`button-unbind-${operator.id ?? idx}`}
+                          onClick={() => updateMutation.mutate({ id: operator.id, device: "Not bound" })}
+                        >
                           <RefreshCw className="w-4 h-4" />
                         </button>
                       )}
                       
-                      <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit" data-testid={`button-edit-${operator.id ?? idx}`}>
+                      <button
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                        title="Edit"
+                        data-testid={`button-edit-${operator.id ?? idx}`}
+                        onClick={() => alert(`Edit operator: ${operator.name} (ID: ${operator.id})`)}
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
@@ -230,7 +283,7 @@ export default function OperatorMaster() {
         
         {/* Pagination placeholder matching the design */}
         <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-white">
-          <div>Showing 1 to {operatorsData.length} of {totalOperators} entries</div>
+          <div>Showing 1 to {filteredOperators.length} of {totalOperators} entries</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-8 border-gray-200" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-blue-50 border-blue-200 text-blue-600">1</Button>

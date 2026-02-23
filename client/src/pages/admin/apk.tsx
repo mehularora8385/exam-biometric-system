@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Loader2, Box, Camera, Fingerprint, WifiOff, MapPin, Shield, RefreshCw, 
 
 export default function GenerateAPK() {
   const [dragActive, setDragActive] = useState(false);
-  const [selectedExam, setSelectedExam] = useState("upsc");
+  const [selectedExam, setSelectedExam] = useState("");
   const [biometricMode, setBiometricMode] = useState("face_fingerprint");
   const [verificationFlow, setVerificationFlow] = useState("face_then_fingerprint");
   const [attendanceMode, setAttendanceMode] = useState("both");
@@ -27,6 +27,17 @@ export default function GenerateAPK() {
 
   const queryClient = useQueryClient();
 
+  const { data: exams = [] } = useQuery({
+    queryKey: ["exams"],
+    queryFn: api.exams.list,
+  });
+
+  useEffect(() => {
+    if (exams.length > 0 && selectedExam === "") {
+      setSelectedExam(String(exams[0].id));
+    }
+  }, [exams]);
+
   const { data: generatedApks = [], isLoading } = useQuery({
     queryKey: ["apk-builds"],
     queryFn: () => api.apkBuilds.list(),
@@ -41,8 +52,9 @@ export default function GenerateAPK() {
 
   const handleGenerateApk = () => {
     createApkMutation.mutate({
-      examId: selectedExam,
+      examId: parseInt(selectedExam),
       version: `2.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`,
+      date: new Date().toLocaleDateString('en-GB'),
       description: `APK build with ${biometricMode} biometric, ${verificationFlow} flow, ${attendanceMode} attendance, ${omrMode} OMR mode`,
       status: "Building",
       features: {
@@ -79,13 +91,14 @@ export default function GenerateAPK() {
           <p className="text-sm text-gray-500 mt-1">Configure and generate APK for examination</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select defaultValue="upsc" value={selectedExam} onValueChange={setSelectedExam}>
+          <Select value={selectedExam} onValueChange={setSelectedExam}>
             <SelectTrigger className="w-[200px] h-10 border-gray-200 text-gray-700 bg-white shadow-sm rounded-lg">
               <SelectValue placeholder="Select Exam" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="upsc">UPSC Civil Services 2024</SelectItem>
-              <SelectItem value="ssc">SSC CGL 2024</SelectItem>
+              {exams.map((exam: any) => (
+                <SelectItem key={exam.id} value={String(exam.id)}>{exam.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
