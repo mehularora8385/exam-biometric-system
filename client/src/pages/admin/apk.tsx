@@ -789,7 +789,7 @@ export default function GenerateAPK() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">Generated APK Builds</h3>
-                  <p className="text-sm text-gray-500 mt-1">Download APK config files for Android installation</p>
+                  <p className="text-sm text-gray-500 mt-1">Download config JSON to integrate with your Android Studio project</p>
                 </div>
                 {buildingCount > 0 && (
                   <div className="flex items-center gap-2 text-sm text-yellow-700 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-200">
@@ -862,14 +862,23 @@ export default function GenerateAPK() {
                           </TableCell>
                           <TableCell className="py-4 pr-6 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              {apk.status === "Ready" && apk.downloadUrl ? (
-                                <button
-                                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
-                                  onClick={() => api.apkBuilds.downloadApk(apk.id)}
-                                  data-testid={`button-download-apk-${apk.id || idx}`}
-                                >
-                                  <Download className="w-4 h-4" /> Download .apk
-                                </button>
+                              {apk.status === "Ready" ? (
+                                <>
+                                  <button
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                    onClick={() => api.apkBuilds.downloadConfig(apk.id)}
+                                    data-testid={`button-download-config-${apk.id || idx}`}
+                                  >
+                                    <FileJson className="w-3.5 h-3.5" /> Config JSON
+                                  </button>
+                                  <button
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                    onClick={() => api.apkBuilds.downloadApk(apk.id)}
+                                    data-testid={`button-download-project-${apk.id || idx}`}
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> Android Project
+                                  </button>
+                                </>
                               ) : apk.status === "Building" ? (
                                 <div className="flex items-center gap-2">
                                   <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />

@@ -812,18 +812,44 @@ export async function registerRoutes(
           templateAutoWipe: { afterHours: 72, onTamper: true },
         },
         examConfig: config,
-        installInstructions: {
-          step1: "Transfer this .apk file to Android tablet/mobile via USB or download link",
-          step2: "Enable 'Install from Unknown Sources' in Settings > Security",
-          step3: "Tap the APK file to install",
-          step4: "Open MPA Verify app and login with operator credentials",
-          step5: "Connect MFS100/MFS110 fingerprint scanner via USB OTG",
-          step6: "The app will auto-sync candidate data for the assigned centre",
+        setupGuide: {
+          title: "Android Studio Project Setup Guide",
+          step1: "Open Android Studio → New Project → Empty Activity (Kotlin)",
+          step2: `Set package name to: com.mpa.verify.${examName.toLowerCase()}`,
+          step3: "Set minSdk = 26 (Android 8.0), targetSdk = 34",
+          step4: "Copy the 'examConfig' and 'biometricSdk' sections from this JSON into your app's assets/config.json",
+          step5: "Add dependencies in build.gradle:",
+          dependencies: [
+            "implementation 'org.tensorflow:tensorflow-lite:2.14.0'  // FaceNet model",
+            "implementation 'com.google.mlkit:face-detection:16.1.5'  // Face detection",
+            "implementation 'com.google.mediapipe:mediapipe:0.10.8'  // Liveness detection",
+            "implementation 'com.squareup.retrofit2:retrofit:2.9.0'  // API calls to HQ",
+            "implementation 'com.squareup.okhttp3:okhttp:4.12.0'  // HTTP client",
+            "implementation 'androidx.biometric:biometric:1.1.0'  // Biometric prompt",
+            "implementation 'com.google.zxing:core:3.5.2'  // QR/Barcode for OMR",
+            "implementation 'androidx.camera:camera-camera2:1.3.1'  // CameraX for face/OMR capture",
+            "implementation 'androidx.room:room-runtime:2.6.1'  // Offline SQLite storage",
+            "// Mantra MFS100/MFS110 SDK - Download from https://download.mantratecapp.com/",
+          ],
+          step6: "Add all permissions listed in the 'permissions' array to AndroidManifest.xml",
+          step7: "Add hardware features from 'hardwareFeatures' to AndroidManifest.xml",
+          step8: "Configure API base URL using 'examConfig.serverUrl' and use endpoints from 'apiEndpoints'",
+          apiIntegration: {
+            syncData: "GET /api/sync/{examId}?centreCode={code} → Downloads candidate list for offline use",
+            submitVerification: "POST /api/verification/submit → Send face match %, fingerprint result, OMR number",
+            heartbeat: "POST /api/verification/heartbeat → Send device status (battery, location) every 30s",
+            sdkConfig: "GET /api/biometric/sdk-config → Get biometric thresholds and settings",
+            scannerStatus: "GET /api/biometric/scanner-status?model=MFS100 → Check scanner connection",
+            uploadPhoto: "POST /api/verification/upload-photo → Upload captured candidate photo",
+          },
+          step9: "For MDM/Kiosk mode: Use Android DevicePolicyManager API with Device Owner mode",
+          step10: "Build signed APK: Build → Generate Signed Bundle/APK → APK → Select keystore",
+          step11: "Transfer .apk to tablets via USB or host on your server for OTA download",
         },
       };
       const fileContent = JSON.stringify(apkPackage, null, 2);
-      res.setHeader("Content-Type", "application/vnd.android.package-archive");
-      res.setHeader("Content-Disposition", `attachment; filename=MPA_Verify_${examName}_v${build.version}.apk`);
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename=MPA_Verify_${examName}_v${build.version}_android_project.json`);
       res.send(fileContent);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
