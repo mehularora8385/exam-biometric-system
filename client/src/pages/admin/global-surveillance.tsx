@@ -74,33 +74,33 @@ export default function GlobalSurveillance() {
                   <div className="flex gap-4">
                     <div className="mt-1"><Eye className="w-5 h-5 text-indigo-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Pupil Dilation Tracking</div>
+                      <div className="font-bold text-gray-900">Pupil Dilation Tracking (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Measures abnormal pupil responses indicating cognitive overload or stress.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
                 
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex gap-4">
                     <div className="mt-1"><Activity className="w-5 h-5 text-indigo-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Micro-Expression Scanner</div>
+                      <div className="font-bold text-gray-900">Micro-Expression Scanner (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Detects 43 distinct facial muscle movements to identify hidden anxiety.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex gap-4">
                     <div className="mt-1"><Search className="w-5 h-5 text-indigo-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Gaze Deviation Alert</div>
+                      <div className="font-bold text-gray-900">Gaze Deviation Alert (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Flags if a candidate is repeatedly looking off-camera (potential coaching).</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
               </div>
             </CardContent>
@@ -148,22 +148,22 @@ export default function GlobalSurveillance() {
                   <div className="flex gap-4">
                     <div className="mt-1"><Waves className="w-5 h-5 text-blue-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">OMR Proximity Alert</div>
+                      <div className="font-bold text-gray-900">OMR Proximity Alert (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Alerts if OMR sheet moves outside the designated classroom zone.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
                 
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex gap-4">
                     <div className="mt-1"><Zap className="w-5 h-5 text-blue-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Multi-Tag Collision</div>
+                      <div className="font-bold text-gray-900">Multi-Tag Collision (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Detects if two candidate tags are suspiciously close to each other for >5 mins.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
               </div>
             </CardContent>
@@ -206,33 +206,33 @@ export default function GlobalSurveillance() {
                   <div className="flex gap-4">
                     <div className="mt-1"><Mic className="w-5 h-5 text-purple-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Voice Print Generation</div>
+                      <div className="font-bold text-gray-900">Voice Print Generation (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Requires candidate to read a random 4-digit code aloud during face capture.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
                 
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex gap-4">
                     <div className="mt-1"><Cpu className="w-5 h-5 text-purple-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Synthetic Audio Detection</div>
+                      <div className="font-bold text-gray-900">Synthetic Audio Detection (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">AI model that detects AI-generated voices or pre-recorded playback.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
                 
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex gap-4">
                     <div className="mt-1"><Volume2 className="w-5 h-5 text-purple-600" /></div>
                     <div>
-                      <div className="font-bold text-gray-900">Background Anomaly Flag</div>
+                      <div className="font-bold text-gray-900">Background Anomaly Flag (Optional)</div>
                       <div className="text-sm text-gray-500 mt-1">Flags if whispering or coaching is detected in the audio background.</div>
                     </div>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch />
                 </div>
               </div>
             </CardContent>
