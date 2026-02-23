@@ -168,9 +168,9 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
   }
 
-  const s = stats || { totalCandidates: 0, verified: 0, pending: 0, notVerified: 0, totalCenters: 0, activeCenters: 0, totalOperators: 0, activeOperators: 0, centerStats: [] };
+  const s = stats || { totalCandidates: 0, verified: 0, pending: 0, notVerified: 0, present: 0, absent: 0, totalCenters: 0, activeCenters: 0, totalOperators: 0, activeOperators: 0, centerStats: [] };
   const completionPct = s.totalCandidates > 0 ? Math.round((s.verified / s.totalCandidates) * 100) : 0;
-  const presentPct = s.totalCandidates > 0 ? Math.round(((s.verified + s.pending) / s.totalCandidates) * 100) : 0;
+  const presentPct = s.totalCandidates > 0 ? Math.round((s.present / s.totalCandidates) * 100) : 0;
   const operatorPct = s.totalOperators > 0 ? Math.round((s.activeOperators / s.totalOperators) * 100) : 0;
 
   return (
@@ -279,7 +279,7 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
             </div>
             <div>
               <div className="text-xs font-medium text-yellow-800">Present Today</div>
-              <div className="text-xl font-bold text-gray-900">{(s.verified + s.pending).toLocaleString()}</div>
+              <div className="text-xl font-bold text-gray-900" data-testid="text-present-count">{s.present.toLocaleString()}</div>
             </div>
           </CardContent>
         </Card>
@@ -301,14 +301,23 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
                 const vPct = cs.total > 0 ? (cs.verified / cs.total) * 100 : 0;
                 const pPct = cs.total > 0 ? (cs.pending / cs.total) * 100 : 0;
                 const nPct = cs.total > 0 ? ((cs.total - cs.verified - cs.pending) / cs.total) * 100 : 0;
+                const prPct = cs.total > 0 ? ((cs.present || 0) / cs.total) * 100 : 0;
                 return (
                   <div key={i} className="flex flex-col items-center justify-end h-full relative z-10 w-full hover:bg-gray-50/50 rounded-t-lg transition-colors group/bar" data-testid={`bar-center-${cs.code}`}>
-                    <div className="flex items-end gap-1.5 h-full w-full justify-center">
-                      <div className="w-[25%] max-w-[14px] bg-green-500 rounded-t-sm transition-all" style={{ height: `${vPct}%` }} />
-                      <div className="w-[25%] max-w-[14px] bg-amber-500 rounded-t-sm transition-all" style={{ height: `${pPct}%` }} />
-                      <div className="w-[25%] max-w-[14px] bg-red-500 rounded-t-sm transition-all" style={{ height: `${nPct}%` }} />
+                    <div className="flex items-end gap-1 h-full w-full justify-center">
+                      <div className="w-[20%] max-w-[12px] bg-green-500 rounded-t-sm transition-all" style={{ height: `${vPct}%` }} title={`Verified: ${cs.verified}`} />
+                      <div className="w-[20%] max-w-[12px] bg-amber-500 rounded-t-sm transition-all" style={{ height: `${pPct}%` }} title={`Pending: ${cs.pending}`} />
+                      <div className="w-[20%] max-w-[12px] bg-red-500 rounded-t-sm transition-all" style={{ height: `${nPct}%` }} title={`Not Verified: ${cs.total - cs.verified - cs.pending}`} />
+                      <div className="w-[20%] max-w-[12px] bg-blue-500 rounded-t-sm transition-all" style={{ height: `${prPct}%` }} title={`Present: ${cs.present || 0}`} />
                     </div>
                     <div className="absolute -bottom-7 text-[11px] text-gray-500 whitespace-nowrap">{cs.code}</div>
+                    <div className="absolute top-0 bg-white shadow-xl rounded-lg p-3 border border-gray-100 w-40 z-50 text-xs hidden group-hover/bar:block">
+                      <div className="font-semibold text-gray-700 mb-2 border-b border-gray-100 pb-1">{cs.code} - {cs.name}</div>
+                      <div className="flex justify-between text-green-600 mb-1"><span>Verified:</span> <span className="font-bold">{cs.verified}</span></div>
+                      <div className="flex justify-between text-amber-500 mb-1"><span>Pending:</span> <span className="font-bold">{cs.pending}</span></div>
+                      <div className="flex justify-between text-red-500 mb-1"><span>Not Verified:</span> <span className="font-bold">{cs.total - cs.verified - cs.pending}</span></div>
+                      <div className="flex justify-between text-blue-600"><span>Present:</span> <span className="font-bold">{cs.present || 0}</span></div>
+                    </div>
                   </div>
                 );
               })}
@@ -316,41 +325,54 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
                 <div className="flex items-center justify-center w-full h-full text-gray-400 text-sm">No centre data available</div>
               )}
             </div>
-            <div className="h-6 w-full"></div>
+            <div className="flex justify-center gap-5 mt-8 text-xs font-medium">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-sm"></div> <span className="text-gray-500">Verified</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-500 rounded-sm"></div> <span className="text-gray-500">Pending</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-sm"></div> <span className="text-gray-500">Not Verified</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div> <span className="text-gray-500">Present</span></div>
+            </div>
           </CardContent>
         </Card>
         
         <Card className="shadow-sm border-gray-100 rounded-xl">
           <CardContent className="p-6">
-            <h3 className="font-semibold text-gray-900 mb-6 text-[17px]">Verification Status</h3>
+            <h3 className="font-semibold text-gray-900 mb-6 text-[17px]">Attendance & Verification</h3>
             <div className="flex flex-col justify-center items-center h-64 mt-4">
               <div className="relative w-48 h-48">
                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                   {(() => {
                     const total = s.totalCandidates || 1;
-                    const vAngle = (s.verified / total) * 251.2;
-                    const pAngle = (s.pending / total) * 251.2;
+                    const circumference = 251.2;
+                    const vAngle = (s.verified / total) * circumference;
+                    const pAngle = (s.pending / total) * circumference;
+                    const prAngle = (s.present / total) * circumference;
+                    const vRotate = 0;
+                    const pRotate = (s.verified / total) * 360;
+                    const nRotate = pRotate + (s.pending / total) * 360;
                     return (
                       <>
                         <circle cx="50" cy="50" r="40" fill="transparent" stroke="#e5e7eb" strokeWidth="15" />
-                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#22c55e" strokeWidth="15" strokeDasharray="251.2" strokeDashoffset={251.2 - vAngle} />
-                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#f59e0b" strokeWidth="15" strokeDasharray="251.2" strokeDashoffset={251.2 - pAngle} style={{ transform: `rotate(${(vAngle / 251.2) * 360}deg)`, transformOrigin: '50px 50px' }} />
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#22c55e" strokeWidth="15" strokeDasharray={`${circumference}`} strokeDashoffset={circumference - vAngle} />
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#f59e0b" strokeWidth="15" strokeDasharray={`${circumference}`} strokeDashoffset={circumference - pAngle} style={{ transform: `rotate(${pRotate}deg)`, transformOrigin: '50px 50px' }} />
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#ef4444" strokeWidth="15" strokeDasharray={`${circumference}`} strokeDashoffset={circumference - ((s.notVerified / total) * circumference)} style={{ transform: `rotate(${nRotate}deg)`, transformOrigin: '50px 50px' }} />
                       </>
                     );
                   })()}
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{completionPct}%</div>
-                    <div className="text-xs text-gray-500">Complete</div>
+                    <div className="text-2xl font-bold text-gray-900">{presentPct}%</div>
+                    <div className="text-xs text-gray-500">Present</div>
                   </div>
                 </div>
               </div>
               
-              <div className="flex justify-center gap-4 mt-8 text-xs font-medium w-full">
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-sm"></div> <span className="text-gray-500">Not Verified</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-500 rounded-sm"></div> <span className="text-gray-500">Pending</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-sm"></div> <span className="text-gray-500">Verified</span></div>
+              <div className="flex flex-col gap-2 mt-6 text-xs font-medium w-full max-w-[280px]">
+                <div className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-green-500 rounded-sm"></div> <span className="text-gray-500">Verified</span></div> <span className="font-bold text-gray-700">{s.verified}</span></div>
+                <div className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-500 rounded-sm"></div> <span className="text-gray-500">Pending</span></div> <span className="font-bold text-gray-700">{s.pending}</span></div>
+                <div className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-red-500 rounded-sm"></div> <span className="text-gray-500">Not Verified</span></div> <span className="font-bold text-gray-700">{s.notVerified}</span></div>
+                <div className="flex items-center justify-between border-t pt-2 mt-1"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div> <span className="text-gray-600 font-semibold">Present</span></div> <span className="font-bold text-blue-600">{s.present}</span></div>
+                <div className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-gray-300 rounded-sm"></div> <span className="text-gray-500">Absent</span></div> <span className="font-bold text-gray-700">{s.absent}</span></div>
               </div>
             </div>
           </CardContent>
@@ -361,7 +383,7 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
         <Card className="shadow-sm border-gray-100 rounded-xl">
           <CardContent className="p-6 h-full flex items-center justify-around">
             <CircularProgress value={completionPct} label="Verified" sublabel={`${s.verified.toLocaleString()} / ${s.totalCandidates.toLocaleString()}`} strokeClass="stroke-green-500" />
-            <CircularProgress value={presentPct} label="Present" sublabel={`${(s.verified + s.pending).toLocaleString()} / ${s.totalCandidates.toLocaleString()}`} strokeClass="stroke-blue-600" />
+            <CircularProgress value={presentPct} label="Present" sublabel={`${s.present.toLocaleString()} / ${s.totalCandidates.toLocaleString()}`} strokeClass="stroke-blue-600" />
             <CircularProgress value={operatorPct} label="Operators" sublabel={`${s.activeOperators} / ${s.totalOperators}`} strokeClass="stroke-indigo-500" />
           </CardContent>
         </Card>
@@ -404,6 +426,7 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
                 <th className="px-6 py-4 font-semibold tracking-wider">Total</th>
                 <th className="px-6 py-4 font-semibold tracking-wider">Verified</th>
                 <th className="px-6 py-4 font-semibold tracking-wider">Pending</th>
+                <th className="px-6 py-4 font-semibold tracking-wider">Present</th>
                 <th className="px-6 py-4 font-semibold tracking-wider">Operators</th>
                 <th className="px-6 py-4 font-semibold tracking-wider min-w-[150px]">Progress</th>
               </tr>
@@ -417,6 +440,7 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
                   <td className="px-6 py-4 font-semibold text-gray-700">{row.total.toLocaleString()}</td>
                   <td className="px-6 py-4 font-semibold text-green-600">{row.verified.toLocaleString()}</td>
                   <td className="px-6 py-4 font-semibold text-amber-500">{row.pending.toLocaleString()}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600">{(row.present || 0).toLocaleString()}</td>
                   <td className="px-6 py-4 font-medium text-green-600">{row.operators}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -429,7 +453,7 @@ function DashboardTab({ stats, loading, examTitle }: { stats: any; loading: bool
                 </tr>
               ))}
               {(s.centerStats || []).length === 0 && (
-                <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-400">No centre data available</td></tr>
+                <tr><td colSpan={9} className="px-6 py-12 text-center text-gray-400">No centre data available</td></tr>
               )}
             </tbody>
           </table>

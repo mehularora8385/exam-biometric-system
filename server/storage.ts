@@ -379,21 +379,46 @@ export class DatabaseStorage implements IStorage {
     const [candidateCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates);
     const [verifiedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.status, "Verified"));
     const [pendingCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.status, "Pending"));
+    const [presentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(eq(candidates.presentMark, "Present"));
+    const [absentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(sql`${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent'`);
     const [activeOperators] = await db.select({ count: sql<number>`count(*)` }).from(operators).where(eq(operators.status, "Active"));
     const [activeCenters] = await db.select({ count: sql<number>`count(*)` }).from(centers);
     const [alertCount] = await db.select({ count: sql<number>`count(*)` }).from(alerts);
 
-    const centerStats = await db.select({
-      code: centers.code,
-      name: centers.name,
-      capacity: centers.capacity,
-    }).from(centers);
+    const centerList = await db.select().from(centers);
+    const centerStatsPromises = centerList.map(async (center) => {
+      const cFilter = eq(candidates.centreCode, center.code);
+      const [total] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(cFilter);
+      const [verified] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(and(eq(candidates.status, "Verified"), cFilter));
+      const [pending] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(and(eq(candidates.status, "Pending"), cFilter));
+      const [present] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(and(eq(candidates.presentMark, "Present"), cFilter));
+      const opsAtCenter = await db.select().from(operators).where(eq(operators.centerId, center.id));
+      const activeOps = opsAtCenter.filter(o => o.status === "Active").length;
+
+      return {
+        centerId: center.id,
+        code: center.code,
+        name: center.name,
+        city: center.city,
+        capacity: center.capacity,
+        total: Number(total.count),
+        verified: Number(verified.count),
+        pending: Number(pending.count),
+        present: Number(present.count),
+        operators: `${activeOps}/${opsAtCenter.length}`,
+        progress: Number(total.count) > 0 ? Math.round((Number(verified.count) / Number(total.count)) * 100) : 0,
+      };
+    });
+
+    const centerStats = await Promise.all(centerStatsPromises);
 
     return {
       totalCandidates: Number(candidateCount.count),
       verified: Number(verifiedCount.count),
       pending: Number(pendingCount.count),
       notVerified: Number(candidateCount.count) - Number(verifiedCount.count) - Number(pendingCount.count),
+      present: Number(presentCount.count),
+      absent: Number(absentCount.count),
       totalExams: Number(examCount.count),
       totalCenters: Number(centerCount.count),
       totalOperators: Number(operatorCount.count),
@@ -418,6 +443,12 @@ export class DatabaseStorage implements IStorage {
     const [rejectedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
       examFilter ? and(eq(candidates.status, "Rejected"), examFilter) : eq(candidates.status, "Rejected")
     );
+    const [presentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+      examFilter ? and(eq(candidates.presentMark, "Present"), examFilter) : eq(candidates.presentMark, "Present")
+    );
+    const [absentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+      examFilter ? and(sql`(${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent')`, examFilter) : sql`${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent'`
+    );
 
     const centerList = await db.select().from(centers).where(centerFilter);
 
@@ -431,6 +462,9 @@ export class DatabaseStorage implements IStorage {
       const [pending] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
         combinedFilter ? and(eq(candidates.status, "Pending"), combinedFilter) : and(eq(candidates.status, "Pending"), cFilter)
       );
+      const [present] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+        combinedFilter ? and(eq(candidates.presentMark, "Present"), combinedFilter) : and(eq(candidates.presentMark, "Present"), cFilter)
+      );
 
       const operatorsAtCenter = await db.select().from(operators).where(eq(operators.centerId, center.id));
       const activeOps = operatorsAtCenter.filter(o => o.status === "Active").length;
@@ -442,6 +476,7 @@ export class DatabaseStorage implements IStorage {
         total: Number(total.count),
         verified: Number(verified.count),
         pending: Number(pending.count),
+        present: Number(present.count),
         operators: `${activeOps}/${operatorsAtCenter.length}`,
         progress: Number(total.count) > 0 ? Math.round((Number(verified.count) / Number(total.count)) * 100) : 0,
       };
@@ -471,6 +506,8 @@ export class DatabaseStorage implements IStorage {
       pending: Number(pendingCount.count),
       notVerified: Number(candidateCount.count) - Number(verifiedCount.count) - Number(pendingCount.count),
       rejected: Number(rejectedCount.count),
+      present: Number(presentCount.count),
+      absent: Number(absentCount.count),
       totalCenters: centerList.length,
       activeCenters: centerList.length,
       totalOperators: operatorCount,
