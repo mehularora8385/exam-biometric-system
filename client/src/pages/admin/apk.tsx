@@ -632,26 +632,20 @@ export default function GenerateAPK() {
                           <TableCell className="py-4 pr-6 text-center">
                             <div className="flex items-center justify-center gap-2">
                               {apk.status === "Ready" && apk.downloadUrl ? (
-                                <>
-                                  <button
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm"
-                                    onClick={() => api.apkBuilds.downloadApk(apk.id)}
-                                    data-testid={`button-download-apk-${apk.id || idx}`}
-                                  >
-                                    <Download className="w-3.5 h-3.5" /> APK
-                                  </button>
-                                  <button
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
-                                    onClick={() => api.apkBuilds.downloadConfig(apk.id)}
-                                    data-testid={`button-config-apk-${apk.id || idx}`}
-                                  >
-                                    <FileJson className="w-3.5 h-3.5" /> Config
-                                  </button>
-                                </>
+                                <button
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                  onClick={() => api.apkBuilds.downloadApk(apk.id)}
+                                  data-testid={`button-download-apk-${apk.id || idx}`}
+                                >
+                                  <Download className="w-4 h-4" /> Download .apk
+                                </button>
                               ) : apk.status === "Building" ? (
-                                <span className="text-xs text-yellow-600 font-medium">Building...</span>
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
+                                  <span className="text-xs text-yellow-600 font-medium">Building...</span>
+                                </div>
                               ) : (
-                                <span className="text-xs text-gray-400">No download</span>
+                                <span className="text-xs text-gray-400">—</span>
                               )}
                             </div>
                           </TableCell>
