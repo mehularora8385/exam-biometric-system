@@ -106,8 +106,8 @@ All pages have working:
 - Supervisor Override: requires 6-digit PIN + reason selection + selfie, max 5 overrides per session, fully audit logged
 
 ### MDM Mode (Mobile Device Management)
-- When enabled: Device enters full lockdown — blocks Home, Back, Recent buttons, notification bar, settings, other apps, USB debugging, WiFi/data settings change (cannot switch networks or turn off), airplane mode, screenshot/screen recording, app install/uninstall
-- Allows: Camera (face/OMR), volume control, USB OTG (fingerprint scanner), charging, WiFi & mobile data connection stays active for real-time sync, power button (returns to APK on unlock)
+- When enabled: Device enters full lockdown — blocks Home, Back, Recent buttons, notification bar, other settings, other apps, USB debugging, airplane mode, screenshot/screen recording, app install/uninstall. If operator navigates to any setting other than WiFi, alert triggers & blocks
+- Allows: Camera (face/OMR), volume control, USB OTG (fingerprint scanner), charging, WiFi network change (only WiFi settings page allowed — for switching when current network not working), mobile data & WiFi stay active for real-time sync, power button (returns to APK on unlock)
 - Exit methods: (1) Admin password — 3 taps on MPA logo → enter APK admin password → Exit MDM, (2) Remote exit from HQ Device Management, (3) Auto-exit on exam completion + operator password, (4) Emergency hard reset (Power+Vol Down 15s)
 - Kiosk Mode (lighter alternative): Uses Android screen pinning (startLockTask), blocks Home/Back/Recent but doesn't block USB debug, screenshot, app install
 - MDM recommended for high-security exams (UPSC, SSC, Bank); Kiosk for standard/quick setup
