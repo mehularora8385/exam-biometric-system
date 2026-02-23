@@ -78,7 +78,19 @@ All pages have working:
   - "VIEW ONLY" badge shown in header, no edit/delete/create actions
   - API: /api/client/exams, /api/client/dashboard, /api/client/operators, /api/client/candidates
   - Candidate schema: fingerprintVerified, presentMark, capturedPhotoUrl fields added
-  - Login: upsc_client / upsc@123
+  - Login: nta_client / nta@2024
+
+## Current Test Data
+- **Admin Login**: Mehul_7300 / Mehul@7300
+- **Client Login**: nta_client / nta@2024
+- **Exam**: NTA UGC-NET June 2024 (Active, code: NTA-UGCNET-2024)
+- **Centres**: 5 (Delhi, Mumbai, Bangalore, Kolkata, Chennai) — 20 candidates each
+- **Slots**: 2 (Morning 09:00-12:00, Afternoon 14:00-17:00) — 10 candidates per slot per centre
+- **Candidates**: 100 total (40 Verified, 40 Pending, 20 Absent, 80 Present)
+- **Operators**: 10 (2 per centre, all Active)
+- **Devices**: 10 (all MDM Active, Logged In)
+- **APK Build**: v3.0.0 (Face+Fingerprint+OMR+MDM+Present Mark+Real-time Sync)
+- **Audit Logs**: 30 entries, **Alerts**: 8 (face mismatch, spoof, MDM bypass, etc.)
 
 ## Biometric AI & SDK Stack
 ### Face Match AI Engine
