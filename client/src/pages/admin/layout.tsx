@@ -96,6 +96,11 @@ export default function AdminLayout({ children, activePage, setActivePage }: Adm
             <Shield className="w-5 h-5" />
             <span>Fraud Analytics</span>
           </div>
+
+          <div className={navItemClass(activePage === "biometric-integrity")} onClick={() => setActivePage("biometric-integrity")}>
+            <ShieldAlert className="w-5 h-5" />
+            <span>Biometric Integrity</span>
+          </div>
         </div>
       </aside>
 

@@ -1,0 +1,120 @@
+Biometric Integrity & Live Control Module
+Hybrid Offline + Online Compatible
+------------------------------------------------------------
+1. Module Objective
+The Biometric Integrity & Live Control Module ensures secure, transparent, and misuse-free biometric verification. This module detects operator misuse, generates real-time alerts, works in Offline and Online mode, and does not require admin approval for verification.
+2. Core Integrity Controls
+2.1 Invalid / Wrong Photo Detection
+Detection Includes:
+- No human face detected
+- Wall / paper / blank capture
+- Covered camera
+- Extremely dark image
+- Blurred image
+
+System Action:
+- Blocks verification
+- Displays message: 'Invalid Photo – Human Face Not Detected'
+
+Dashboard Alert (if repeated attempts):
+- Alert Type: Invalid Photo Attempt
+- Centre, Operator, Roll No, Timestamp, Mode (Online/Offline)
+2.2 Operator Self-Face Detection
+Logic:
+- Operator face template captured securely at login.
+- During verification, live face compared against operator template.
+
+If match detected:
+- Verification blocked
+- Message displayed: 'Operator Face Detected – Verification Not Allowed'
+
+Dashboard Alert:
+- Alert Type: Operator Face Misuse
+- Centre, Operator, Timestamp
+2.3 Duplicate Image Detection
+Logic:
+- Each captured image generates a unique hash.
+- If same image reused for another roll number, system blocks second usage.
+
+Message displayed: 'Duplicate Image Detected'
+
+Dashboard Alert:
+- Alert Type: Duplicate Image Attempt
+- Affected Roll Numbers, Operator, Centre, Timestamp
+2.4 Face Mismatch Approval Alert (No Admin Approval Required)
+If face match percentage is below configured threshold:
+
+Popup Displayed:
+FACE NOT MATCHED
+Match %: XX%
+Required: XX%
+[Re-Capture]   [Approve & Continue]
+
+If operator selects 'Approve & Continue':
+- Verification completes
+- Record marked as 'Face Mismatch – Operator Approved'
+- System logs Match %, Operator ID, Device ID, Centre, Timestamp
+
+Dashboard Alert:
+- Alert Type: Face Mismatch Approved
+- Centre, Roll No, Match %, Operator, Mode (Online/Offline)
+2.5 Rapid Verification Speed Alert
+If verification completed below minimum realistic time threshold:
+- Warning shown in application
+- Event logged
+
+Dashboard Alert:
+- Alert Type: Suspicious Verification Speed
+- Operator, Centre, Average Verification Time
+2.6 Post-Exam Biometric Activity Alert
+Biometric before exam start is allowed (Gate Verification).
+System monitors only activity after exam end time.
+
+If verification performed after allowed end time:
+- Popup: 'Exam Time Over – Verification Recorded with Alert'
+- Verification recorded with alert flag
+
+Dashboard Alert:
+- Alert Type: Post-Exam Biometric Activity
+- Centre, Roll No, Operator, Delay Duration, Timestamp, Mode
+2.7 Device Time Manipulation Protection
+To prevent device clock tampering:
+- Time reference captured during data download
+- Background time validation active
+- If manual time change detected:
+  - Application temporarily locks
+  - Alert Type: Device Time Manipulation
+3. Live Alert Monitoring (Admin & Exam Dashboard)
+Both Admin Panel and Exam-Wise Dashboard include a 'Biometric Exception Monitor' section.
+
+Columns Include:
+- Alert Type
+- Centre Name
+- Roll No
+- Operator Name
+- Device ID
+- Match %
+- Timestamp
+- Delay (if applicable)
+- Mode (Online / Offline Generated)
+- Status (Open / Reviewed)
+4. Offline + Online Behavior
+Online Mode:
+- Alerts pushed instantly
+- Real-time dashboard updates
+
+Offline Mode:
+- Alerts stored in encrypted local database
+- Marked as 'Pending Sync'
+- Auto-synced when internet available
+- Original timestamp preserved
+- Zero data loss
+5. Admin Configuration Controls
+Per Exam Settings:
+- Face Match Threshold %
+- Allow Mismatch Approval (Yes / No)
+- Minimum Verification Time Threshold
+- Exam End Time + Grace Period
+- Strict Mode (Block Post-Exam Activity Yes / No)
+
+Admin cannot edit biometric results. Module is monitoring-focused

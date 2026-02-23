@@ -17,6 +17,7 @@ import Candidates from "@/pages/admin/candidate";
 import GenerateAPK from "@/pages/admin/apk";
 import AICommandCenter from "@/pages/admin/ai-command-center";
 import FraudAnalytics from "@/pages/admin/fraud-analytics";
+import BiometricIntegrity from "@/pages/admin/biometric-integrity";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -37,6 +38,7 @@ export default function AdminPanel() {
       case "reports": return <Reports />;
       case "ai-command": return <AICommandCenter />;
       case "fraud-analytics": return <FraudAnalytics />;
+      case "biometric-integrity": return <BiometricIntegrity />;
       case "upload-instruction": return <UploadInstruction />;
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
