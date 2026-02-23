@@ -1312,5 +1312,34 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.get("/api/client/dashboard", async (req, res) => {
+    try {
+      const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      const stats = await storage.getClientDashboardStats(examId);
+      res.json(stats);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/client/operators", async (req, res) => {
+    try {
+      const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      if (examId) {
+        const ops = await storage.listOperatorsByExam(examId);
+        res.json(ops);
+      } else {
+        const ops = await storage.listOperators();
+        res.json(ops);
+      }
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/client/candidates", async (req, res) => {
+    try {
+      const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      const list = await storage.listCandidates(examId);
+      res.json(list);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   return httpServer;
 }

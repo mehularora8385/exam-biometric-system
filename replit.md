@@ -18,6 +18,7 @@ Multi-Point Authentication (MPA) Verification System with admin panel for managi
 - `server/db.ts` - Database connection via pg Pool
 - `client/src/lib/api.ts` - Frontend API client helper
 - `client/src/lib/store.tsx` - App context provider (operator state)
+- `client/src/pages/client-dashboard.tsx` - Client-wise exam-wise dashboard (view-only)
 - `client/src/pages/admin-panel.tsx` - Main admin panel with tab navigation
 - `client/src/pages/login.tsx` - Login page
 
@@ -65,6 +66,14 @@ All pages have working:
 - APK Generation: Multi-exam batch build, biometric config (Face+Fingerprint MFS100/MFS110, OMR camera capture), feature toggles, device compatibility (Tablet+Mobile Android 8.0+), config download
 - Verification API: Submit face match %, fingerprint match, OMR number from Android APK
 - Data Sync API: Centre-filtered candidate download for operators
+- Client Dashboard: Client-wise exam-wise view-only dashboard with 3 tabs (Dashboard, Operators, Students)
+  - Dashboard tab: Stats cards, centre-wise bar chart, donut chart, circular progress, centre table
+  - Operators tab: Operator list with search, status counts, all view-only
+  - Students tab: Candidate list with search + status filter, photo display, match %, all view-only
+  - Exam filter dropdown filters all data across all tabs
+  - "VIEW ONLY" badge shown in header, no edit/delete/create actions
+  - API: /api/client/dashboard, /api/client/operators, /api/client/candidates (all support ?examId filter)
+  - Login: upsc_client / upsc@123
 
 ## Biometric AI & SDK Stack
 ### Face Match AI Engine

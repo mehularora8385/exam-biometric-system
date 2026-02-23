@@ -123,4 +123,9 @@ export const api = {
   dashboard: {
     stats: () => request<any>("/dashboard/stats"),
   },
+  client: {
+    dashboard: (examId?: number) => request<any>(`/client/dashboard${examId ? `?examId=${examId}` : ""}`),
+    operators: (examId?: number) => request<any[]>(`/client/operators${examId ? `?examId=${examId}` : ""}`),
+    candidates: (examId?: number) => request<any[]>(`/client/candidates${examId ? `?examId=${examId}` : ""}`),
+  },
 };

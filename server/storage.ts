@@ -90,6 +90,8 @@ export interface IStorage {
   upsertGlobalTechSettings(settings: InsertGlobalTechSettings): Promise<GlobalTechSettings>;
 
   getDashboardStats(): Promise<any>;
+  getClientDashboardStats(examId?: number): Promise<any>;
+  listOperatorsByExam(examId: number): Promise<Operator[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -400,6 +402,93 @@ export class DatabaseStorage implements IStorage {
       totalAlerts: Number(alertCount.count),
       centerStats,
     };
+  }
+
+  async getClientDashboardStats(examId?: number): Promise<any> {
+    const examFilter = examId ? eq(candidates.examId, examId) : undefined;
+    const centerFilter = examId ? eq(centers.examId, examId) : undefined;
+
+    const [candidateCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter);
+    const [verifiedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+      examFilter ? and(eq(candidates.status, "Verified"), examFilter) : eq(candidates.status, "Verified")
+    );
+    const [pendingCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+      examFilter ? and(eq(candidates.status, "Pending"), examFilter) : eq(candidates.status, "Pending")
+    );
+    const [rejectedCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+      examFilter ? and(eq(candidates.status, "Rejected"), examFilter) : eq(candidates.status, "Rejected")
+    );
+
+    const centerList = await db.select().from(centers).where(centerFilter);
+
+    const centerStatsPromises = centerList.map(async (center) => {
+      const cFilter = eq(candidates.centreCode, center.code);
+      const combinedFilter = examFilter ? and(cFilter, examFilter) : cFilter;
+      const [total] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter);
+      const [verified] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+        combinedFilter ? and(eq(candidates.status, "Verified"), combinedFilter) : and(eq(candidates.status, "Verified"), cFilter)
+      );
+      const [pending] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
+        combinedFilter ? and(eq(candidates.status, "Pending"), combinedFilter) : and(eq(candidates.status, "Pending"), cFilter)
+      );
+
+      const operatorsAtCenter = await db.select().from(operators).where(eq(operators.centerId, center.id));
+      const activeOps = operatorsAtCenter.filter(o => o.status === "Active").length;
+
+      return {
+        code: center.code,
+        name: center.name,
+        city: center.city,
+        total: Number(total.count),
+        verified: Number(verified.count),
+        pending: Number(pending.count),
+        operators: `${activeOps}/${operatorsAtCenter.length}`,
+        progress: Number(total.count) > 0 ? Math.round((Number(verified.count) / Number(total.count)) * 100) : 0,
+      };
+    });
+
+    const centerStats = await Promise.all(centerStatsPromises);
+
+    let operatorCount = 0;
+    let activeOperatorCount = 0;
+    if (examId) {
+      const maps = await db.select().from(centerOperatorMaps).where(eq(centerOperatorMaps.examId, examId));
+      const opIds = Array.from(new Set(maps.map(m => m.operatorId)));
+      if (opIds.length > 0) {
+        const ops = await db.select().from(operators).where(sql`${operators.id} IN (${sql.join(opIds.map(id => sql`${id}`), sql`, `)})`);
+        operatorCount = ops.length;
+        activeOperatorCount = ops.filter(o => o.status === "Active").length;
+      }
+    } else {
+      const allOps = await db.select().from(operators);
+      operatorCount = allOps.length;
+      activeOperatorCount = allOps.filter(o => o.status === "Active").length;
+    }
+
+    return {
+      totalCandidates: Number(candidateCount.count),
+      verified: Number(verifiedCount.count),
+      pending: Number(pendingCount.count),
+      notVerified: Number(candidateCount.count) - Number(verifiedCount.count) - Number(pendingCount.count),
+      rejected: Number(rejectedCount.count),
+      totalCenters: centerList.length,
+      activeCenters: centerList.length,
+      totalOperators: operatorCount,
+      activeOperators: activeOperatorCount,
+      centerStats,
+    };
+  }
+
+  async listOperatorsByExam(examId: number): Promise<Operator[]> {
+    const maps = await db.select().from(centerOperatorMaps).where(eq(centerOperatorMaps.examId, examId));
+    const opIds = Array.from(new Set(maps.map(m => m.operatorId)));
+    if (opIds.length === 0) {
+      const centerList = await db.select().from(centers).where(eq(centers.examId, examId));
+      const cIds = centerList.map(c => c.id);
+      if (cIds.length === 0) return [];
+      return db.select().from(operators).where(sql`${operators.centerId} IN (${sql.join(cIds.map(id => sql`${id}`), sql`, `)})`);
+    }
+    return db.select().from(operators).where(sql`${operators.id} IN (${sql.join(opIds.map(id => sql`${id}`), sql`, `)})`);
   }
 }
 
