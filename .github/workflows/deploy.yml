@@ -1,43 +1,14 @@
-name: Auto Deploy Exam System 🚀
+script: |
+  echo "🚀 Starting Deploy"
 
-on:
-  push:
-    branches:
-      - main
+  cd ${{ secrets.VPS_PATH }}
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  echo "📦 Pulling latest code"
+  git fetch --all
+  git reset --hard origin/main
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+  echo "🐳 Rebuilding Docker"
+  docker compose down
+  docker compose up -d --build
 
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            echo "🚀 Starting Deploy"
-
-            cd ${{ secrets.VPS_PATH }}
-
-            echo "📥 Pulling latest code"
-            git pull origin main
-
-            echo "📦 Installing SERVER deps"
-            cd server
-            npm install
-            npm run build || true
-
-            echo "📦 Installing CLIENT deps"
-            cd ../client
-            npm install
-            npm run build || true
-
-            echo "♻ Restarting PM2"
-            pm2 restart exam-system || pm2 start dist/index.js --name exam-system
-
-            echo "✅ DEPLOY FINISHED"
+  echo "✅ Deploy Finished"
