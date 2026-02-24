@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -98,3 +99,64 @@ app.use((req, res, next) => {
     },
   );
 })();
+// ================= EXAM UPDATE ROUTES =================
+
+// Edit exam
+app.put("/api/exams/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const exam = await storage.updateExam(id, req.body);
+
+    res.json(exam);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update exam" });
+  }
+});
+// Start exam (set active)
+app.patch("/api/exams/:id/start", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const exam = await storage.getExam(id);
+    if (!exam) {
+      return res.status(404).json({ error: "Exam not found" });
+    }
+
+    const updated = await storage.updateExam(id, {
+      ...exam,
+      status: "Active",
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("START ERROR:", err);
+    res.status(500).json({ error: "Failed to start exam" });
+  }
+});
+// Stop exam (set stopped)
+app.patch("/api/exams/:id/stop", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const exam = await storage.updateExam(id, {
+      status: "Stopped"
+    });
+
+    res.json(exam);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to stop exam" });
+  }
+});
+// Delete exam
+app.delete("/api/exams/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.execute(`DELETE FROM exams WHERE id=$1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete exam" });
+  }
+});
