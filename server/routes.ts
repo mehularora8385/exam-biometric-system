@@ -49,6 +49,11 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const uploadDirs = ["uploads/temp", "uploads/logos", "uploads/photos"];
+  for (const dir of uploadDirs) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  }
+
 
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -177,10 +182,19 @@ export async function registerRoutes(
 
   app.put("/api/centers/:id", async (req, res) => {
     try {
-      const center = await storage.updateCenter(Number(req.params.id), req.body);
+      const allowedFields = ["code", "name", "examId", "examName", "city", "state", "address", "capacity", "status"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+      const center = await storage.updateCenter(Number(req.params.id), updateData);
       if (!center) return res.status(404).json({ message: "Center not found" });
       res.json(center);
     } catch (e: any) {
+      console.error("Error updating center:", e);
       res.status(400).json({ message: e.message });
     }
   });
@@ -225,10 +239,19 @@ export async function registerRoutes(
 
   app.put("/api/operators/:id", async (req, res) => {
     try {
-      const op = await storage.updateOperator(Number(req.params.id), req.body);
+      const allowedFields = ["name", "phone", "email", "status", "centerId", "centerName", "device", "lastActive"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+      const op = await storage.updateOperator(Number(req.params.id), updateData);
       if (!op) return res.status(404).json({ message: "Operator not found" });
       res.json(op);
     } catch (e: any) {
+      console.error("Error updating operator:", e);
       res.status(400).json({ message: e.message });
     }
   });
@@ -432,10 +455,22 @@ export async function registerRoutes(
 
   app.put("/api/candidates/:id", async (req, res) => {
     try {
-      const c = await storage.updateCandidate(Number(req.params.id), req.body);
+      const allowedFields = ["name", "rollNo", "fatherName", "dob", "omrNo",
+        "centreCode", "centreName", "slot", "examId",
+        "status", "presentMark", "matchPercent", "verifiedAt",
+        "photoUrl", "capturedPhotoUrl", "fingerprintVerified"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+      const c = await storage.updateCandidate(Number(req.params.id), updateData);
       if (!c) return res.status(404).json({ message: "Candidate not found" });
       res.json(c);
     } catch (e: any) {
+      console.error("Error updating candidate:", e);
       res.status(400).json({ message: e.message });
     }
   });
@@ -462,7 +497,12 @@ export async function registerRoutes(
 
   app.put("/api/departments/:id", async (req, res) => {
     try {
-      const result = await storage.updateDepartment(Number(req.params.id), req.body);
+      const allowedFields = ["name", "description", "status"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      const result = await storage.updateDepartment(Number(req.params.id), updateData);
       if (!result) return res.status(404).json({ message: "Not found" });
       res.json(result);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
@@ -485,7 +525,12 @@ export async function registerRoutes(
 
   app.put("/api/designations/:id", async (req, res) => {
     try {
-      const result = await storage.updateDesignation(Number(req.params.id), req.body);
+      const allowedFields = ["name", "departmentId", "status"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      const result = await storage.updateDesignation(Number(req.params.id), updateData);
       if (!result) return res.status(404).json({ message: "Not found" });
       res.json(result);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
@@ -511,7 +556,12 @@ export async function registerRoutes(
 
   app.put("/api/slots/:id", async (req, res) => {
     try {
-      const result = await storage.updateSlot(Number(req.params.id), req.body);
+      const allowedFields = ["name", "startTime", "endTime", "examId", "date", "status"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      const result = await storage.updateSlot(Number(req.params.id), updateData);
       if (!result) return res.status(404).json({ message: "Not found" });
       res.json(result);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
@@ -549,10 +599,23 @@ export async function registerRoutes(
 
   app.put("/api/devices/:id", async (req, res) => {
     try {
-      const result = await storage.updateDevice(Number(req.params.id), req.body);
+      const allowedFields = ["macAddress", "imei", "operatorId", "operatorName",
+        "centerName", "centreCode", "examId", "examName", "model", "androidVersion",
+        "batteryLevel", "lastSyncAt", "mdmStatus", "loginStatus"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+      const result = await storage.updateDevice(Number(req.params.id), updateData);
       if (!result) return res.status(404).json({ message: "Not found" });
       res.json(result);
-    } catch (e: any) { res.status(400).json({ message: e.message }); }
+    } catch (e: any) {
+      console.error("Error updating device:", e);
+      res.status(400).json({ message: e.message });
+    }
   });
 
   app.delete("/api/devices/:id", async (req, res) => {
