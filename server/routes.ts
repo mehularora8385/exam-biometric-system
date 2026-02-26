@@ -2962,6 +2962,74 @@ class CandidateListActivity : AppCompatActivity() {
   });
 
 
+    // ====== STAGE 1: BARCODE ATTENDANCE MARKING ======
+
+    app.post("/api/attendance/mark", async (req: Request, res: Response) => {
+      try {
+        const { candidateId, examId, centreCode, scannedData, latitude, longitude, timestamp, deviceId } = req.body;
+        if (!scannedData) {
+          return res.status(400).json({ success: false, message: "scannedData (barcode/QR content) is required" });
+        }
+
+        let candidate;
+        if (candidateId) {
+          candidate = await storage.getCandidate(candidateId);
+        }
+        if (!candidate && scannedData) {
+          candidate = await storage.getCandidateByRollNo(scannedData.trim());
+        }
+
+        if (!candidate) {
+          return res.status(404).json({ success: false, message: "Candidate not found for scanned data: " + scannedData });
+        }
+
+        await storage.updateCandidate(candidate.id, {
+          presentMark: "Present",
+          status: candidate.status === "Verified" ? "Verified" : "Present",
+        });
+
+        res.json({
+          success: true,
+          candidateName: candidate.name,
+          rollNo: candidate.rollNo,
+          message: `${candidate.name} (Roll: ${candidate.rollNo}) marked PRESENT`,
+        });
+      } catch (e: any) {
+        res.status(500).json({ success: false, message: e.message });
+      }
+    });
+
+    // ====== STAGE 3: OMR SHEET UPLOAD ======
+
+    app.post("/api/omr/upload", async (req: Request, res: Response) => {
+      try {
+        const { candidateId, examId, omrBarcode, omrImageBase64, latitude, longitude, timestamp, deviceId } = req.body;
+        if (!candidateId || !omrImageBase64) {
+          return res.status(400).json({ success: false, message: "candidateId and omrImageBase64 are required" });
+        }
+
+        const candidate = await storage.getCandidate(candidateId);
+        if (!candidate) {
+          return res.status(404).json({ success: false, message: "Candidate not found" });
+        }
+
+        if (omrBarcode) {
+          await storage.updateCandidate(candidateId, {
+            omrNo: omrBarcode,
+          });
+        }
+
+        res.json({
+          success: true,
+          omrId: candidateId,
+          message: `OMR sheet uploaded for ${candidate.name}${omrBarcode ? " (OMR: " + omrBarcode + ")" : ""}`,
+        });
+      } catch (e: any) {
+        res.status(500).json({ success: false, message: e.message });
+      }
+    });
+
+  
     // ====== BIOMETRIC VERIFICATION API ENDPOINTS ======
 
     // Face verification endpoint

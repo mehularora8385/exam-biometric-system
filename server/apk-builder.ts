@@ -81,6 +81,9 @@ function generateAndroidManifest(pkgName: string): string {
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+      <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+      <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+      <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <application
         android:name=".MpaApplication"
         android:allowBackup="false"
@@ -163,6 +166,11 @@ dependencies {
     implementation "androidx.camera:camera-view:${"$"}{camerax_version}"
     implementation 'com.google.mlkit:face-detection:16.1.6'
     implementation 'com.google.mediapipe:tasks-vision:0.10.9'
+      implementation 'com.google.mlkit:barcode-scanning:17.2.0'
+      implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+      implementation 'com.google.zxing:core:3.5.2'
+      implementation 'org.opencv:opencv-android:4.9.0'
+      implementation 'com.google.android.gms:play-services-location:21.0.1'
     implementation 'org.tensorflow:tensorflow-lite:2.14.0'
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
@@ -207,13 +215,20 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   data class FingerprintVerifyResponse(val success: Boolean, val matched: Boolean, val score: Float, val message: String?)
   data class SyncRequest(val verifications: List<SyncVerification>)
   data class SyncVerification(val candidateId: Int, val rollNo: String, val faceMatchPercent: Float, val omrNumber: String?, val verifiedPhoto: String?, val fingerprint: String?, val timestamp: Long)
-  data class SyncResponse(val success: Boolean, val syncedCount: Int, val failedCount: Int)\n`);
+  data class SyncResponse(val success: Boolean, val syncedCount: Int, val failedCount: Int)
+  data class BarcodeAttendanceRequest(val candidateId: Int, val examId: Int, val centreCode: String, val scannedData: String, val latitude: Double?, val longitude: Double?, val timestamp: Long, val deviceId: String)
+  data class BarcodeAttendanceResponse(val success: Boolean, val candidateName: String?, val rollNo: String?, val message: String?)
+  data class OmrUploadRequest(val candidateId: Int, val examId: Int, val omrBarcode: String?, val omrImageBase64: String, val latitude: Double?, val longitude: Double?, val timestamp: Long, val deviceId: String)
+  data class OmrUploadResponse(val success: Boolean, val omrId: Int?, val message: String?)
+  data class DeviceInfo(val deviceId: String, val model: String, val manufacturer: String, val androidVersion: String, val appVersion: String)\n`);
 
   fs.mkdirSync(path.join(srcDir, "network"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/auth/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>
       @POST("api/face/verify") suspend fun verifyFace(@Body request: FaceVerifyRequest): Response<FaceVerifyResponse>
       @POST("api/fingerprint/verify") suspend fun verifyFingerprint(@Body request: FingerprintVerifyRequest): Response<FingerprintVerifyResponse>
-      @POST("api/verification/sync") suspend fun syncVerifications(@Body request: SyncRequest): Response<SyncResponse>\n}`);
+      @POST("api/verification/sync") suspend fun syncVerifications(@Body request: SyncRequest): Response<SyncResponse>
+      @POST("api/attendance/mark") suspend fun markAttendanceByBarcode(@Body request: BarcodeAttendanceRequest): Response<BarcodeAttendanceResponse>
+      @POST("api/omr/upload") suspend fun uploadOmrSheet(@Body request: OmrUploadRequest): Response<OmrUploadResponse>\n}`);
 
   fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create()).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
 
@@ -525,6 +540,389 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       }
 
       fun release() { faceDetector.close() }
+  }`);
+
+    fs.mkdirSync(path.join(srcDir, "scanner"), { recursive: true });
+
+    fs.writeFileSync(path.join(srcDir, "scanner", "BarcodeScanner.kt"), `package ${pkgName}.scanner
+
+  import android.content.Context
+  import android.graphics.Bitmap
+  import android.util.Log
+  import com.google.mlkit.vision.barcode.BarcodeScanning
+  import com.google.mlkit.vision.barcode.common.Barcode
+  import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+  import com.google.mlkit.vision.common.InputImage
+  import org.json.JSONObject
+
+  data class AdmitCardData(
+      val candidateId: Int,
+      val examId: Int,
+      val centreCode: String,
+      val rollNo: String,
+      val candidateName: String?,
+      val rawData: String
+  )
+
+  class BarcodeScanner(private val context: Context) {
+      private val tag = "BarcodeScanner"
+      private val options = BarcodeScannerOptions.Builder()
+          .setBarcodeFormats(
+              Barcode.FORMAT_QR_CODE,
+              Barcode.FORMAT_CODE_128,
+              Barcode.FORMAT_CODE_39,
+              Barcode.FORMAT_EAN_13,
+              Barcode.FORMAT_PDF417,
+              Barcode.FORMAT_DATA_MATRIX
+          )
+          .build()
+      private val scanner = BarcodeScanning.getClient(options)
+
+      fun scanFromBitmap(bitmap: Bitmap, callback: (success: Boolean, data: AdmitCardData?, error: String?) -> Unit) {
+          val image = InputImage.fromBitmap(bitmap, 0)
+          scanner.process(image)
+              .addOnSuccessListener { barcodes ->
+                  if (barcodes.isEmpty()) {
+                      callback(false, null, "No barcode/QR code found on admit card")
+                      return@addOnSuccessListener
+                  }
+                  val barcode = barcodes[0]
+                  val rawValue = barcode.rawValue ?: ""
+                  Log.d(tag, "Scanned: \$rawValue (format: \${barcode.format})")
+                  try {
+                      val data = parseAdmitCardData(rawValue, barcode.format)
+                      callback(true, data, null)
+                  } catch (e: Exception) {
+                      Log.e(tag, "Parse error: \${e.message}")
+                      callback(false, null, "Could not parse admit card data: \${e.message}")
+                  }
+              }
+              .addOnFailureListener { e ->
+                  callback(false, null, "Scan failed: \${e.message}")
+              }
+      }
+
+      fun scanFromCameraImage(image: InputImage, callback: (success: Boolean, data: AdmitCardData?, error: String?) -> Unit) {
+          scanner.process(image)
+              .addOnSuccessListener { barcodes ->
+                  if (barcodes.isEmpty()) {
+                      callback(false, null, "No barcode detected - point camera at admit card")
+                      return@addOnSuccessListener
+                  }
+                  val rawValue = barcodes[0].rawValue ?: ""
+                  try {
+                      val data = parseAdmitCardData(rawValue, barcodes[0].format)
+                      callback(true, data, null)
+                  } catch (e: Exception) {
+                      callback(false, null, "Invalid admit card format")
+                  }
+              }
+              .addOnFailureListener { e -> callback(false, null, "Camera scan error: \${e.message}") }
+      }
+
+      private fun parseAdmitCardData(rawData: String, format: Int): AdmitCardData {
+          if (rawData.trim().startsWith("{")) {
+              val json = JSONObject(rawData)
+              return AdmitCardData(
+                  candidateId = json.optInt("candidateId", json.optInt("cid", 0)),
+                  examId = json.optInt("examId", json.optInt("eid", 0)),
+                  centreCode = json.optString("centreCode", json.optString("cc", "")),
+                  rollNo = json.optString("rollNo", json.optString("rn", "")),
+                  candidateName = json.optString("name", null),
+                  rawData = rawData
+              )
+          }
+          val parts = rawData.split("|", ",", ";", ":")
+          if (parts.size >= 3) {
+              return AdmitCardData(
+                  candidateId = parts[0].filter { it.isDigit() }.toIntOrNull() ?: 0,
+                  examId = parts.getOrNull(1)?.filter { it.isDigit() }?.toIntOrNull() ?: 0,
+                  centreCode = parts.getOrNull(2)?.trim() ?: "",
+                  rollNo = parts.getOrNull(3)?.trim() ?: parts[0].trim(),
+                  candidateName = parts.getOrNull(4)?.trim(),
+                  rawData = rawData
+              )
+          }
+          return AdmitCardData(
+              candidateId = rawData.filter { it.isDigit() }.take(6).toIntOrNull() ?: 0,
+              examId = 0, centreCode = "", rollNo = rawData.trim(),
+              candidateName = null, rawData = rawData
+          )
+      }
+
+      fun release() { scanner.close() }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "scanner", "OMRScanner.kt"), `package ${pkgName}.scanner
+
+  import android.content.Context
+  import android.graphics.Bitmap
+  import android.graphics.Canvas
+  import android.graphics.Color
+  import android.graphics.ColorMatrix
+  import android.graphics.ColorMatrixColorFilter
+  import android.graphics.Paint
+  import android.util.Base64
+  import android.util.Log
+  import com.google.mlkit.vision.barcode.BarcodeScanning
+  import com.google.mlkit.vision.barcode.common.Barcode
+  import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+  import com.google.mlkit.vision.common.InputImage
+  import java.io.ByteArrayOutputStream
+
+  data class OMRResult(
+      val success: Boolean,
+      val omrBarcode: String?,
+      val processedImageBase64: String?,
+      val originalImageBase64: String?,
+      val edgesDetected: Boolean,
+      val message: String
+  )
+
+  class OMRScanner(private val context: Context) {
+      private val tag = "OMRScanner"
+      private val barcodeOptions = BarcodeScannerOptions.Builder()
+          .setBarcodeFormats(Barcode.FORMAT_CODE_128, Barcode.FORMAT_CODE_39, Barcode.FORMAT_EAN_13, Barcode.FORMAT_QR_CODE)
+          .build()
+      private val barcodeScanner = BarcodeScanning.getClient(barcodeOptions)
+
+      fun processOMRSheet(bitmap: Bitmap, callback: (OMRResult) -> Unit) {
+          Log.d(tag, "Processing OMR sheet: \${bitmap.width}x\${bitmap.height}")
+
+          val enhanced = enhanceImage(bitmap)
+          val edgesDetected = detectPaperEdges(enhanced)
+          val cropped = if (edgesDetected) autoCrop(enhanced) else enhanced
+
+          val image = InputImage.fromBitmap(cropped, 0)
+          barcodeScanner.process(image)
+              .addOnSuccessListener { barcodes ->
+                  val omrBarcode = barcodes.firstOrNull()?.rawValue
+                  if (omrBarcode != null) Log.d(tag, "OMR barcode found: \$omrBarcode")
+                  else Log.d(tag, "No barcode on OMR sheet - manual entry required")
+
+                  val processedBase64 = bitmapToBase64(cropped, 85)
+                  val originalBase64 = bitmapToBase64(bitmap, 80)
+
+                  callback(OMRResult(
+                      success = true,
+                      omrBarcode = omrBarcode,
+                      processedImageBase64 = processedBase64,
+                      originalImageBase64 = originalBase64,
+                      edgesDetected = edgesDetected,
+                      message = if (omrBarcode != null) "OMR sheet scanned with barcode: \$omrBarcode" else "OMR sheet captured - enter barcode manually"
+                  ))
+              }
+              .addOnFailureListener { e ->
+                  Log.e(tag, "OMR processing failed: \${e.message}")
+                  val originalBase64 = bitmapToBase64(bitmap, 80)
+                  callback(OMRResult(false, null, null, originalBase64, false, "Processing failed: \${e.message}"))
+              }
+      }
+
+      private fun enhanceImage(source: Bitmap): Bitmap {
+          val enhanced = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+          val canvas = Canvas(enhanced)
+          val paint = Paint()
+          val cm = ColorMatrix()
+          cm.set(floatArrayOf(
+              1.5f, 0f, 0f, 0f, -40f,
+              0f, 1.5f, 0f, 0f, -40f,
+              0f, 0f, 1.5f, 0f, -40f,
+              0f, 0f, 0f, 1f, 0f
+          ))
+          paint.colorFilter = ColorMatrixColorFilter(cm)
+          canvas.drawBitmap(source, 0f, 0f, paint)
+          return enhanced
+      }
+
+      private fun detectPaperEdges(bitmap: Bitmap): Boolean {
+          val w = bitmap.width
+          val h = bitmap.height
+          val sampleSize = 20
+          var edgePixels = 0
+          var totalSamples = 0
+
+          for (x in 0 until w step (w / sampleSize).coerceAtLeast(1)) {
+              for (y in intArrayOf(0, h / 10, h - h / 10 - 1, h - 1)) {
+                  if (y in 0 until h) {
+                      val pixel = bitmap.getPixel(x, y)
+                      val brightness = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
+                      if (brightness > 200 || brightness < 50) edgePixels++
+                      totalSamples++
+                  }
+              }
+          }
+          val edgeRatio = if (totalSamples > 0) edgePixels.toFloat() / totalSamples else 0f
+          Log.d(tag, "Edge detection: ratio=\$edgeRatio (\$edgePixels/\$totalSamples)")
+          return edgeRatio > 0.3f
+      }
+
+      private fun autoCrop(bitmap: Bitmap): Bitmap {
+          val margin = (bitmap.width * 0.02f).toInt().coerceAtLeast(5)
+          val cropW = (bitmap.width - margin * 2).coerceAtLeast(100)
+          val cropH = (bitmap.height - margin * 2).coerceAtLeast(100)
+          return try {
+              Bitmap.createBitmap(bitmap, margin, margin, cropW, cropH)
+          } catch (e: Exception) {
+              Log.w(tag, "Auto-crop failed, using original")
+              bitmap
+          }
+      }
+
+      private fun bitmapToBase64(bitmap: Bitmap, quality: Int): String {
+          val stream = ByteArrayOutputStream()
+          bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+          return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+      }
+
+      fun release() { barcodeScanner.close() }
+  }`);
+    fs.mkdirSync(path.join(srcDir, "security"), { recursive: true });
+
+    fs.writeFileSync(path.join(srcDir, "security", "SecurityManager.kt"), `package ${pkgName}.security
+
+  import android.annotation.SuppressLint
+  import android.app.Activity
+  import android.content.Context
+  import android.graphics.Bitmap
+  import android.graphics.Canvas
+  import android.graphics.Color
+  import android.graphics.Paint
+  import android.location.Location
+  import android.os.Build
+  import android.provider.Settings
+  import android.util.Log
+  import android.view.WindowManager
+  import com.google.android.gms.location.FusedLocationProviderClient
+  import com.google.android.gms.location.LocationServices
+  import com.google.android.gms.location.Priority
+  import com.google.android.gms.tasks.CancellationTokenSource
+  import java.text.SimpleDateFormat
+  import java.util.*
+
+  data class LocationData(val latitude: Double, val longitude: Double, val accuracy: Float, val timestamp: Long)
+
+  class SecurityManager(private val context: Context) {
+      private val tag = "SecurityManager"
+      private val prefs = context.getSharedPreferences("mpa_security", Context.MODE_PRIVATE)
+      private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+      private var boundDeviceId: String? = null
+
+      init {
+          boundDeviceId = prefs.getString("bound_device_id", null)
+      }
+
+      fun disableScreenshots(activity: Activity) {
+          activity.window.setFlags(
+              WindowManager.LayoutParams.FLAG_SECURE,
+              WindowManager.LayoutParams.FLAG_SECURE
+          )
+          Log.d(tag, "Screenshots disabled via FLAG_SECURE")
+      }
+
+      fun enableScreenLock(activity: Activity) {
+          activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      }
+
+      @SuppressLint("HardwareIds")
+      fun getDeviceId(): String {
+          val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+          val deviceFingerprint = "\${Build.MANUFACTURER}_\${Build.MODEL}_\${androidId}"
+          return deviceFingerprint
+      }
+
+      fun bindDevice(): Boolean {
+          val currentDeviceId = getDeviceId()
+          if (boundDeviceId == null) {
+              boundDeviceId = currentDeviceId
+              prefs.edit().putString("bound_device_id", currentDeviceId).apply()
+              Log.d(tag, "Device bound: \$currentDeviceId")
+              return true
+          }
+          if (boundDeviceId == currentDeviceId) {
+              Log.d(tag, "Device binding verified")
+              return true
+          }
+          Log.w(tag, "Device binding FAILED: expected=\$boundDeviceId actual=\$currentDeviceId")
+          return false
+      }
+
+      fun isDeviceBound(): Boolean {
+          if (boundDeviceId == null) return true
+          return boundDeviceId == getDeviceId()
+      }
+
+      fun unbindDevice() {
+          boundDeviceId = null
+          prefs.edit().remove("bound_device_id").apply()
+          Log.d(tag, "Device unbound")
+      }
+
+      @SuppressLint("MissingPermission")
+      fun getCurrentLocation(callback: (LocationData?) -> Unit) {
+          try {
+              val cancellationToken = CancellationTokenSource()
+              fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationToken.token)
+                  .addOnSuccessListener { location: Location? ->
+                      if (location != null) {
+                          callback(LocationData(location.latitude, location.longitude, location.accuracy, System.currentTimeMillis()))
+                      } else {
+                          fusedLocationClient.lastLocation.addOnSuccessListener { lastLocation: Location? ->
+                              if (lastLocation != null) {
+                                  callback(LocationData(lastLocation.latitude, lastLocation.longitude, lastLocation.accuracy, System.currentTimeMillis()))
+                              } else {
+                                  callback(null)
+                              }
+                          }
+                      }
+                  }
+                  .addOnFailureListener { e ->
+                      Log.e(tag, "Location failed: \${e.message}")
+                      callback(null)
+                  }
+          } catch (e: Exception) {
+              Log.e(tag, "Location error: \${e.message}")
+              callback(null)
+          }
+      }
+
+      fun addTimestampWatermark(bitmap: Bitmap, location: LocationData?): Bitmap {
+          val result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+          val canvas = Canvas(result)
+          val paint = Paint().apply {
+              color = Color.argb(180, 255, 255, 0)
+              textSize = (bitmap.width * 0.025f).coerceIn(14f, 40f)
+              isAntiAlias = true
+              setShadowLayer(2f, 1f, 1f, Color.BLACK)
+          }
+
+          val dateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.getDefault())
+          val timestamp = dateFormat.format(Date())
+          val deviceId = getDeviceId().takeLast(12)
+
+          val line1 = "MPA Verify | \$timestamp"
+          val line2 = "Device: \$deviceId"
+          val line3 = if (location != null) "GPS: \${String.format("%.5f", location.latitude)}, \${String.format("%.5f", location.longitude)}" else "GPS: N/A"
+
+          val lineHeight = paint.textSize * 1.4f
+          val y = bitmap.height - lineHeight * 3.5f
+
+          canvas.drawText(line1, 10f, y, paint)
+          canvas.drawText(line2, 10f, y + lineHeight, paint)
+          canvas.drawText(line3, 10f, y + lineHeight * 2, paint)
+
+          return result
+      }
+
+      fun getDeviceInfo(): Map<String, String> {
+          return mapOf(
+              "deviceId" to getDeviceId(),
+              "model" to Build.MODEL,
+              "manufacturer" to Build.MANUFACTURER,
+              "androidVersion" to Build.VERSION.RELEASE,
+              "sdkVersion" to Build.VERSION.SDK_INT.toString(),
+              "deviceFingerprint" to Build.FINGERPRINT
+          )
+      }
   }`);
 }
 
