@@ -123,6 +123,11 @@ export const api = {
     downloadConfig: (id: number) => { window.open(`${API_BASE}/apk-builds/${id}/config`, "_blank"); },
     downloadApk: (id: number) => { window.open(`${API_BASE}/apk-builds/${id}/download`, "_blank"); },
     downloadAndroidProject: (id: number) => { window.open(`${API_BASE}/apk-builds/${id}/android-project`, "_blank"); },
+    generateConfig: (examId: number, features?: any) => request<any>(`/apk/generate-config/${examId}`, { method: "POST", body: JSON.stringify(features || {}) }),
+    buildApk: (examId: number, features?: any) => request<any>(`/apk/build/${examId}`, { method: "POST", body: JSON.stringify(features || {}) }),
+    getBuildStatus: (buildId: number) => request<any>(`/apk/status/${buildId}`),
+    downloadBuiltApk: (examId: number) => { window.open(`${API_BASE}/apk/download/${examId}`, "_blank"); },
+    getBuildLogs: (buildId: number) => request<any>(`/apk/logs/${buildId}`),
   },
   auditLogs: {
     list: () => request<any[]>("/audit-logs"),

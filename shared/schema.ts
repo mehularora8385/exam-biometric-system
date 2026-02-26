@@ -145,6 +145,9 @@ export const apkBuilds = pgTable("apk_builds", {
   buildProgress: integer("build_progress").default(0),
   configJson: jsonb("config_json"),
   downloadUrl: text("download_url"),
+  apkPath: text("apk_path"),
+  buildLogs: text("build_logs"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const auditLogs = pgTable("audit_logs", {
@@ -192,7 +195,7 @@ export const insertDesignationSchema = createInsertSchema(designations).omit({ i
 export const insertSlotSchema = createInsertSchema(slots).omit({ id: true });
 export const insertCenterOperatorMapSchema = createInsertSchema(centerOperatorMaps).omit({ id: true });
 export const insertDeviceSchema = createInsertSchema(devices).omit({ id: true });
-export const insertApkBuildSchema = createInsertSchema(apkBuilds).omit({ id: true });
+export const insertApkBuildSchema = createInsertSchema(apkBuilds).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true });
 export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true });
 export const insertGlobalTechSettingsSchema = createInsertSchema(globalTechSettings).omit({ id: true });

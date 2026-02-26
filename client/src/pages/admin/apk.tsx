@@ -862,8 +862,8 @@ export default function GenerateAPK() {
                           </TableCell>
                           <TableCell className="py-4 pr-6 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              {apk.status === "Ready" ? (
-                                <>
+                              {apk.status === "Ready" || apk.status === "success" ? (
+                                <div className="flex flex-wrap items-center justify-center gap-2">
                                   <button
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
                                     onClick={() => api.apkBuilds.downloadConfig(apk.id)}
@@ -873,24 +873,92 @@ export default function GenerateAPK() {
                                   </button>
                                   <button
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
-                                    onClick={() => api.apkBuilds.downloadApk(apk.id)}
+                                    onClick={() => api.apkBuilds.downloadAndroidProject(apk.id)}
                                     data-testid={`button-download-project-${apk.id || idx}`}
                                   >
-                                    <Download className="w-3.5 h-3.5" /> Android Project
+                                    <Download className="w-3.5 h-3.5" /> Full Project
                                   </button>
-                                  <button
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
-                                    onClick={() => api.apkBuilds.downloadAndroidProject(apk.id)}
-                                    data-testid={`button-download-full-project-${apk.id || idx}`}
-                                  >
-                                    <Download className="w-3.5 h-3.5" /> Full Kotlin Project
-                                  </button>
-                                </>
-                              ) : apk.status === "Building" ? (
-                                <div className="flex items-center gap-2">
-                                  <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
-                                  <span className="text-xs text-yellow-600 font-medium">Building...</span>
+                                  {apk.apkPath ? (
+                                    <button
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                      onClick={() => api.apkBuilds.downloadBuiltApk(apk.examId!)}
+                                      data-testid={`button-download-apk-${apk.id || idx}`}
+                                    >
+                                      <Download className="w-3.5 h-3.5" /> Download APK
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                      onClick={async () => {
+                                        try {
+                                          await api.apkBuilds.buildApk(apk.examId!, apk.features as any);
+                                          toast({ title: "Build Started", description: "APK build has been initiated. Refresh to check status." });
+                                          queryClient.invalidateQueries({ queryKey: ['/api/apk-builds'] });
+                                        } catch (e: any) { toast({ title: "Build Failed", description: e.message, variant: "destructive" }); }
+                                      }}
+                                      data-testid={`button-build-apk-${apk.id || idx}`}
+                                    >
+                                      <Cpu className="w-3.5 h-3.5" /> Build APK
+                                    </button>
+                                  )}
                                 </div>
+                              ) : apk.status === "building" || apk.status === "Building" ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
+                                    <span className="text-xs text-yellow-600 font-medium">Building... {apk.buildProgress || 0}%</span>
+                                  </div>
+                                  <div className="w-32 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-yellow-500 transition-all" style={{ width: `${apk.buildProgress || 0}%` }} />
+                                  </div>
+                                  <button
+                                    className="text-xs text-blue-500 hover:underline mt-1"
+                                    onClick={async () => {
+                                      const status = await api.apkBuilds.getBuildStatus(apk.id);
+                                      if (status.buildLogs) alert(status.buildLogs);
+                                    }}
+                                    data-testid={`button-view-logs-${apk.id || idx}`}
+                                  >View Logs</button>
+                                </div>
+                              ) : apk.status === "failed" ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-xs text-red-500 font-medium">Build Failed</span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="text-xs text-blue-500 hover:underline"
+                                      onClick={async () => {
+                                        const logs = await api.apkBuilds.getBuildLogs(apk.id);
+                                        alert(logs.logs);
+                                      }}
+                                      data-testid={`button-failed-logs-${apk.id || idx}`}
+                                    >View Logs</button>
+                                    <button
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded transition-colors"
+                                      onClick={async () => {
+                                        try {
+                                          await api.apkBuilds.buildApk(apk.examId!, apk.features as any);
+                                          toast({ title: "Rebuild Started" });
+                                          queryClient.invalidateQueries({ queryKey: ['/api/apk-builds'] });
+                                        } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                      }}
+                                      data-testid={`button-retry-build-${apk.id || idx}`}
+                                    >Retry Build</button>
+                                  </div>
+                                </div>
+                              ) : apk.status === "pending" ? (
+                                <button
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                  onClick={async () => {
+                                    try {
+                                      await api.apkBuilds.buildApk(apk.examId!, apk.features as any);
+                                      toast({ title: "Build Started" });
+                                      queryClient.invalidateQueries({ queryKey: ['/api/apk-builds'] });
+                                    } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                  }}
+                                  data-testid={`button-start-build-${apk.id || idx}`}
+                                >
+                                  <Cpu className="w-3.5 h-3.5" /> Build APK
+                                </button>
                               ) : (
                                 <span className="text-xs text-gray-400">—</span>
                               )}

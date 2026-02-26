@@ -1,4 +1,7 @@
 import type { Express } from "express";
+import * as path from "path";
+import * as fs from "fs";
+import { buildApk, generateApkConfig, type BuildConfig } from "./apk-builder";
 import { type Server } from "http";
 import { storage } from "./storage";
 import {
@@ -1550,6 +1553,194 @@ export async function registerRoutes(
   });
 
 
+
+
+  // =====================================================
+  // APK AUTO-BUILD SYSTEM
+  // =====================================================
+
+  // Serve built APKs/archives as static files
+  const apkOutputDir = path.join(process.cwd(), 'public', 'apks');
+  if (!fs.existsSync(apkOutputDir)) fs.mkdirSync(apkOutputDir, { recursive: true });
+  app.use('/public/apks', (await import('express')).default.static(apkOutputDir));
+
+  // POST /api/apk/generate-config/:examId - Generate exam config JSON
+  app.post('/api/apk/generate-config/:examId', async (req, res) => {
+    try {
+      const examId = Number(req.params.examId);
+      const exam = await storage.getExam(examId);
+      if (!exam) return res.status(404).json({ message: 'Exam not found' });
+      const candidateCount = (await storage.listCandidates(examId)).length;
+      const centerCount = (await storage.listCenters(examId)).length;
+      const features = req.body || {};
+      const configData: BuildConfig = {
+        examId,
+        examName: exam.name,
+        examCode: exam.code,
+        serverUrl: req.protocol + '://' + req.get('host'),
+        biometricMode: features.biometricMode || 'face_fingerprint',
+        verificationFlow: features.verificationFlow || 'face_then_fingerprint',
+        attendanceMode: features.attendanceMode || 'both',
+        faceMatchThreshold: features.faceMatchThreshold || exam.faceMatchThreshold || 75,
+        fingerprintScanner: features.fingerprintScanner || 'MFS100',
+        faceLiveness: features.faceLiveness ?? true,
+        fingerprintQuality: features.fingerprintQuality ?? true,
+        offlineMode: features.offlineMode ?? true,
+        gpsCapture: features.gpsCapture ?? true,
+        kioskMode: features.kioskMode ?? true,
+        retryLimit: features.retryLimit || 3,
+        candidateCount,
+        centerCount,
+        ...features,
+        apiEndpoints: {
+          sync: '/api/sync/' + examId,
+          submitVerification: '/api/verification/submit',
+          uploadPhoto: '/api/verification/upload-photo',
+          heartbeat: '/api/verification/heartbeat',
+          sdkConfig: '/api/biometric/sdk-config',
+          faceMatch: '/api/biometric/face-match',
+          fingerprintCapture: '/api/biometric/fingerprint-capture',
+          scannerStatus: '/api/biometric/scanner-status',
+        },
+      };
+      const configJson = generateApkConfig(configData);
+      res.setHeader('Content-Type', 'application/json');
+      res.send(configJson);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // POST /api/apk/build/:examId - Build APK for exam
+  app.post('/api/apk/build/:examId', async (req, res) => {
+    try {
+      const examId = Number(req.params.examId);
+      const exam = await storage.getExam(examId);
+      if (!exam) return res.status(404).json({ message: 'Exam not found' });
+      const candidateCount = (await storage.listCandidates(examId)).length;
+      const centerCount = (await storage.listCenters(examId)).length;
+      const features = req.body || {};
+
+      const version = `3.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 100)}`;
+      const build = await storage.createApkBuild({
+        version,
+        description: `${exam.name} - Auto Build`,
+        examId,
+        examName: exam.name,
+        date: new Date().toLocaleDateString('en-GB'),
+        status: 'building',
+        features,
+        platform: 'Android',
+        deviceTypes: 'Tablet,Mobile',
+        minAndroidVersion: '8.0',
+        buildProgress: 0,
+        configJson: features,
+      });
+
+      res.status(202).json({ buildId: build.id, status: 'building', message: 'Build started' });
+
+      const configData: BuildConfig = {
+        examId,
+        examName: exam.name,
+        examCode: exam.code,
+        serverUrl: req.protocol + '://' + req.get('host'),
+        biometricMode: features.biometricMode || 'face_fingerprint',
+        verificationFlow: features.verificationFlow || 'face_then_fingerprint',
+        attendanceMode: features.attendanceMode || 'both',
+        faceMatchThreshold: features.faceMatchThreshold || exam.faceMatchThreshold || 75,
+        fingerprintScanner: features.fingerprintScanner || 'MFS100',
+        faceLiveness: features.faceLiveness ?? true,
+        fingerprintQuality: features.fingerprintQuality ?? true,
+        offlineMode: features.offlineMode ?? true,
+        gpsCapture: features.gpsCapture ?? true,
+        kioskMode: features.kioskMode ?? true,
+        retryLimit: features.retryLimit || 3,
+        candidateCount,
+        centerCount,
+        ...features,
+        apiEndpoints: {
+          sync: '/api/sync/' + examId,
+          submitVerification: '/api/verification/submit',
+          uploadPhoto: '/api/verification/upload-photo',
+          heartbeat: '/api/verification/heartbeat',
+          sdkConfig: '/api/biometric/sdk-config',
+          faceMatch: '/api/biometric/face-match',
+          fingerprintCapture: '/api/biometric/fingerprint-capture',
+          scannerStatus: '/api/biometric/scanner-status',
+        },
+      };
+
+      buildApk(build.id, configData, async (progress, log) => {
+        await storage.updateApkBuild(build.id, { buildProgress: progress, buildLogs: log } as any);
+      }).then(async (result) => {
+        if (result.success) {
+          const buildSize = result.apkPath ? `${(fs.statSync(result.apkPath).size / (1024 * 1024)).toFixed(1)} MB` : undefined;
+          await storage.updateApkBuild(build.id, {
+            status: 'success',
+            buildProgress: 100,
+            apkPath: result.apkPath,
+            downloadUrl: `/api/apk/download/${examId}`,
+            buildLogs: result.logs,
+            buildSize,
+          } as any);
+        } else {
+          await storage.updateApkBuild(build.id, {
+            status: 'failed',
+            buildLogs: result.logs,
+          } as any);
+        }
+      }).catch(async (err) => {
+        await storage.updateApkBuild(build.id, {
+          status: 'failed',
+          buildLogs: `Build error: ${err.message}`,
+        } as any);
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // GET /api/apk/status/:buildId - Get build status
+  app.get('/api/apk/status/:buildId', async (req, res) => {
+    try {
+      const builds = await storage.listApkBuilds();
+      const build = builds.find(b => b.id === Number(req.params.buildId));
+      if (!build) return res.status(404).json({ message: 'Build not found' });
+      res.json({
+        id: build.id,
+        examId: build.examId,
+        status: build.status,
+        progress: build.buildProgress,
+        apkPath: build.apkPath,
+        downloadUrl: build.downloadUrl,
+        buildSize: build.buildSize,
+        buildLogs: build.buildLogs,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // GET /api/apk/download/:examId - Download built APK/archive
+  app.get('/api/apk/download/:examId', async (req, res) => {
+    try {
+      const examId = Number(req.params.examId);
+      const builds = await storage.listApkBuilds(examId);
+      const build = builds.find(b => b.status === 'success' && b.apkPath);
+      if (!build || !build.apkPath) return res.status(404).json({ message: 'No successful build found for this exam' });
+      if (!fs.existsSync(build.apkPath)) return res.status(404).json({ message: 'APK file not found on server' });
+      const ext = build.apkPath.endsWith('.apk') ? 'apk' : 'tar.gz';
+      const filename = `MPA_Verify_${(build.examName || 'exam').replace(/[^a-zA-Z0-9]/g, '_')}_v${build.version}.${ext}`;
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+      res.setHeader('Content-Type', ext === 'apk' ? 'application/vnd.android.package-archive' : 'application/gzip');
+      const stream = fs.createReadStream(build.apkPath);
+      stream.pipe(res);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // GET /api/apk/logs/:buildId - Get build logs
+  app.get('/api/apk/logs/:buildId', async (req, res) => {
+    try {
+      const builds = await storage.listApkBuilds();
+      const build = builds.find(b => b.id === Number(req.params.buildId));
+      if (!build) return res.status(404).json({ message: 'Build not found' });
+      res.json({ buildId: build.id, status: build.status, logs: build.buildLogs || 'No logs available' });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
 
   // =====================================================
   // FULL ANDROID PROJECT TEMPLATE GENERATOR
