@@ -1658,18 +1658,46 @@ export async function buildApk(
       );
       log("  Created gradle-wrapper.properties (Gradle 8.4)");
 
-      log("  Downloading gradle-wrapper.jar from GitHub...");
+      log("  Downloading gradle-wrapper.jar...");
       try {
-        execSync(`curl -sL --max-time 30 -o "${path.join(wrapperDir, "gradle-wrapper.jar")}" "https://raw.githubusercontent.com/nicoxiang/gradle-wrapper-jar/master/8.4/gradle-wrapper.jar"`, { timeout: 60000 });
-        const jarSize = fs.statSync(path.join(wrapperDir, "gradle-wrapper.jar")).size;
-        log(`  gradle-wrapper.jar downloaded (${(jarSize / 1024).toFixed(0)} KB)`);
-        if (jarSize < 10000) {
-          log("  WARNING: jar file seems too small, trying alternative...");
-          execSync(`curl -sL --max-time 60 -o "${path.join(wrapperDir, "gradle-wrapper.jar")}" "https://services.gradle.org/versions/8.4"`, { timeout: 90000 });
+        const wrapperJarPath = path.join(wrapperDir, "gradle-wrapper.jar");
+        const tmpZip = path.join(buildDir, "gradle-8.4-bin.zip");
+        execSync(`curl -sL --max-time 120 -o "${tmpZip}" "https://services.gradle.org/distributions/gradle-8.4-bin.zip"`, { timeout: 180000 });
+        const zipSize = fs.statSync(tmpZip).size;
+        log(`  Downloaded gradle-8.4-bin.zip (${(zipSize / 1024 / 1024).toFixed(1)} MB)`);
+        execSync(`unzip -j -o "${tmpZip}" "gradle-8.4/lib/gradle-wrapper-main-8.4.jar" -d "${wrapperDir}" 2>/dev/null || true`, { timeout: 30000 });
+        if (fs.existsSync(path.join(wrapperDir, "gradle-wrapper-main-8.4.jar"))) {
+          fs.renameSync(path.join(wrapperDir, "gradle-wrapper-main-8.4.jar"), wrapperJarPath);
+        }
+        if (!fs.existsSync(wrapperJarPath) || fs.statSync(wrapperJarPath).size < 10000) {
+          log("  Extracting wrapper jar from gradle dist...");
+          execSync(`cd "${buildDir}" && unzip -o "${tmpZip}" "gradle-8.4/lib/plugins/gradle-wrapper-8.4.jar" -d "${buildDir}/tmp_gradle" 2>/dev/null || true`, { timeout: 30000 });
+          const extractedJar = `${buildDir}/tmp_gradle/gradle-8.4/lib/plugins/gradle-wrapper-8.4.jar`;
+          if (fs.existsSync(extractedJar)) {
+            fs.copyFileSync(extractedJar, wrapperJarPath);
+          }
+        }
+        if (!fs.existsSync(wrapperJarPath) || fs.statSync(wrapperJarPath).size < 10000) {
+          log("  Searching for any wrapper jar in distribution...");
+          try {
+            execSync(`cd "${buildDir}" && unzip -l "${tmpZip}" | grep -i wrapper`, { timeout: 10000 });
+            execSync(`cd "${buildDir}" && unzip -o "${tmpZip}" -d "${buildDir}/tmp_gradle" 2>/dev/null`, { timeout: 60000 });
+            const found = execSync(`find "${buildDir}/tmp_gradle" -name "*wrapper*.jar" -type f 2>/dev/null`).toString().trim();
+            if (found) {
+              fs.copyFileSync(found.split("\n")[0], wrapperJarPath);
+              log(`  Found wrapper jar: ${found.split("\n")[0]}`);
+            }
+          } catch (_) {}
+        }
+        try { fs.rmSync(tmpZip); fs.rmSync(`${buildDir}/tmp_gradle`, { recursive: true, force: true }); } catch (_) {}
+        if (fs.existsSync(wrapperJarPath) && fs.statSync(wrapperJarPath).size > 10000) {
+          log(`  gradle-wrapper.jar ready (${(fs.statSync(wrapperJarPath).size / 1024).toFixed(0)} KB)`);
+        } else {
+          log("  FALLBACK: Using system Gradle directly instead of wrapper");
         }
       } catch (dlErr: any) {
-        log(`  WARNING: Could not download gradle-wrapper.jar: ${dlErr.message}`);
-        log("  The build will attempt using system gradle instead");
+        log(`  Download failed: ${dlErr.message}`);
+        log("  FALLBACK: Will try system gradle command instead");
       }
 
       log("  Gradle wrapper files ready");
@@ -1685,26 +1713,39 @@ export async function buildApk(
     else log("  ANDROID_HOME not set - will attempt build with system defaults");
     await onProgress(55, logs.join("\n"));
 
-    log("Step 6/7: Running ./gradlew assembleRelease...");
+    log("Step 6/7: Running Gradle build...");
     await onProgress(60, logs.join("\n"));
 
+    const wrapperJarExists = fs.existsSync(path.join(buildDir, "gradle", "wrapper", "gradle-wrapper.jar")) && fs.statSync(path.join(buildDir, "gradle", "wrapper", "gradle-wrapper.jar")).size > 10000;
+    const gradleCmd = wrapperJarExists ? `cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1` : `cd "${buildDir}" && gradle assembleRelease --no-daemon --stacktrace 2>&1`;
+    log(`  Using: ${wrapperJarExists ? "./gradlew (wrapper)" : "gradle (system)"}`);
+
     try {
-      const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 600000, maxBuffer: 50 * 1024 * 1024 }).toString();
+      const output = execSync(gradleCmd, { timeout: 600000, maxBuffer: 50 * 1024 * 1024 }).toString();
       const outputLines = output.split("\n");
       outputLines.slice(-30).forEach(l => log("  " + l));
       log(`  Build completed successfully (${outputLines.length} output lines)`);
       await onProgress(85, logs.join("\n"));
     } catch (buildErr: any) {
-      log("  BUILD FAILED");
-      if (buildErr.stdout) {
-        const stdout = buildErr.stdout.toString();
-        stdout.split("\n").slice(-40).forEach((l: string) => log("  " + l));
+      if (wrapperJarExists) {
+        log("  ./gradlew failed, retrying with system gradle...");
+        try {
+          const output2 = execSync(`cd "${buildDir}" && gradle assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 600000, maxBuffer: 50 * 1024 * 1024 }).toString();
+          output2.split("\n").slice(-30).forEach(l => log("  " + l));
+          log(`  Build completed via system gradle`);
+          await onProgress(85, logs.join("\n"));
+        } catch (fallbackErr: any) {
+          log("  BUILD FAILED (both gradlew and gradle)");
+          if (fallbackErr.stdout) fallbackErr.stdout.toString().split("\n").slice(-40).forEach((l: string) => log("  " + l));
+          if (fallbackErr.stderr) fallbackErr.stderr.toString().split("\n").slice(-20).forEach((l: string) => log("  ERR: " + l));
+          return { success: false, logs: logs.join("\n") };
+        }
+      } else {
+        log("  BUILD FAILED");
+        if (buildErr.stdout) buildErr.stdout.toString().split("\n").slice(-40).forEach((l: string) => log("  " + l));
+        if (buildErr.stderr) buildErr.stderr.toString().split("\n").slice(-20).forEach((l: string) => log("  ERR: " + l));
+        return { success: false, logs: logs.join("\n") };
       }
-      if (buildErr.stderr) {
-        const stderr = buildErr.stderr.toString();
-        stderr.split("\n").slice(-20).forEach((l: string) => log("  ERR: " + l));
-      }
-      return { success: false, logs: logs.join("\n") };
     }
 
     log("Step 7/7: Locating and copying signed APK...");
