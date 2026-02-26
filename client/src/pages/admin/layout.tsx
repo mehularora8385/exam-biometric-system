@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { 
   LayoutDashboard, Users, Building2, Smartphone, FileText, 
   ChevronLeft, ChevronDown, Menu, Shield, Users2, FileArchive, 
-  Activity, ShieldAlert, Radar, Monitor, LogOut, Wifi, BarChart3, Eye
-} from "lucide-react";
+  Activity, ShieldAlert, Radar, Monitor, LogOut, Wifi, BarChart3, Eye,
+  BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -89,6 +89,11 @@ export default function AdminLayout({ children, activePage, setActivePage, selec
           <div className={navItemClass(activePage === "apk")} onClick={() => setActivePage("apk")} data-testid="nav-apk">
             <Smartphone className="w-4 h-4" />
             <span>Generate APK</span>
+          </div>
+
+          <div className={navItemClass(activePage === "api-docs")} onClick={() => setActivePage("api-docs")} data-testid="nav-api-docs">
+            <BookOpen className="w-4 h-4" />
+            <span>APK API Docs</span>
           </div>
 
           <div className={navItemClass(activePage === "device-management")} onClick={() => setActivePage("device-management")} data-testid="nav-devices">

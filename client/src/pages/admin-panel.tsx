@@ -20,6 +20,7 @@ import AICommandCenter from "@/pages/admin/ai-command-center";
 import FraudAnalytics from "@/pages/admin/fraud-analytics";
 import BiometricIntegrity from "@/pages/admin/biometric-integrity";
 import GlobalSurveillance from "@/pages/admin/global-surveillance";
+import ApiDocs from "@/pages/admin/api-docs";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -43,6 +44,7 @@ export default function AdminPanel() {
       case "fraud-analytics": return <FraudAnalytics />;
       case "biometric-integrity": return <BiometricIntegrity />;
       case "global-surveillance": return <GlobalSurveillance />;
+      case "api-docs": return <ApiDocs />;
       case "upload-instruction": return <UploadInstruction />;
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
