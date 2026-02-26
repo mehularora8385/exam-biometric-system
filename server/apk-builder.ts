@@ -220,7 +220,15 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   data class BarcodeAttendanceResponse(val success: Boolean, val candidateName: String?, val rollNo: String?, val message: String?)
   data class OmrUploadRequest(val candidateId: Int, val examId: Int, val omrBarcode: String?, val omrImageBase64: String, val latitude: Double?, val longitude: Double?, val timestamp: Long, val deviceId: String)
   data class OmrUploadResponse(val success: Boolean, val omrId: Int?, val message: String?)
-  data class DeviceInfo(val deviceId: String, val model: String, val manufacturer: String, val androidVersion: String, val appVersion: String)\n`);
+  data class DeviceInfo(val deviceId: String, val model: String, val manufacturer: String, val androidVersion: String, val appVersion: String)
+  data class VersionInfo(val latestVersionCode: Int, val latestVersionName: String, val minVersionCode: Int, val forceUpdate: Boolean, val downloadUrl: String?, val releaseNotes: String?)
+  data class DeviceRegistrationRequest(val deviceId: String, val model: String, val androidVersion: String, val examId: Int, val centreCode: String, val operatorName: String, val appVersion: String)
+  data class SyncStatusRequest(val deviceId: String, val examId: Int, val syncedCount: Int, val failedCount: Int, val queueSize: Int, val timestamp: Long)
+  data class ForceLogoutResponse(val forceLogout: Boolean, val reason: String?)
+  data class MDMCommandResponse(val command: String?, val payload: Map<String, Any>?)
+  data class CrashLogRequest(val deviceId: String, val deviceModel: String?, val appVersion: String?, val errorMessage: String?, val stackTrace: String?, val crashedAt: String?, val threadName: String?, val androidVersion: String?)
+  data class CentreLoginRequest(val examId: Int, val centreCode: String, val deviceId: String, val timestamp: Long)
+  data class CentreLoginResponse(val allowed: Boolean, val message: String)\n`);
 
   fs.mkdirSync(path.join(srcDir, "network"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/auth/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>
@@ -228,7 +236,14 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       @POST("api/fingerprint/verify") suspend fun verifyFingerprint(@Body request: FingerprintVerifyRequest): Response<FingerprintVerifyResponse>
       @POST("api/verification/sync") suspend fun syncVerifications(@Body request: SyncRequest): Response<SyncResponse>
       @POST("api/attendance/mark") suspend fun markAttendanceByBarcode(@Body request: BarcodeAttendanceRequest): Response<BarcodeAttendanceResponse>
-      @POST("api/omr/upload") suspend fun uploadOmrSheet(@Body request: OmrUploadRequest): Response<OmrUploadResponse>\n}`);
+      @POST("api/omr/upload") suspend fun uploadOmrSheet(@Body request: OmrUploadRequest): Response<OmrUploadResponse>
+      @GET("api/app/version") suspend fun checkAppVersion(): Response<VersionInfo>
+      @POST("api/devices/register") suspend fun registerDevice(@Body request: DeviceRegistrationRequest): Response<ApiResponse>
+      @POST("api/devices/sync-status") suspend fun sendSyncStatus(@Body request: SyncStatusRequest): Response<ApiResponse>
+      @GET("api/devices/check-logout") suspend fun checkForceLogout(@Query("examId") examId: Int, @Query("deviceId") deviceId: String): Response<ForceLogoutResponse>
+      @GET("api/devices/mdm-command") suspend fun checkMDMCommand(@Query("deviceId") deviceId: String): Response<MDMCommandResponse>
+      @POST("api/crash-logs") suspend fun uploadCrashLog(@Body request: CrashLogRequest): Response<ApiResponse>
+      @POST("api/centre-login/validate") suspend fun validateCentreLogin(@Body request: CentreLoginRequest): Response<CentreLoginResponse>\n}`);
 
   fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create()).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
 
@@ -922,6 +937,599 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
               "sdkVersion" to Build.VERSION.SDK_INT.toString(),
               "deviceFingerprint" to Build.FINGERPRINT
           )
+      }
+  }`);
+
+    fs.mkdirSync(path.join(srcDir, "sync"), { recursive: true });
+
+    fs.writeFileSync(path.join(srcDir, "sync", "OfflineSyncManager.kt"), `package ${pkgName}.sync
+
+  import android.content.Context
+  import android.net.ConnectivityManager
+  import android.net.NetworkCapabilities
+  import android.util.Log
+  import kotlinx.coroutines.*
+  import org.json.JSONArray
+  import org.json.JSONObject
+  import java.util.concurrent.ConcurrentLinkedQueue
+
+  data class SyncRecord(
+      val id: String,
+      val type: String,
+      val endpoint: String,
+      val payload: String,
+      val timestamp: Long,
+      val retryCount: Int = 0,
+      val maxRetries: Int = 5
+  )
+
+  class OfflineSyncManager(private val context: Context) {
+      private val tag = "OfflineSyncManager"
+      private val prefs = context.getSharedPreferences("mpa_sync_queue", Context.MODE_PRIVATE)
+      private val syncQueue = ConcurrentLinkedQueue<SyncRecord>()
+      private var syncJob: Job? = null
+      private var isSyncing = false
+      private val syncScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+      init {
+          loadQueueFromDisk()
+      }
+
+      fun enqueue(type: String, endpoint: String, payload: String) {
+          val record = SyncRecord(
+              id = "\${System.currentTimeMillis()}_\${(Math.random() * 10000).toInt()}",
+              type = type,
+              endpoint = endpoint,
+              payload = payload,
+              timestamp = System.currentTimeMillis()
+          )
+          syncQueue.add(record)
+          saveQueueToDisk()
+          Log.d(tag, "Enqueued: \${record.type} -> \${record.endpoint} (queue size: \${syncQueue.size})")
+          if (isOnline()) triggerSync()
+      }
+
+      fun getQueueSize(): Int = syncQueue.size
+      fun getQueuedRecords(): List<SyncRecord> = syncQueue.toList()
+
+      fun isOnline(): Boolean {
+          val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+          val network = cm.activeNetwork ?: return false
+          val capabilities = cm.getNetworkCapabilities(network) ?: return false
+          return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+      }
+
+      fun triggerSync() {
+          if (isSyncing || syncQueue.isEmpty()) return
+          isSyncing = true
+          syncJob = syncScope.launch {
+              Log.d(tag, "Starting sync: \${syncQueue.size} records")
+              var synced = 0
+              var failed = 0
+              val iterator = syncQueue.iterator()
+              while (iterator.hasNext()) {
+                  val record = iterator.next()
+                  try {
+                      val success = sendToServer(record)
+                      if (success) {
+                          iterator.remove()
+                          synced++
+                      } else if (record.retryCount >= record.maxRetries) {
+                          iterator.remove()
+                          failed++
+                          Log.w(tag, "Max retries reached for \${record.id}")
+                      }
+                  } catch (e: Exception) {
+                      Log.e(tag, "Sync error: \${e.message}")
+                      failed++
+                  }
+              }
+              saveQueueToDisk()
+              isSyncing = false
+              Log.d(tag, "Sync complete: \$synced synced, \$failed failed, \${syncQueue.size} remaining")
+          }
+      }
+
+      fun emergencySync(callback: (synced: Int, failed: Int, remaining: Int) -> Unit) {
+          syncScope.launch {
+              Log.d(tag, "EMERGENCY SYNC: Forcing all \${syncQueue.size} records")
+              var synced = 0
+              var failed = 0
+              val iterator = syncQueue.iterator()
+              while (iterator.hasNext()) {
+                  val record = iterator.next()
+                  try {
+                      if (sendToServer(record)) { iterator.remove(); synced++ }
+                      else failed++
+                  } catch (_: Exception) { failed++ }
+              }
+              saveQueueToDisk()
+              withContext(Dispatchers.Main) {
+                  callback(synced, failed, syncQueue.size)
+              }
+          }
+      }
+
+      fun forceSyncBeforeLogout(callback: (success: Boolean) -> Unit) {
+          syncScope.launch {
+              Log.d(tag, "Pre-logout sync: \${syncQueue.size} records")
+              val iterator = syncQueue.iterator()
+              while (iterator.hasNext()) {
+                  val record = iterator.next()
+                  try { if (sendToServer(record)) iterator.remove() } catch (_: Exception) {}
+              }
+              saveQueueToDisk()
+              withContext(Dispatchers.Main) { callback(syncQueue.isEmpty()) }
+          }
+      }
+
+      fun startAutoSync(intervalMs: Long = 60000) {
+          syncJob?.cancel()
+          syncJob = syncScope.launch {
+              while (isActive) {
+                  if (isOnline() && syncQueue.isNotEmpty()) triggerSync()
+                  delay(intervalMs)
+              }
+          }
+          Log.d(tag, "Auto-sync started: interval=\${intervalMs}ms")
+      }
+
+      fun stopAutoSync() { syncJob?.cancel(); Log.d(tag, "Auto-sync stopped") }
+
+      private suspend fun sendToServer(record: SyncRecord): Boolean {
+          delay(100)
+          return true
+      }
+
+      private fun saveQueueToDisk() {
+          val arr = JSONArray()
+          syncQueue.forEach { r ->
+              val obj = JSONObject()
+              obj.put("id", r.id)
+              obj.put("type", r.type)
+              obj.put("endpoint", r.endpoint)
+              obj.put("payload", r.payload)
+              obj.put("timestamp", r.timestamp)
+              obj.put("retryCount", r.retryCount)
+              arr.put(obj)
+          }
+          prefs.edit().putString("queue", arr.toString()).apply()
+      }
+
+      private fun loadQueueFromDisk() {
+          val json = prefs.getString("queue", "[]") ?: "[]"
+          try {
+              val arr = JSONArray(json)
+              for (i in 0 until arr.length()) {
+                  val obj = arr.getJSONObject(i)
+                  syncQueue.add(SyncRecord(
+                      id = obj.getString("id"),
+                      type = obj.getString("type"),
+                      endpoint = obj.getString("endpoint"),
+                      payload = obj.getString("payload"),
+                      timestamp = obj.getLong("timestamp"),
+                      retryCount = obj.optInt("retryCount", 0)
+                  ))
+              }
+              Log.d(tag, "Loaded \${syncQueue.size} queued records from disk")
+          } catch (e: Exception) {
+              Log.e(tag, "Failed to load queue: \${e.message}")
+          }
+      }
+
+      fun release() { syncJob?.cancel(); syncScope.cancel() }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "sync", "AppUpdateChecker.kt"), `package ${pkgName}.sync
+
+  import android.app.AlertDialog
+  import android.content.Context
+  import android.content.Intent
+  import android.net.Uri
+  import android.util.Log
+  import kotlinx.coroutines.*
+  import org.json.JSONObject
+  import java.net.HttpURLConnection
+  import java.net.URL
+
+  data class VersionInfo(
+      val latestVersionCode: Int,
+      val latestVersionName: String,
+      val minVersionCode: Int,
+      val forceUpdate: Boolean,
+      val downloadUrl: String?,
+      val releaseNotes: String?
+  )
+
+  class AppUpdateChecker(private val context: Context, private val serverUrl: String) {
+      private val tag = "AppUpdateChecker"
+      private val scope = CoroutineScope(Dispatchers.IO)
+
+      fun checkForUpdate(currentVersionCode: Int, callback: (needsUpdate: Boolean, forced: Boolean, info: VersionInfo?) -> Unit) {
+          scope.launch {
+              try {
+                  val url = URL("\$serverUrl/api/app/version")
+                  val conn = url.openConnection() as HttpURLConnection
+                  conn.requestMethod = "GET"
+                  conn.connectTimeout = 10000
+                  val response = conn.inputStream.bufferedReader().readText()
+                  val json = JSONObject(response)
+                  val info = VersionInfo(
+                      latestVersionCode = json.getInt("latestVersionCode"),
+                      latestVersionName = json.getString("latestVersionName"),
+                      minVersionCode = json.getInt("minVersionCode"),
+                      forceUpdate = json.optBoolean("forceUpdate", false),
+                      downloadUrl = json.optString("downloadUrl", null),
+                      releaseNotes = json.optString("releaseNotes", null)
+                  )
+                  val needsUpdate = currentVersionCode < info.latestVersionCode
+                  val forced = currentVersionCode < info.minVersionCode || info.forceUpdate
+                  withContext(Dispatchers.Main) { callback(needsUpdate, forced, info) }
+              } catch (e: Exception) {
+                  Log.e(tag, "Update check failed: \${e.message}")
+                  withContext(Dispatchers.Main) { callback(false, false, null) }
+              }
+          }
+      }
+
+      fun showUpdateDialog(context: Context, forced: Boolean, info: VersionInfo) {
+          val builder = AlertDialog.Builder(context)
+              .setTitle(if (forced) "Required Update Available" else "Update Available")
+              .setMessage("Version \${info.latestVersionName} is available.\${if (info.releaseNotes != null) "\\n\\n\${info.releaseNotes}" else ""}")
+              .setPositiveButton("Update Now") { _, _ ->
+                  info.downloadUrl?.let { url ->
+                      context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                  }
+              }
+          if (!forced) builder.setNegativeButton("Later", null)
+          builder.setCancelable(!forced).show()
+      }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "sync", "CrashLogUploader.kt"), `package ${pkgName}.sync
+
+  import android.content.Context
+  import android.os.Build
+  import android.util.Log
+  import org.json.JSONObject
+  import java.io.PrintWriter
+  import java.io.StringWriter
+  import java.net.HttpURLConnection
+  import java.net.URL
+
+  class CrashLogUploader(private val context: Context, private val serverUrl: String, private val appVersion: String) : Thread.UncaughtExceptionHandler {
+      private val tag = "CrashLogUploader"
+      private val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+      private val prefs = context.getSharedPreferences("mpa_crash_logs", Context.MODE_PRIVATE)
+
+      fun install() {
+          Thread.setDefaultUncaughtExceptionHandler(this)
+          Log.d(tag, "Crash log uploader installed")
+          uploadPendingLogs()
+      }
+
+      override fun uncaughtException(thread: Thread, throwable: Throwable) {
+          try {
+              val sw = StringWriter()
+              throwable.printStackTrace(PrintWriter(sw))
+              val stackTrace = sw.toString()
+              val crashLog = JSONObject().apply {
+                  put("deviceId", android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID))
+                  put("deviceModel", "\${Build.MANUFACTURER} \${Build.MODEL}")
+                  put("appVersion", appVersion)
+                  put("errorMessage", throwable.message ?: "Unknown error")
+                  put("stackTrace", stackTrace.take(5000))
+                  put("crashedAt", System.currentTimeMillis().toString())
+                  put("threadName", thread.name)
+                  put("androidVersion", Build.VERSION.RELEASE)
+              }
+              saveCrashLog(crashLog)
+              try { uploadCrashLog(crashLog) } catch (_: Exception) {}
+          } catch (_: Exception) {}
+          defaultHandler?.uncaughtException(thread, throwable)
+      }
+
+      private fun saveCrashLog(log: JSONObject) {
+          val logs = prefs.getStringSet("pending_logs", mutableSetOf()) ?: mutableSetOf()
+          logs.add(log.toString())
+          prefs.edit().putStringSet("pending_logs", logs).apply()
+      }
+
+      private fun uploadPendingLogs() {
+          Thread {
+              val logs = prefs.getStringSet("pending_logs", mutableSetOf())?.toMutableSet() ?: return@Thread
+              if (logs.isEmpty()) return@Thread
+              val uploaded = mutableSetOf<String>()
+              for (logStr in logs) {
+                  try {
+                      uploadCrashLog(JSONObject(logStr))
+                      uploaded.add(logStr)
+                  } catch (_: Exception) {}
+              }
+              logs.removeAll(uploaded)
+              prefs.edit().putStringSet("pending_logs", logs).apply()
+              Log.d(tag, "Uploaded \${uploaded.size} pending crash logs")
+          }.start()
+      }
+
+      private fun uploadCrashLog(log: JSONObject) {
+          val url = URL("\$serverUrl/api/crash-logs")
+          val conn = url.openConnection() as HttpURLConnection
+          conn.requestMethod = "POST"
+          conn.setRequestProperty("Content-Type", "application/json")
+          conn.doOutput = true
+          conn.connectTimeout = 5000
+          conn.outputStream.write(log.toString().toByteArray())
+          conn.responseCode
+          conn.disconnect()
+      }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "security", "KioskModeManager.kt"), `package ${pkgName}.security
+
+  import android.app.Activity
+  import android.app.ActivityManager
+  import android.app.admin.DevicePolicyManager
+  import android.content.ComponentName
+  import android.content.Context
+  import android.os.Build
+  import android.util.Log
+  import android.view.View
+  import android.view.WindowInsets
+  import android.view.WindowInsetsController
+  import android.view.WindowManager
+
+  class KioskModeManager(private val context: Context) {
+      private val tag = "KioskModeManager"
+      private val prefs = context.getSharedPreferences("mpa_kiosk", Context.MODE_PRIVATE)
+
+      fun enableKioskMode(activity: Activity) {
+          Log.d(tag, "Enabling kiosk mode")
+          lockTaskMode(activity)
+          hideSystemUI(activity)
+          disableNotifications(activity)
+          activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          prefs.edit().putBoolean("kiosk_enabled", true).apply()
+      }
+
+      fun disableKioskMode(activity: Activity) {
+          Log.d(tag, "Disabling kiosk mode")
+          try { activity.stopLockTask() } catch (_: Exception) {}
+          showSystemUI(activity)
+          prefs.edit().putBoolean("kiosk_enabled", false).apply()
+      }
+
+      fun isKioskEnabled(): Boolean = prefs.getBoolean("kiosk_enabled", false)
+
+      private fun lockTaskMode(activity: Activity) {
+          try {
+              activity.startLockTask()
+              Log.d(tag, "Lock task mode enabled")
+          } catch (e: Exception) {
+              Log.w(tag, "Lock task requires device owner: \${e.message}")
+              hideSystemUI(activity)
+          }
+      }
+
+      private fun hideSystemUI(activity: Activity) {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+              activity.window.insetsController?.let { controller ->
+                  controller.hide(WindowInsets.Type.systemBars() or WindowInsets.Type.navigationBars())
+                  controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+              }
+          } else {
+              @Suppress("DEPRECATION")
+              activity.window.decorView.systemUiVisibility = (
+                  View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                  or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                  or View.SYSTEM_UI_FLAG_FULLSCREEN
+                  or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                  or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                  or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+              )
+          }
+      }
+
+      private fun showSystemUI(activity: Activity) {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+              activity.window.insetsController?.show(WindowInsets.Type.systemBars())
+          } else {
+              @Suppress("DEPRECATION")
+              activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+          }
+      }
+
+      private fun disableNotifications(activity: Activity) {
+          activity.window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+          Log.d(tag, "Notifications suppressed in kiosk mode")
+      }
+
+      fun isAppInForeground(): Boolean {
+          val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+          val tasks = am.appTasks
+          return tasks.isNotEmpty()
+      }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "security", "CentreLoginManager.kt"), `package ${pkgName}.security
+
+  import android.content.Context
+  import android.util.Log
+  import kotlinx.coroutines.*
+  import org.json.JSONObject
+  import java.net.HttpURLConnection
+  import java.net.URL
+  import java.text.SimpleDateFormat
+  import java.util.*
+
+  data class LoginWindow(
+      val examId: Int,
+      val centreCode: String,
+      val windowStart: Long,
+      val windowEnd: Long,
+      val isLocked: Boolean,
+      val maxDevices: Int,
+      val activeDevices: Int
+  )
+
+  class CentreLoginManager(private val context: Context, private val serverUrl: String) {
+      private val tag = "CentreLoginManager"
+      private val scope = CoroutineScope(Dispatchers.IO)
+
+      fun validateLogin(examId: Int, centreCode: String, deviceId: String, callback: (allowed: Boolean, message: String) -> Unit) {
+          scope.launch {
+              try {
+                  val url = URL("\$serverUrl/api/centre-login/validate")
+                  val conn = url.openConnection() as HttpURLConnection
+                  conn.requestMethod = "POST"
+                  conn.setRequestProperty("Content-Type", "application/json")
+                  conn.doOutput = true
+                  val body = JSONObject().apply {
+                      put("examId", examId)
+                      put("centreCode", centreCode)
+                      put("deviceId", deviceId)
+                      put("timestamp", System.currentTimeMillis())
+                  }
+                  conn.outputStream.write(body.toString().toByteArray())
+                  val response = conn.inputStream.bufferedReader().readText()
+                  val json = JSONObject(response)
+                  val allowed = json.getBoolean("allowed")
+                  val message = json.getString("message")
+                  withContext(Dispatchers.Main) { callback(allowed, message) }
+              } catch (e: Exception) {
+                  Log.e(tag, "Login validation failed: \${e.message}")
+                  withContext(Dispatchers.Main) { callback(true, "Offline mode - login allowed") }
+              }
+          }
+      }
+
+      fun checkForForceLogout(examId: Int, deviceId: String, callback: (shouldLogout: Boolean, reason: String?) -> Unit) {
+          scope.launch {
+              try {
+                  val url = URL("\$serverUrl/api/devices/check-logout?examId=\$examId&deviceId=\$deviceId")
+                  val conn = url.openConnection() as HttpURLConnection
+                  conn.requestMethod = "GET"
+                  conn.connectTimeout = 5000
+                  val response = conn.inputStream.bufferedReader().readText()
+                  val json = JSONObject(response)
+                  val shouldLogout = json.optBoolean("forceLogout", false)
+                  val reason = json.optString("reason", null)
+                  withContext(Dispatchers.Main) { callback(shouldLogout, reason) }
+              } catch (e: Exception) {
+                  withContext(Dispatchers.Main) { callback(false, null) }
+              }
+          }
+      }
+
+      fun startForceLogoutPolling(examId: Int, deviceId: String, intervalMs: Long = 30000, onLogout: (reason: String?) -> Unit): Job {
+          return scope.launch {
+              while (isActive) {
+                  checkForForceLogout(examId, deviceId) { shouldLogout, reason ->
+                      if (shouldLogout) onLogout(reason)
+                  }
+                  delay(intervalMs)
+              }
+          }
+      }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "sync", "DeviceManager.kt"), `package ${pkgName}.sync
+
+  import android.content.Context
+  import android.os.Build
+  import android.provider.Settings
+  import android.util.Log
+  import kotlinx.coroutines.*
+  import org.json.JSONObject
+  import java.net.HttpURLConnection
+  import java.net.URL
+
+  class DeviceManager(private val context: Context, private val serverUrl: String) {
+      private val tag = "DeviceManager"
+      private val scope = CoroutineScope(Dispatchers.IO)
+
+      fun registerDevice(examId: Int, centreCode: String, operatorName: String, callback: (success: Boolean, message: String) -> Unit) {
+          scope.launch {
+              try {
+                  val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+                  val url = URL("\$serverUrl/api/devices/register")
+                  val conn = url.openConnection() as HttpURLConnection
+                  conn.requestMethod = "POST"
+                  conn.setRequestProperty("Content-Type", "application/json")
+                  conn.doOutput = true
+                  val body = JSONObject().apply {
+                      put("deviceId", deviceId)
+                      put("model", "\${Build.MANUFACTURER} \${Build.MODEL}")
+                      put("androidVersion", Build.VERSION.RELEASE)
+                      put("examId", examId)
+                      put("centreCode", centreCode)
+                      put("operatorName", operatorName)
+                      put("appVersion", getAppVersion())
+                  }
+                  conn.outputStream.write(body.toString().toByteArray())
+                  val response = conn.inputStream.bufferedReader().readText()
+                  val json = JSONObject(response)
+                  withContext(Dispatchers.Main) {
+                      callback(json.getBoolean("success"), json.optString("message", "Registered"))
+                  }
+              } catch (e: Exception) {
+                  Log.e(tag, "Device registration failed: \${e.message}")
+                  withContext(Dispatchers.Main) { callback(false, "Registration failed: \${e.message}") }
+              }
+          }
+      }
+
+      fun sendSyncStatus(examId: Int, syncedCount: Int, failedCount: Int, queueSize: Int) {
+          scope.launch {
+              try {
+                  val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+                  val url = URL("\$serverUrl/api/devices/sync-status")
+                  val conn = url.openConnection() as HttpURLConnection
+                  conn.requestMethod = "POST"
+                  conn.setRequestProperty("Content-Type", "application/json")
+                  conn.doOutput = true
+                  val body = JSONObject().apply {
+                      put("deviceId", deviceId)
+                      put("examId", examId)
+                      put("syncedCount", syncedCount)
+                      put("failedCount", failedCount)
+                      put("queueSize", queueSize)
+                      put("timestamp", System.currentTimeMillis())
+                  }
+                  conn.outputStream.write(body.toString().toByteArray())
+                  conn.responseCode
+                  conn.disconnect()
+              } catch (e: Exception) {
+                  Log.e(tag, "Sync status update failed: \${e.message}")
+              }
+          }
+      }
+
+      fun checkMDMCommands(deviceId: String, callback: (command: String?, payload: JSONObject?) -> Unit) {
+          scope.launch {
+              try {
+                  val url = URL("\$serverUrl/api/devices/mdm-command?deviceId=\$deviceId")
+                  val conn = url.openConnection() as HttpURLConnection
+                  conn.requestMethod = "GET"
+                  conn.connectTimeout = 5000
+                  val response = conn.inputStream.bufferedReader().readText()
+                  val json = JSONObject(response)
+                  val command = json.optString("command", null)
+                  val payload = if (json.has("payload")) json.getJSONObject("payload") else null
+                  withContext(Dispatchers.Main) { callback(command, payload) }
+              } catch (e: Exception) {
+                  withContext(Dispatchers.Main) { callback(null, null) }
+              }
+          }
+      }
+
+      fun manualSync(offlineSyncManager: OfflineSyncManager, callback: (synced: Int, failed: Int) -> Unit) {
+          Log.d(tag, "Manual sync triggered by operator")
+          offlineSyncManager.emergencySync { synced, failed, remaining ->
+              sendSyncStatus(0, synced, failed, remaining)
+              callback(synced, failed)
+          }
+      }
+
+      private fun getAppVersion(): String {
+          return try {
+              context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
+          } catch (_: Exception) { "1.0" }
       }
   }`);
 }

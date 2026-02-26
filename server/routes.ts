@@ -4,6 +4,12 @@ import * as fs from "fs";
 import { buildApk, generateApkConfig, type BuildConfig } from "./apk-builder";
 import { type Server } from "http";
 import { storage } from "./storage";
+  import { db } from "./db";
+  import { eq, desc } from "drizzle-orm";
+  import {
+    devices, deviceWhitelist, deviceSyncLogs, crashLogs,
+    centreLoginLocks, appVersions, apkBuilds,
+  } from "@shared/schema";
 import {
   insertExamSchema, insertCenterSchema, insertOperatorSchema,
   insertCandidateSchema, insertDepartmentSchema, insertDesignationSchema,
@@ -3117,6 +3123,271 @@ class CandidateListActivity : AppCompatActivity() {
       } catch (e: any) {
         res.status(500).json({ success: false, message: e.message });
       }
+    });
+
+  
+    // ====== APP VERSION / FORCE UPDATE ======
+
+    app.get("/api/app/version", async (_req: Request, res: Response) => {
+      try {
+        const versions = await db.select().from(appVersions).orderBy(desc(appVersions.id)).limit(1);
+        if (versions.length === 0) {
+          return res.json({ latestVersionCode: 1, latestVersionName: "1.0.0", minVersionCode: 1, forceUpdate: false });
+        }
+        const v = versions[0];
+        res.json({
+          latestVersionCode: v.versionCode, latestVersionName: v.versionName,
+          minVersionCode: v.minVersionCode, forceUpdate: v.forceUpdate,
+          downloadUrl: v.downloadUrl, releaseNotes: v.releaseNotes,
+        });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/app/version", async (req: Request, res: Response) => {
+      try {
+        const { versionCode, versionName, minVersionCode, downloadUrl, releaseNotes, forceUpdate } = req.body;
+        const result = await db.insert(appVersions).values({
+          versionCode, versionName, minVersionCode: minVersionCode || 1,
+          downloadUrl, releaseNotes, forceUpdate: forceUpdate || false,
+          publishedAt: new Date().toISOString(),
+        }).returning();
+        res.json(result[0]);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // ====== DEVICE WHITELIST ======
+
+    app.get("/api/devices/whitelist", async (req: Request, res: Response) => {
+      try {
+        const examId = req.query.examId ? Number(req.query.examId) : undefined;
+        let rows;
+        if (examId) {
+          rows = await db.select().from(deviceWhitelist).where(eq(deviceWhitelist.examId, examId));
+        } else {
+          rows = await db.select().from(deviceWhitelist);
+        }
+        res.json(rows);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/devices/whitelist", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, deviceModel, manufacturer, examId, centreCode, addedBy } = req.body;
+        if (!deviceId) return res.status(400).json({ message: "deviceId required" });
+        const result = await db.insert(deviceWhitelist).values({
+          deviceId, deviceModel, manufacturer, examId, centreCode, addedBy,
+          status: "Active", addedAt: new Date().toISOString(),
+        }).returning();
+        res.json(result[0]);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.delete("/api/devices/whitelist/:id", async (req: Request, res: Response) => {
+      try {
+        await db.delete(deviceWhitelist).where(eq(deviceWhitelist.id, Number(req.params.id)));
+        res.json({ success: true });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // ====== DEVICE REGISTRATION ======
+
+    app.post("/api/devices/register", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, model, androidVersion, examId, centreCode, operatorName } = req.body;
+        const whitelisted = await db.select().from(deviceWhitelist).where(eq(deviceWhitelist.deviceId, deviceId)).limit(1);
+        if (whitelisted.length === 0) {
+          const allWhitelisted = await db.select().from(deviceWhitelist).limit(1);
+          if (allWhitelisted.length > 0) {
+            return res.status(403).json({ success: false, message: "Device not whitelisted" });
+          }
+        }
+        const existing = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
+        if (existing.length > 0) {
+          await db.update(devices).set({
+            model, androidVersion, examId, centreCode, operatorName,
+            loginStatus: "Logged In", lastSyncAt: new Date().toISOString(),
+          }).where(eq(devices.id, existing[0].id));
+          res.json({ success: true, message: "Device re-registered" });
+        } else {
+          const result = await db.insert(devices).values({
+            macAddress: deviceId, imei: deviceId, model, androidVersion,
+            examId, centreCode, operatorName, loginStatus: "Logged In",
+            status: "Active", lastSyncAt: new Date().toISOString(),
+          }).returning();
+          res.json({ success: true, message: "Device registered" });
+        }
+      } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+    });
+
+    // ====== SYNC DASHBOARD ======
+
+    app.post("/api/devices/sync-status", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, examId, syncedCount, failedCount } = req.body;
+        await db.insert(deviceSyncLogs).values({
+          deviceId, examId, syncType: "auto",
+          recordsSynced: syncedCount, recordsFailed: failedCount,
+          syncStatus: failedCount > 0 ? "partial" : "completed",
+          syncedAt: new Date().toISOString(),
+        });
+        await db.update(devices).set({ lastSyncAt: new Date().toISOString() }).where(eq(devices.imei, deviceId));
+        res.json({ success: true });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/admin/sync-dashboard", async (req: Request, res: Response) => {
+      try {
+        const examId = req.query.examId ? Number(req.query.examId) : undefined;
+        let allDevices;
+        if (examId) {
+          allDevices = await db.select().from(devices).where(eq(devices.examId, examId));
+        } else {
+          allDevices = await db.select().from(devices);
+        }
+        const recentSyncs = await db.select().from(deviceSyncLogs).orderBy(desc(deviceSyncLogs.id)).limit(100);
+        res.json({
+          totalDevices: allDevices.length,
+          activeDevices: allDevices.filter((d: any) => d.loginStatus === "Logged In").length,
+          loggedOutDevices: allDevices.filter((d: any) => d.loginStatus !== "Logged In").length,
+          devices: allDevices.map((d: any) => ({ ...d, syncs: recentSyncs.filter((s: any) => s.deviceId === d.imei) })),
+        });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // ====== FORCE LOGOUT ======
+
+    app.post("/api/devices/force-logout", async (req: Request, res: Response) => {
+      try {
+        const { examId, reason } = req.body;
+        if (!examId) return res.status(400).json({ message: "examId required" });
+        await db.update(devices).set({
+          loginStatus: "Force Logged Out", mdmStatus: reason || "Admin force logout",
+        }).where(eq(devices.examId, examId));
+        res.json({ success: true, message: "All devices for exam " + examId + " force logged out" });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/devices/check-logout", async (req: Request, res: Response) => {
+      try {
+        const deviceId = String(req.query.deviceId || "");
+        if (!deviceId) return res.json({ forceLogout: false });
+        const device = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
+        if (device.length > 0 && device[0].loginStatus === "Force Logged Out") {
+          res.json({ forceLogout: true, reason: device[0].mdmStatus });
+        } else {
+          res.json({ forceLogout: false });
+        }
+      } catch (e: any) { res.json({ forceLogout: false }); }
+    });
+
+    // ====== MDM CONTROL ======
+
+    app.post("/api/devices/mdm-command", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, command } = req.body;
+        if (!deviceId || !command) return res.status(400).json({ message: "deviceId and command required" });
+        await db.update(devices).set({ mdmStatus: command }).where(eq(devices.imei, deviceId));
+        res.json({ success: true, message: "Command " + command + " sent to " + deviceId });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/devices/mdm-command", async (req: Request, res: Response) => {
+      try {
+        const deviceId = String(req.query.deviceId || "");
+        if (!deviceId) return res.json({ command: null });
+        const device = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
+        if (device.length > 0 && device[0].mdmStatus && !["Active", "Inactive"].includes(device[0].mdmStatus || "")) {
+          const command = device[0].mdmStatus;
+          await db.update(devices).set({ mdmStatus: "Active" }).where(eq(devices.id, device[0].id));
+          res.json({ command, payload: {} });
+        } else {
+          res.json({ command: null });
+        }
+      } catch (e: any) { res.json({ command: null }); }
+    });
+
+    // ====== CRASH LOGS ======
+
+    app.post("/api/crash-logs", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, deviceModel, appVersion, errorMessage, stackTrace, crashedAt, examId } = req.body;
+        const result = await db.insert(crashLogs).values({
+          deviceId: deviceId || "unknown", deviceModel, appVersion,
+          errorMessage, stackTrace, examId,
+          crashedAt: crashedAt || new Date().toISOString(),
+        }).returning();
+        res.json({ success: true, id: result[0].id });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/crash-logs", async (_req: Request, res: Response) => {
+      try {
+        const logs = await db.select().from(crashLogs).orderBy(desc(crashLogs.id)).limit(100);
+        res.json(logs);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // ====== CENTRE LOGIN LOCK ======
+
+    app.post("/api/centre-login/validate", async (req: Request, res: Response) => {
+      try {
+        const { examId, centreCode } = req.body;
+        const locks = await db.select().from(centreLoginLocks).where(eq(centreLoginLocks.examId, examId));
+        const lock = locks.find((l: any) => l.centreCode === centreCode);
+        if (!lock) return res.json({ allowed: true, message: "No login restrictions" });
+        if (lock.isLocked) return res.json({ allowed: false, message: "Centre locked by admin" });
+        const now = Date.now();
+        if (lock.windowStart && now < new Date(lock.windowStart).getTime()) {
+          return res.json({ allowed: false, message: "Login window not open. Opens: " + lock.windowStart });
+        }
+        if (lock.windowEnd && now > new Date(lock.windowEnd).getTime()) {
+          return res.json({ allowed: false, message: "Login window expired: " + lock.windowEnd });
+        }
+        if (lock.maxDevices && (lock.activeDevices || 0) >= lock.maxDevices) {
+          return res.json({ allowed: false, message: "Max devices (" + lock.maxDevices + ") reached" });
+        }
+        await db.update(centreLoginLocks).set({ activeDevices: (lock.activeDevices || 0) + 1 }).where(eq(centreLoginLocks.id, lock.id));
+        res.json({ allowed: true, message: "Login permitted" });
+      } catch (e: any) { res.json({ allowed: true, message: "Validation error - defaulting to allow" }); }
+    });
+
+    app.get("/api/centre-login/locks", async (req: Request, res: Response) => {
+      try {
+        const examId = req.query.examId ? Number(req.query.examId) : undefined;
+        let rows;
+        if (examId) {
+          rows = await db.select().from(centreLoginLocks).where(eq(centreLoginLocks.examId, examId));
+        } else {
+          rows = await db.select().from(centreLoginLocks);
+        }
+        res.json(rows);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/centre-login/locks", async (req: Request, res: Response) => {
+      try {
+        const { examId, centreCode, windowStart, windowEnd, isLocked, maxDevices } = req.body;
+        const result = await db.insert(centreLoginLocks).values({
+          examId, centreCode, windowStart, windowEnd,
+          isLocked: isLocked || false, maxDevices: maxDevices || 10,
+        }).returning();
+        res.json(result[0]);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // ====== BUILD QUEUE DASHBOARD ======
+
+    app.get("/api/admin/build-queue", async (_req: Request, res: Response) => {
+      try {
+        const builds = await db.select().from(apkBuilds).orderBy(desc(apkBuilds.id)).limit(50);
+        res.json({
+          totalBuilds: builds.length,
+          pending: builds.filter((b: any) => b.status === "Building").length,
+          completed: builds.filter((b: any) => ["Ready", "Completed"].includes(b.status)).length,
+          failed: builds.filter((b: any) => b.status === "Failed").length,
+          builds,
+        });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
     return httpServer;

@@ -185,7 +185,71 @@ export const globalTechSettings = pgTable("global_tech_settings", {
   settings: jsonb("settings"),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+
+  export const deviceWhitelist = pgTable("device_whitelist", {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    deviceModel: text("device_model"),
+    manufacturer: text("manufacturer"),
+    examId: integer("exam_id"),
+    centreCode: text("centre_code"),
+    addedBy: text("added_by"),
+    status: text("status").notNull().default("Active"),
+    addedAt: text("added_at"),
+  });
+
+  export const deviceSyncLogs = pgTable("device_sync_logs", {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    examId: integer("exam_id"),
+    centreCode: text("centre_code"),
+    syncType: text("sync_type").default("auto"),
+    recordsSynced: integer("records_synced").default(0),
+    recordsFailed: integer("records_failed").default(0),
+    syncStatus: text("sync_status").default("completed"),
+    syncedAt: text("synced_at"),
+  });
+
+  export const crashLogs = pgTable("crash_logs", {
+    id: serial("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    deviceModel: text("device_model"),
+    appVersion: text("app_version"),
+    examId: integer("exam_id"),
+    errorMessage: text("error_message"),
+    stackTrace: text("stack_trace"),
+    crashedAt: text("crashed_at"),
+  });
+
+  export const centreLoginLocks = pgTable("centre_login_locks", {
+    id: serial("id").primaryKey(),
+    examId: integer("exam_id").notNull(),
+    centreCode: text("centre_code").notNull(),
+    windowStart: text("window_start"),
+    windowEnd: text("window_end"),
+    isLocked: boolean("is_locked").default(false),
+    maxDevices: integer("max_devices").default(10),
+    activeDevices: integer("active_devices").default(0),
+  });
+
+  export const appVersions = pgTable("app_versions", {
+    id: serial("id").primaryKey(),
+    versionCode: integer("version_code").notNull(),
+    versionName: text("version_name").notNull(),
+    minVersionCode: integer("min_version_code").notNull(),
+    downloadUrl: text("download_url"),
+    releaseNotes: text("release_notes"),
+    forceUpdate: boolean("force_update").default(false),
+    publishedAt: text("published_at"),
+  });
+
+  export const insertDeviceWhitelistSchema = createInsertSchema(deviceWhitelist).omit({ id: true });
+  export const insertDeviceSyncLogSchema = createInsertSchema(deviceSyncLogs).omit({ id: true });
+  export const insertCrashLogSchema = createInsertSchema(crashLogs).omit({ id: true });
+  export const insertCentreLoginLockSchema = createInsertSchema(centreLoginLocks).omit({ id: true });
+  export const insertAppVersionSchema = createInsertSchema(appVersions).omit({ id: true });
+
+  export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true });
 export const insertCenterSchema = createInsertSchema(centers).omit({ id: true });
 export const insertOperatorSchema = createInsertSchema(operators).omit({ id: true });
@@ -228,3 +292,14 @@ export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type Alert = typeof alerts.$inferSelect;
 export type InsertGlobalTechSettings = z.infer<typeof insertGlobalTechSettingsSchema>;
 export type GlobalTechSettings = typeof globalTechSettings.$inferSelect;
+  export type InsertDeviceWhitelist = z.infer<typeof insertDeviceWhitelistSchema>;
+  export type DeviceWhitelist = typeof deviceWhitelist.$inferSelect;
+  export type InsertDeviceSyncLog = z.infer<typeof insertDeviceSyncLogSchema>;
+  export type DeviceSyncLog = typeof deviceSyncLogs.$inferSelect;
+  export type InsertCrashLog = z.infer<typeof insertCrashLogSchema>;
+  export type CrashLog = typeof crashLogs.$inferSelect;
+  export type InsertCentreLoginLock = z.infer<typeof insertCentreLoginLockSchema>;
+  export type CentreLoginLock = typeof centreLoginLocks.$inferSelect;
+  export type InsertAppVersion = z.infer<typeof insertAppVersionSchema>;
+  export type AppVersion = typeof appVersions.$inferSelect;
+  
