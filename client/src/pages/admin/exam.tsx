@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, MoreVertical, Key, User, Clock, Trash2, Edit, UploadCloud, SquareSquare, Loader2 } from "lucide-react";
+import { Plus, Search, MoreVertical, Key, User, Clock, Trash2, Edit, UploadCloud, SquareSquare, Play, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const COLOR_OPTIONS = [
   "bg-blue-100 text-blue-600",
@@ -41,15 +42,13 @@ function formatDate(dateStr: string): string {
 
 export default function ExamMaster({ setActivePage }: { setActivePage?: (page: string) => void }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingExamId, setEditingExamId] = useState<number | null>(null);
   const [activeStep, setActiveStep] = useState(1);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-
-  const todayFormatted = (() => {
-    const d = new Date();
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-  })();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -58,6 +57,21 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
     clientLoginId: "",
     clientLoginPass: "",
     apkPassword: "",
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    code: "",
+    client: "",
+    clientLoginId: "",
+    clientLoginPass: "",
+    apkPassword: "",
+    biometricMode: "face",
+    flowType: "single",
+    attendanceMode: "both",
+    omrMode: "verification",
+    faceLiveness: true,
+    retryLimit: "3",
   });
 
   const [slots, setSlots] = useState([{ name: "Slot 1", startTime: "09:00", endTime: "12:00" }]);
@@ -97,6 +111,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
     loginId: exam.clientLoginId || "-",
     loginPass: exam.clientLoginPass || "-",
     color: getColorFromCode(exam.code || ""),
+    rawExam: exam,
   }));
 
   const createMutation = useMutation({
@@ -113,21 +128,107 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
         });
       }
       queryClient.invalidateQueries({ queryKey: ["exams"] });
-      queryClient.invalidateQueries({ queryKey: ["slots"] });
       setIsAddModalOpen(false);
       setFormData({ name: "", code: "", client: "", clientLoginId: "", clientLoginPass: "", apkPassword: "" });
       setSlots([{ name: "Slot 1", startTime: "09:00", endTime: "12:00" }]);
       setSettings({ biometricMode: "face", flowType: "single", attendanceMode: "both", omrMode: "verification", faceLiveness: true, fingerprintQuality: true, offlineMode: true, gps: false, mdm: false, retryLimit: "3" });
       setActiveStep(1);
+      toast({ title: "Exam created successfully" });
     },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.exams.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exams"] });
+      setIsEditModalOpen(false);
+      setEditingExamId(null);
+      toast({ title: "Exam updated successfully" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.exams.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exams"] });
+      toast({ title: "Exam deleted successfully" });
     },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) => api.exams.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exams"] });
+      toast({ title: "Exam status updated" });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const handleEditClick = (exam: any) => {
+    const raw = exam.rawExam;
+    setEditingExamId(exam.examId);
+    setEditFormData({
+      name: raw.name || "",
+      code: raw.code || "",
+      client: raw.client || "",
+      clientLoginId: raw.clientLoginId || "",
+      clientLoginPass: raw.clientLoginPass || "",
+      apkPassword: raw.apkPassword || "",
+      biometricMode: raw.biometricMode || "face",
+      flowType: raw.flowType || "single",
+      attendanceMode: raw.attendanceMode || "both",
+      omrMode: raw.omrMode || "verification",
+      faceLiveness: raw.faceLiveness ?? true,
+      retryLimit: raw.retryLimit ? String(raw.retryLimit) : "3",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSave = () => {
+    if (!editingExamId) return;
+    updateMutation.mutate({
+      id: editingExamId,
+      data: {
+        name: editFormData.name,
+        code: editFormData.code,
+        client: editFormData.client,
+        clientLoginId: editFormData.clientLoginId,
+        clientLoginPass: editFormData.clientLoginPass,
+        apkPassword: editFormData.apkPassword,
+        biometricMode: editFormData.biometricMode,
+        flowType: editFormData.flowType,
+        attendanceMode: editFormData.attendanceMode,
+        omrMode: editFormData.omrMode,
+        faceLiveness: editFormData.faceLiveness,
+        retryLimit: parseInt(editFormData.retryLimit) || 3,
+      },
+    });
+  };
+
+  const handleToggleStatus = (examId: number, currentStatus: string) => {
+    const newStatus = currentStatus === "Active" ? "Stopped" : "Active";
+    statusMutation.mutate({ id: examId, status: newStatus });
+  };
+
+  const handleCreateExam = () => {
+    createMutation.mutate({
+      name: formData.name,
+      code: formData.code,
+      client: formData.client,
+      clientLoginId: formData.clientLoginId,
+      clientLoginPass: formData.clientLoginPass,
+      apkPassword: formData.apkPassword,
+      biometricMode: settings.biometricMode,
+      flowType: settings.flowType,
+      attendanceMode: settings.attendanceMode,
+      omrMode: settings.omrMode,
+      faceLiveness: settings.faceLiveness,
+      retryLimit: parseInt(settings.retryLimit) || 3,
+    });
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
@@ -142,7 +243,7 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
           if (open) setActiveStep(1);
         }}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 h-auto gap-2">
+            <Button data-testid="button-create-exam" className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 h-auto gap-2">
               <Plus className="w-4 h-4" /> Create Exam
             </Button>
           </DialogTrigger>
@@ -151,7 +252,6 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
               <DialogTitle className="text-xl font-bold text-gray-900">Create New Exam</DialogTitle>
             </DialogHeader>
             
-            {/* Modal Tabs */}
             <div className="flex border-b border-gray-100 px-6 mt-4">
               <div 
                 className={`py-3 px-4 text-sm font-medium border-b-2 cursor-pointer ${activeStep === 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -173,77 +273,79 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
               </div>
             </div>
 
-            {/* Step 1: Basic Info */}
             {activeStep === 1 && (
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Exam Name <span className="text-gray-400">*</span></label>
-                    <Input placeholder="e.g., UPSC Civil Services 2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                    <Input placeholder="e.g., UPSC Civil Services 2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} data-testid="input-exam-name" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Exam Code <span className="text-gray-400">*</span></label>
-                    <Input placeholder="e.g., UPSC-CS-2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} />
+                    <Input placeholder="e.g., UPSC-CS-2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} data-testid="input-exam-code" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Client Name <span className="text-gray-400">*</span></label>
-                    <Input placeholder="e.g., Union Public Service Commission" className="border-gray-200 focus-visible:ring-blue-500" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} />
+                    <Input placeholder="e.g., UPSC Board" className="border-gray-200 focus-visible:ring-blue-500" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} data-testid="input-exam-client" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">APK Download Password</label>
+                    <Input placeholder="e.g., UPSC2024" className="border-gray-200 focus-visible:ring-blue-500" value={formData.apkPassword} onChange={(e) => setFormData({ ...formData, apkPassword: e.target.value })} data-testid="input-exam-apk-password" />
                   </div>
                 </div>
-
-                <div>
-                  <h4 className="text-[15px] font-semibold text-gray-900 mb-4">Credentials</h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Login ID <span className="text-gray-400">*</span></label>
-                      <Input placeholder="e.g., upsc_client" className="border-gray-200 focus-visible:ring-blue-500" value={formData.clientLoginId} onChange={(e) => setFormData({ ...formData, clientLoginId: e.target.value })} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Login Password <span className="text-gray-400">*</span></label>
-                      <Input placeholder="Enter password" type="password" className="border-gray-200 focus-visible:ring-blue-500" value={formData.clientLoginPass} onChange={(e) => setFormData({ ...formData, clientLoginPass: e.target.value })} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">APK Password <span className="text-gray-400">*</span></label>
-                      <Input placeholder="Enter APK password" type="password" className="border-gray-200 focus-visible:ring-blue-500" value={formData.apkPassword} onChange={(e) => setFormData({ ...formData, apkPassword: e.target.value })} />
-                    </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Client Login ID</label>
+                    <Input placeholder="Auto-generated or custom" className="border-gray-200 focus-visible:ring-blue-500" value={formData.clientLoginId} onChange={(e) => setFormData({ ...formData, clientLoginId: e.target.value })} data-testid="input-exam-client-login-id" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Client Login Password</label>
+                    <Input placeholder="Auto-generated or custom" className="border-gray-200 focus-visible:ring-blue-500" value={formData.clientLoginPass} onChange={(e) => setFormData({ ...formData, clientLoginPass: e.target.value })} data-testid="input-exam-client-login-pass" />
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Step 2: Time Slots */}
-            {activeStep === 2 && (
-              <div className="p-6 space-y-6 min-h-[300px]">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">Time Slots <span className="text-red-500">*</span></h4>
-                    <p className="text-xs text-gray-500 mt-1">Define examination time slots (at least one required)</p>
-                  </div>
-                  <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 gap-2 h-9 rounded-lg" onClick={() => setSlots([...slots, { name: "Slot " + (slots.length + 1), startTime: "", endTime: "" }])}>
-                    <Plus className="w-4 h-4" /> Add Slot
+                <div className="flex justify-end">
+                  <Button onClick={() => setActiveStep(2)} className="bg-blue-600 hover:bg-blue-700 text-white" data-testid="button-next-step-2">
+                    Next: Time Slots
                   </Button>
                 </div>
-                
-                {slots.map((slot, i) => (
-                <div key={i} className="flex items-center gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
-                  <Input value={slot.name} onChange={(e) => { const updated = [...slots]; updated[i] = { ...updated[i], name: e.target.value }; setSlots(updated); }} className="bg-white border-gray-200" />
-                  <div className="relative flex-1">
-                    <Input value={slot.startTime} onChange={(e) => { const updated = [...slots]; updated[i] = { ...updated[i], startTime: e.target.value }; setSlots(updated); }} className="bg-white border-gray-200 pr-10" />
-                    <Clock className="w-4 h-4 text-gray-400 absolute right-3 top-2.5" />
-                  </div>
-                  <div className="relative flex-1">
-                    <Input value={slot.endTime} onChange={(e) => { const updated = [...slots]; updated[i] = { ...updated[i], endTime: e.target.value }; setSlots(updated); }} className="bg-white border-gray-200 pr-10" />
-                    <Clock className="w-4 h-4 text-gray-400 absolute right-3 top-2.5" />
-                  </div>
-                  <button className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" onClick={() => setSlots(slots.filter((_, idx) => idx !== i))}>
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                ))}
               </div>
             )}
 
-            {/* Step 3: Settings */}
+            {activeStep === 2 && (
+              <div className="p-6 space-y-6">
+                <div className="space-y-4">
+                  {slots.map((slot, idx) => (
+                    <div key={idx} className="flex items-end gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      <div className="flex-1 space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Slot Name</label>
+                        <Input value={slot.name} onChange={(e) => { const ns = [...slots]; ns[idx].name = e.target.value; setSlots(ns); }} className="border-gray-200" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Start Time</label>
+                        <Input type="time" value={slot.startTime} onChange={(e) => { const ns = [...slots]; ns[idx].startTime = e.target.value; setSlots(ns); }} className="border-gray-200" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">End Time</label>
+                        <Input type="time" value={slot.endTime} onChange={(e) => { const ns = [...slots]; ns[idx].endTime = e.target.value; setSlots(ns); }} className="border-gray-200" />
+                      </div>
+                      {slots.length > 1 && (
+                        <Button variant="outline" size="icon" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => setSlots(slots.filter((_, i) => i !== idx))}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" className="gap-2 border-dashed border-gray-300 text-gray-600" onClick={() => setSlots([...slots, { name: `Slot ${slots.length + 1}`, startTime: "09:00", endTime: "12:00" }])}>
+                  <Plus className="w-4 h-4" /> Add Slot
+                </Button>
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={() => setActiveStep(1)}>Back</Button>
+                  <Button onClick={() => setActiveStep(3)} className="bg-blue-600 hover:bg-blue-700 text-white">Next: Settings</Button>
+                </div>
+              </div>
+            )}
+
             {activeStep === 3 && (
               <div className="p-6 space-y-6">
                 <div>
@@ -267,8 +369,8 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                         <SelectTrigger className="border-gray-200"><SelectValue placeholder="Select flow" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="single">Single Biometric</SelectItem>
-                          <SelectItem value="face_finger">Face → Fingerprint</SelectItem>
-                          <SelectItem value="finger_face">Fingerprint → Face</SelectItem>
+                          <SelectItem value="face_finger">Face then Fingerprint</SelectItem>
+                          <SelectItem value="finger_face">Fingerprint then Face</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -299,103 +401,56 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                 </div>
 
                 <div>
-                  <h4 className="text-[15px] font-semibold text-gray-900 mb-4">Features</h4>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-                    <div className="flex items-start space-x-3">
-                      <Switch id="liveness" checked={settings.faceLiveness} onCheckedChange={(v) => setSettings({...settings, faceLiveness: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
+                  <h4 className="text-[15px] font-semibold text-gray-900 mb-4">Additional Options</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <label htmlFor="liveness" className="text-sm font-medium text-gray-900 cursor-pointer">Face Liveness Detection</label>
-                        <p className="text-xs text-gray-500">Detect live face vs photo</p>
+                        <div className="font-medium text-sm text-gray-700">Face Liveness Detection</div>
+                        <div className="text-xs text-gray-400">Ensure real face during verification</div>
                       </div>
+                      <Switch checked={settings.faceLiveness} onCheckedChange={(v) => setSettings({...settings, faceLiveness: v})} />
                     </div>
-                    <div className="flex items-start space-x-3">
-                      <Switch id="finger_quality" checked={settings.fingerprintQuality} onCheckedChange={(v) => setSettings({...settings, fingerprintQuality: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
+                    <div className="flex items-center justify-between">
                       <div>
-                        <label htmlFor="finger_quality" className="text-sm font-medium text-gray-900 cursor-pointer">Fingerprint Quality Check</label>
-                        <p className="text-xs text-gray-500">Ensure fingerprint quality</p>
+                        <div className="font-medium text-sm text-gray-700">Fingerprint Quality Check</div>
+                        <div className="text-xs text-gray-400">Reject low quality fingerprints</div>
                       </div>
+                      <Switch checked={settings.fingerprintQuality} onCheckedChange={(v) => setSettings({...settings, fingerprintQuality: v})} />
                     </div>
-                    <div className="flex items-start space-x-3">
-                      <Switch id="offline" checked={settings.offlineMode} onCheckedChange={(v) => setSettings({...settings, offlineMode: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
+                    <div className="flex items-center justify-between">
                       <div>
-                        <label htmlFor="offline" className="text-sm font-medium text-gray-900 cursor-pointer">Offline Mode</label>
-                        <p className="text-xs text-gray-500">Allow offline operations</p>
+                        <div className="font-medium text-sm text-gray-700">Offline Mode Support</div>
+                        <div className="text-xs text-gray-400">Allow operation without internet</div>
                       </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <Switch id="gps" checked={settings.gps} onCheckedChange={(v) => setSettings({...settings, gps: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
-                      <div>
-                        <label htmlFor="gps" className="text-sm font-medium text-gray-900 cursor-pointer">GPS Capture</label>
-                        <p className="text-xs text-gray-500">Record location</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <Switch id="mdm" checked={settings.mdm} onCheckedChange={(v) => setSettings({...settings, mdm: v})} className="mt-1 data-[state=checked]:bg-blue-600" />
-                      <div>
-                        <label htmlFor="mdm" className="text-sm font-medium text-gray-900 cursor-pointer">MDM Control</label>
-                        <p className="text-xs text-gray-500">Enable MDM</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <div className="w-full space-y-1">
-                        <label className="text-sm font-medium text-gray-900">Retry Limit</label>
-                        <Input value={settings.retryLimit} onChange={(e) => setSettings({...settings, retryLimit: e.target.value})} className="border-gray-200 w-full focus-visible:ring-blue-500" />
-                      </div>
+                      <Switch checked={settings.offlineMode} onCheckedChange={(v) => setSettings({...settings, offlineMode: v})} />
                     </div>
                   </div>
                 </div>
+
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={() => setActiveStep(2)}>Back</Button>
+                  <Button
+                    data-testid="button-submit-create-exam"
+                    className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                    disabled={createMutation.isPending || !formData.name || !formData.code || !formData.client}
+                    onClick={handleCreateExam}
+                  >
+                    {createMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Create Exam
+                  </Button>
+                </div>
               </div>
             )}
-
-            {/* Modal Footer */}
-            <div className="flex justify-between items-center p-4 px-6 border-t border-gray-100 bg-gray-50/50">
-              <Button variant="outline" onClick={() => setIsAddModalOpen(false)} className="bg-gray-100 hover:bg-gray-200 border-none text-gray-700">
-                Cancel
-              </Button>
-              <div className="flex gap-2">
-                {activeStep > 1 && (
-                  <Button variant="outline" onClick={() => setActiveStep(activeStep - 1)} className="bg-gray-100 hover:bg-gray-200 border-none text-gray-700">
-                    Previous
-                  </Button>
-                )}
-                {activeStep < 3 ? (
-                  <Button onClick={() => setActiveStep(activeStep + 1)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Next
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => createMutation.mutate({
-                      name: formData.name,
-                      code: formData.code,
-                      client: formData.client,
-                      clientLoginId: formData.clientLoginId,
-                      clientLoginPass: formData.clientLoginPass,
-                      apkPassword: formData.apkPassword,
-                      biometricMode: settings.biometricMode,
-                      flowType: settings.flowType,
-                      attendanceMode: settings.attendanceMode,
-                      omrMode: settings.omrMode,
-                      faceLiveness: settings.faceLiveness,
-                      retryLimit: parseInt(settings.retryLimit) || 3,
-                      status: "Draft",
-                    })}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={createMutation.isPending}
-                  >
-                    {createMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Creating...</> : "Create Exam"}
-                  </Button>
-                )}
-              </div>
-            </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="relative w-full max-w-md">
-        <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-        <Input 
-          placeholder="Search exams..." 
-          className="pl-9 bg-white border-gray-200 rounded-lg focus-visible:ring-blue-500"
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Input
+          data-testid="input-search-exams"
+          placeholder="Search exams..."
+          className="pl-10 border-gray-200 rounded-lg"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -407,10 +462,9 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
         </div>
       )}
 
-      {/* Exam Cards Grid */}
       {!isLoading && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {exams.filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.code.toLowerCase().includes(searchQuery.toLowerCase()) || e.client.toLowerCase().includes(searchQuery.toLowerCase())).map((exam, i) => (
-          <Card key={i} className="shadow-sm border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow bg-white">
+          <Card key={i} data-testid={`card-exam-${exam.examId}`} className="shadow-sm border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow bg-white">
             <CardContent className="p-0">
               <div className="p-5">
                 <div className="flex justify-between items-start mb-6">
@@ -425,12 +479,16 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
+                      <button data-testid={`button-exam-menu-${exam.examId}`} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
                         <MoreVertical className="w-5 h-5" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-lg border-gray-100">
-                      <DropdownMenuItem className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 cursor-pointer rounded-lg hover:bg-gray-50 focus:bg-gray-50 mb-1">
+                      <DropdownMenuItem
+                        data-testid={`button-edit-exam-${exam.examId}`}
+                        className="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 cursor-pointer rounded-lg hover:bg-gray-50 focus:bg-gray-50 mb-1"
+                        onClick={() => handleEditClick(exam)}
+                      >
                         <Edit className="w-4 h-4" /> Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem 
@@ -442,11 +500,26 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                         <UploadCloud className="w-4 h-4" /> Upload Candidates
                       </DropdownMenuItem>
                       <div className="h-px bg-gray-100 my-1 mx-2" />
-                      <DropdownMenuItem className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600 mb-1">
-                        <SquareSquare className="w-4 h-4" /> Stop Exam
-                      </DropdownMenuItem>
+                      {exam.status === "Active" ? (
+                        <DropdownMenuItem
+                          data-testid={`button-stop-exam-${exam.examId}`}
+                          className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600 mb-1"
+                          onClick={() => handleToggleStatus(exam.examId, exam.status)}
+                        >
+                          <SquareSquare className="w-4 h-4" /> Stop Exam
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          data-testid={`button-start-exam-${exam.examId}`}
+                          className="flex items-center gap-2 px-3 py-2 text-[13px] text-green-600 cursor-pointer rounded-lg hover:bg-green-50 focus:bg-green-50 focus:text-green-600 mb-1"
+                          onClick={() => handleToggleStatus(exam.examId, exam.status)}
+                        >
+                          <Play className="w-4 h-4" /> Start Exam
+                        </DropdownMenuItem>
+                      )}
                       <div className="h-px bg-gray-100 my-1 mx-2" />
                       <DropdownMenuItem
+                        data-testid={`button-delete-exam-${exam.examId}`}
                         className="flex items-center gap-2 px-3 py-2 text-[13px] text-red-600 cursor-pointer rounded-lg hover:bg-red-50 focus:bg-red-50 focus:text-red-600"
                         onClick={() => {
                           if (confirm("Are you sure you want to delete this exam?")) {
@@ -467,7 +540,11 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
                   </div>
                   <div className="flex justify-between items-center border-b border-gray-50 pb-2">
                     <span className="text-gray-500">Status</span>
-                    <span className={`font-semibold ${exam.status === 'Active' ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-md text-xs' : 'text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md text-xs'}`}>
+                    <span className={`font-semibold px-2 py-0.5 rounded-md text-xs ${
+                      exam.status === 'Active' ? 'text-green-600 bg-green-50' : 
+                      exam.status === 'Stopped' ? 'text-red-600 bg-red-50' : 
+                      'text-amber-600 bg-amber-50'
+                    }`}>
                       {exam.status}
                     </span>
                   </div>
@@ -502,6 +579,108 @@ export default function ExamMaster({ setActivePage }: { setActivePage?: (page: s
           </Card>
         ))}
       </div>}
+
+      {/* Edit Exam Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-xl bg-white">
+          <DialogHeader className="p-6 pb-4">
+            <DialogTitle className="text-xl font-bold text-gray-900">Edit Exam</DialogTitle>
+          </DialogHeader>
+          
+          <div className="p-6 pt-0 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Exam Name</label>
+                <Input data-testid="input-edit-exam-name" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="border-gray-200" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Exam Code</label>
+                <Input data-testid="input-edit-exam-code" value={editFormData.code} onChange={(e) => setEditFormData({ ...editFormData, code: e.target.value })} className="border-gray-200" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Client Name</label>
+                <Input data-testid="input-edit-exam-client" value={editFormData.client} onChange={(e) => setEditFormData({ ...editFormData, client: e.target.value })} className="border-gray-200" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">APK Download Password</label>
+                <Input data-testid="input-edit-exam-apk-password" value={editFormData.apkPassword} onChange={(e) => setEditFormData({ ...editFormData, apkPassword: e.target.value })} className="border-gray-200" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Client Login ID</label>
+                <Input data-testid="input-edit-exam-client-login-id" value={editFormData.clientLoginId} onChange={(e) => setEditFormData({ ...editFormData, clientLoginId: e.target.value })} className="border-gray-200" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Client Login Password</label>
+                <Input data-testid="input-edit-exam-client-login-pass" value={editFormData.clientLoginPass} onChange={(e) => setEditFormData({ ...editFormData, clientLoginPass: e.target.value })} className="border-gray-200" />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <h4 className="text-[15px] font-semibold text-gray-900 mb-4">Biometric Settings</h4>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Biometric Mode</label>
+                  <Select value={editFormData.biometricMode} onValueChange={(v) => setEditFormData({...editFormData, biometricMode: v})}>
+                    <SelectTrigger className="border-gray-200"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="face">Face Only</SelectItem>
+                      <SelectItem value="fingerprint">Fingerprint Only</SelectItem>
+                      <SelectItem value="both">Face + Fingerprint</SelectItem>
+                      <SelectItem value="photo">Photo Capture Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Verification Flow</label>
+                  <Select value={editFormData.flowType} onValueChange={(v) => setEditFormData({...editFormData, flowType: v})}>
+                    <SelectTrigger className="border-gray-200"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Single Biometric</SelectItem>
+                      <SelectItem value="face_finger">Face then Fingerprint</SelectItem>
+                      <SelectItem value="finger_face">Fingerprint then Face</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Attendance Mode</label>
+                  <Select value={editFormData.attendanceMode} onValueChange={(v) => setEditFormData({...editFormData, attendanceMode: v})}>
+                    <SelectTrigger className="border-gray-200"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">Both</SelectItem>
+                      <SelectItem value="present">Mark Present Only</SelectItem>
+                      <SelectItem value="verification">Verification Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Retry Limit</label>
+                  <Input type="number" data-testid="input-edit-exam-retry-limit" value={editFormData.retryLimit} onChange={(e) => setEditFormData({...editFormData, retryLimit: e.target.value})} className="border-gray-200" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-sm text-gray-700">Face Liveness Detection</div>
+                  <div className="text-xs text-gray-400">Ensure real face during verification</div>
+                </div>
+                <Switch checked={editFormData.faceLiveness} onCheckedChange={(v) => setEditFormData({...editFormData, faceLiveness: v})} />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-3">
+            <Button variant="outline" className="border-gray-200" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button
+              data-testid="button-save-edit-exam"
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+              disabled={updateMutation.isPending}
+              onClick={handleEditSave}
+            >
+              {updateMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
