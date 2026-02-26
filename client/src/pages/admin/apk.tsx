@@ -878,6 +878,13 @@ export default function GenerateAPK() {
                                   >
                                     <Download className="w-3.5 h-3.5" /> Android Project
                                   </button>
+                                  <button
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                    onClick={() => api.apkBuilds.downloadAndroidProject(apk.id)}
+                                    data-testid={`button-download-full-project-${apk.id || idx}`}
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> Full Kotlin Project
+                                  </button>
                                 </>
                               ) : apk.status === "Building" ? (
                                 <div className="flex items-center gap-2">

@@ -1551,3 +1551,1222 @@ export async function registerRoutes(
 
   return httpServer;
 }
+
+  // =====================================================
+  // FULL ANDROID PROJECT TEMPLATE GENERATOR
+  // =====================================================
+  app.get("/api/apk-builds/:id/android-project", async (req, res) => {
+    try {
+      const builds = await storage.listApkBuilds();
+      const build = builds.find(b => b.id === Number(req.params.id));
+      if (!build) return res.status(404).json({ message: "Build not found" });
+      const config = (build.configJson || build.features || {}) as Record<string, any>;
+      const examName = (build.examName || "Exam").replace(/[^a-zA-Z0-9]/g, "");
+      const pkgName = `com.mpa.verify.${examName.toLowerCase()}`;
+      const pkgPath = pkgName.replace(/\./g, "/");
+      const serverUrl = req.protocol + "://" + req.get("host");
+      const examId = build.examId || 0;
+      const threshold = config.faceMatchThreshold || 75;
+      const scanner = config.fingerprintScanner || "MFS100";
+      const retryLimit = config.fpRetryLimit || 3;
+      const faceRetry = config.faceRetryLimit || 3;
+      const offlineMode = config.offlineMode !== false;
+
+      const project: Record<string, string> = {};
+
+      // ---- build.gradle (project level) ----
+      project["build.gradle"] = `buildscript {
+    ext.kotlin_version = '1.9.22'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.2.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"
+    }
+}
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        flatDir { dirs 'libs' }
+    }
+}`;
+
+      // ---- app/build.gradle ----
+      project["app/build.gradle"] = `plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-kapt'
+}
+android {
+    namespace '${pkgName}'
+    compileSdk 34
+    defaultConfig {
+        applicationId "${pkgName}"
+        minSdk 26
+        targetSdk 34
+        versionCode ${build.id}
+        versionName "${build.version}"
+        buildConfigField "String", "SERVER_URL", "\\"${serverUrl}\\""
+        buildConfigField "int", "EXAM_ID", "${examId}"
+        buildConfigField "int", "FACE_THRESHOLD", "${threshold}"
+        buildConfigField "String", "SCANNER_MODEL", "\\"${scanner}\\""
+    }
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+}
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // Camera
+    implementation 'androidx.camera:camera-camera2:1.3.1'
+    implementation 'androidx.camera:camera-lifecycle:1.3.1'
+    implementation 'androidx.camera:camera-view:1.3.1'
+
+    // ML Kit Face Detection (FREE)
+    implementation 'com.google.mlkit:face-detection:16.1.5'
+
+    // TensorFlow Lite for FaceNet matching (FREE)
+    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
+
+    // Retrofit + OkHttp for API calls
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+
+    // Room DB for offline storage
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    kapt 'androidx.room:room-compiler:2.6.1'
+
+    // Barcode/QR scanning for OMR
+    implementation 'com.google.mlkit:barcode-scanning:17.2.0'
+
+    // Image loading
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+
+    // Location
+    implementation 'com.google.android.gms:play-services-location:21.1.0'
+
+    // Mantra MFS100 SDK - place .aar file in app/libs/ folder
+    // Download from: https://download.mantratecapp.com/
+    implementation(name: 'mantra-mfs100-sdk', ext: 'aar')
+}`;
+
+      // ---- AndroidManifest.xml ----
+      project[`app/src/main/AndroidManifest.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="true" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <application
+        android:name=".MpaApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="MPA Verify - ${build.examName || 'Exam'}"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MpaVerify"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".ui.LoginActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ui.DashboardActivity" android:screenOrientation="portrait" />
+        <activity android:name=".ui.CandidateListActivity" android:screenOrientation="portrait" />
+        <activity android:name=".ui.VerificationActivity" android:screenOrientation="portrait" />
+        <activity android:name=".ui.SyncActivity" android:screenOrientation="portrait" />
+
+        <service android:name=".service.HeartbeatService" android:foregroundServiceType="location" />
+
+        <receiver android:name=".receiver.BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>`;
+
+      // ---- MpaApp.kt (Application class) ----
+      project[`app/src/main/java/${pkgPath}/MpaApp.kt`] = `package ${pkgName}
+
+import android.app.Application
+
+class MpaApp : Application() {
+    companion object {
+        lateinit var instance: MpaApp
+            private set
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+    }
+}`;
+
+      // ---- network/ApiService.kt ----
+      project[`app/src/main/java/${pkgPath}/network/ApiService.kt`] = `package ${pkgName}.network
+
+import retrofit2.Response
+import retrofit2.http.*
+
+interface ApiService {
+
+    @POST("api/auth/login")
+    suspend fun login(@Body body: Map<String, String>): Response<LoginResponse>
+
+    @GET("api/sync/{examId}")
+    suspend fun syncExamData(
+        @Path("examId") examId: Int,
+        @Query("centreCode") centreCode: String? = null
+    ): Response<SyncResponse>
+
+    @GET("api/biometric/sdk-config")
+    suspend fun getSdkConfig(): Response<Map<String, Any>>
+
+    @GET("api/biometric/scanner-status")
+    suspend fun getScannerStatus(@Query("model") model: String = "${scanner}"): Response<Map<String, Any>>
+
+    @POST("api/biometric/face-match")
+    suspend fun faceMatch(@Body body: Map<String, Any>): Response<FaceMatchResponse>
+
+    @POST("api/biometric/fingerprint-capture")
+    suspend fun fingerprintCapture(@Body body: Map<String, Any>): Response<FingerprintResponse>
+
+    @POST("api/verification/submit")
+    suspend fun submitVerification(@Body body: VerificationRequest): Response<VerificationResponse>
+
+    @POST("api/verification/heartbeat")
+    suspend fun heartbeat(@Body body: HeartbeatRequest): Response<Map<String, Any>>
+
+    @GET("api/candidates")
+    suspend fun getCandidates(@Query("examId") examId: Int): Response<List<CandidateDto>>
+
+    @GET("api/candidates/by-centre/{centreCode}")
+    suspend fun getCandidatesByCentre(@Path("centreCode") centreCode: String): Response<List<CandidateDto>>
+
+    @PUT("api/candidates/{id}")
+    suspend fun updateCandidate(@Path("id") id: Int, @Body body: Map<String, Any>): Response<CandidateDto>
+
+    @POST("api/alerts")
+    suspend fun createAlert(@Body body: Map<String, Any>): Response<Map<String, Any>>
+
+    @POST("api/audit-logs")
+    suspend fun createAuditLog(@Body body: Map<String, Any>): Response<Map<String, Any>>
+}`;
+
+      // ---- network/ApiModels.kt ----
+      project[`app/src/main/java/${pkgPath}/network/ApiModels.kt`] = `package ${pkgName}.network
+
+data class LoginResponse(
+    val id: Int, val username: String, val role: String,
+    val name: String, val displayName: String?, val mobile: String?
+)
+
+data class SyncResponse(
+    val exam: Map<String, Any>?, val candidates: List<CandidateDto>,
+    val centers: List<Map<String, Any>>, val operators: List<Map<String, Any>>,
+    val slots: List<Map<String, Any>>, val serverTime: String
+)
+
+data class CandidateDto(
+    val id: Int, val name: String, val rollNo: String?,
+    val applicationNo: String?, val examId: Int, val centreCode: String?,
+    val photoUrl: String?, val status: String?, val matchPercent: String?,
+    val presentMark: String?, val verifiedAt: String?, val omrNo: String?,
+    val fatherName: String?, val dob: String?, val gender: String?,
+    val category: String?, val subjectName: String?, val seatNo: String?
+)
+
+data class FaceMatchResponse(
+    val matched: Boolean, val confidence: Float,
+    val liveness: Map<String, Any>?, val antiSpoof: Map<String, Any>?,
+    val processingTimeMs: Int
+)
+
+data class FingerprintResponse(
+    val capture: Map<String, Any>, val matching: Map<String, Any>,
+    val processingTimeMs: Int
+)
+
+data class VerificationRequest(
+    val candidateId: Int, val examId: Int, val operatorId: String,
+    val centreCode: String, val deviceId: String,
+    val faceMatchPercent: Float?, val fingerprintMatch: Boolean?,
+    val fingerprintScore: Int?, val fingerprintNfiq: Int?,
+    val scannerModel: String?, val livenessPass: Boolean?,
+    val antiSpoofPass: Boolean?, val omrNo: String?,
+    val gpsLat: Double?, val gpsLng: Double?,
+    val capturedPhotoUrl: String?, val verificationType: String?
+)
+
+data class VerificationResponse(
+    val success: Boolean, val status: String,
+    val matchPercent: String?, val candidateId: Int
+)
+
+data class HeartbeatRequest(
+    val deviceId: String, val operatorId: String,
+    val centreCode: String, val examId: Int,
+    val batteryLevel: Int?, val gpsLat: Double?, val gpsLng: Double?,
+    val scannerConnected: Boolean?, val scannerModel: String?,
+    val appVersion: String?
+)`;
+
+      // ---- network/RetrofitClient.kt ----
+      project[`app/src/main/java/${pkgPath}/network/RetrofitClient.kt`] = `package ${pkgName}.network
+
+import ${pkgName}.BuildConfig
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+
+object RetrofitClient {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor(HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        })
+        .build()
+
+    val api: ApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.SERVER_URL + "/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ApiService::class.java)
+    }
+}`;
+
+      // ---- db/AppDatabase.kt ----
+      project[`app/src/main/java/${pkgPath}/db/AppDatabase.kt`] = `package ${pkgName}.db
+
+import android.content.Context
+import androidx.room.*
+
+@Database(
+    entities = [CandidateEntity::class, PendingVerification::class, SyncMeta::class],
+    version = 1,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun candidateDao(): CandidateDao
+    abstract fun verificationDao(): VerificationDao
+
+    companion object {
+        @Volatile private var INSTANCE: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                Room.databaseBuilder(context, AppDatabase::class.java, "mpa_verify.db")
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
+            }
+        }
+    }
+}
+
+@Entity(tableName = "candidates")
+data class CandidateEntity(
+    @PrimaryKey val id: Int,
+    val name: String,
+    val rollNo: String?,
+    val applicationNo: String?,
+    val examId: Int,
+    val centreCode: String?,
+    val photoUrl: String?,
+    val status: String = "Pending",
+    val matchPercent: String?,
+    val presentMark: String?,
+    val verifiedAt: String?,
+    val omrNo: String?,
+    val fatherName: String?,
+    val dob: String?,
+    val gender: String?,
+    val capturedPhotoPath: String? = null,
+    val syncedToServer: Boolean = false
+)
+
+@Entity(tableName = "pending_verifications")
+data class PendingVerification(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val candidateId: Int,
+    val examId: Int,
+    val operatorId: String,
+    val centreCode: String,
+    val deviceId: String,
+    val faceMatchPercent: Float? = null,
+    val fingerprintMatch: Boolean? = null,
+    val fingerprintScore: Int? = null,
+    val fingerprintNfiq: Int? = null,
+    val scannerModel: String? = null,
+    val livenessPass: Boolean? = null,
+    val antiSpoofPass: Boolean? = null,
+    val omrNo: String? = null,
+    val gpsLat: Double? = null,
+    val gpsLng: Double? = null,
+    val capturedPhotoPath: String? = null,
+    val verificationType: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val syncedToServer: Boolean = false
+)
+
+@Entity(tableName = "sync_meta")
+data class SyncMeta(
+    @PrimaryKey val examId: Int,
+    val lastSyncTime: Long,
+    val candidateCount: Int,
+    val serverTime: String?
+)
+
+@Dao
+interface CandidateDao {
+    @Query("SELECT * FROM candidates WHERE examId = :examId ORDER BY name")
+    suspend fun getByExam(examId: Int): List<CandidateEntity>
+
+    @Query("SELECT * FROM candidates WHERE examId = :examId AND centreCode = :centreCode ORDER BY name")
+    suspend fun getByCentre(examId: Int, centreCode: String): List<CandidateEntity>
+
+    @Query("SELECT * FROM candidates WHERE id = :id")
+    suspend fun getById(id: Int): CandidateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(candidates: List<CandidateEntity>)
+
+    @Query("UPDATE candidates SET status = :status, matchPercent = :matchPercent, verifiedAt = :verifiedAt, capturedPhotoPath = :photoPath, syncedToServer = :synced WHERE id = :id")
+    suspend fun updateVerification(id: Int, status: String, matchPercent: String?, verifiedAt: String?, photoPath: String?, synced: Boolean)
+
+    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId")
+    suspend fun countByExam(examId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId AND status = 'Verified'")
+    suspend fun countVerified(examId: Int): Int
+
+    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId AND presentMark = 'Present'")
+    suspend fun countPresent(examId: Int): Int
+}
+
+@Dao
+interface VerificationDao {
+    @Insert
+    suspend fun insert(v: PendingVerification)
+
+    @Query("SELECT * FROM pending_verifications WHERE syncedToServer = 0 ORDER BY createdAt")
+    suspend fun getUnsynced(): List<PendingVerification>
+
+    @Query("UPDATE pending_verifications SET syncedToServer = 1 WHERE id = :id")
+    suspend fun markSynced(id: Int)
+
+    @Query("DELETE FROM pending_verifications WHERE syncedToServer = 1")
+    suspend fun clearSynced()
+}`;
+
+      // ---- ui/LoginActivity.kt ----
+      project[`app/src/main/java/${pkgPath}/ui/LoginActivity.kt`] = `package ${pkgName}.ui
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.BuildConfig
+import ${pkgName}.databinding.ActivityLoginBinding
+import ${pkgName}.network.RetrofitClient
+import kotlinx.coroutines.launch
+
+class LoginActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityLoginBinding
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        // Check if already logged in
+        val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+        val savedUser = prefs.getString("username", null)
+        val loginTime = prefs.getLong("login_time", 0)
+        val elapsed = System.currentTimeMillis() - loginTime
+        if (savedUser != null && elapsed < 5 * 60 * 1000) {
+            startDashboard()
+            return
+        }
+
+        binding.btnLogin.setOnClickListener {
+            val username = binding.etUsername.text.toString().trim()
+            val password = binding.etPassword.text.toString().trim()
+            if (username.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Enter username and password", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            performLogin(username, password)
+        }
+
+        binding.tvServerUrl.text = "Server: " + BuildConfig.SERVER_URL
+    }
+
+    private fun performLogin(username: String, password: String) {
+        binding.btnLogin.isEnabled = false
+        binding.btnLogin.text = "Logging in..."
+
+        lifecycleScope.launch {
+            try {
+                val response = RetrofitClient.api.login(
+                    mapOf("username" to username, "password" to password)
+                )
+                if (response.isSuccessful && response.body() != null) {
+                    val user = response.body()!!
+                    val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("username", user.username)
+                        .putString("name", user.displayName ?: user.name)
+                        .putString("role", user.role)
+                        .putInt("user_id", user.id)
+                        .putLong("login_time", System.currentTimeMillis())
+                        .apply()
+                    startDashboard()
+                } else {
+                    Toast.makeText(this@LoginActivity, "Invalid credentials", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@LoginActivity, "Connection error: \${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                binding.btnLogin.isEnabled = true
+                binding.btnLogin.text = "Sign In"
+            }
+        }
+    }
+
+    private fun startDashboard() {
+        startActivity(Intent(this, DashboardActivity::class.java))
+        finish()
+    }
+}`;
+
+      // ---- ui/DashboardActivity.kt ----
+      project[`app/src/main/java/${pkgPath}/ui/DashboardActivity.kt`] = `package ${pkgName}.ui
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.BuildConfig
+import ${pkgName}.databinding.ActivityDashboardBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.db.CandidateEntity
+import ${pkgName}.db.SyncMeta
+import ${pkgName}.network.RetrofitClient
+import ${pkgName}.service.HeartbeatService
+import kotlinx.coroutines.launch
+
+class DashboardActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityDashboardBinding
+    private val db by lazy { AppDatabase.getInstance(this) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityDashboardBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+        val operatorName = prefs.getString("name", "Operator") ?: "Operator"
+        binding.tvOperatorName.text = "Welcome, \$operatorName"
+        binding.tvExamId.text = "Exam ID: \${BuildConfig.EXAM_ID}"
+
+        binding.btnSyncData.setOnClickListener { syncExamData() }
+        binding.btnStartVerification.setOnClickListener {
+            startActivity(Intent(this, CandidateListActivity::class.java))
+        }
+        binding.btnLogout.setOnClickListener {
+            prefs.edit().clear().apply()
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+        }
+
+        updateStats()
+
+        // Start heartbeat service
+        HeartbeatService.start(this)
+    }
+
+    private fun syncExamData() {
+        binding.btnSyncData.isEnabled = false
+        binding.btnSyncData.text = "Syncing..."
+
+        lifecycleScope.launch {
+            try {
+                val response = RetrofitClient.api.syncExamData(BuildConfig.EXAM_ID)
+                if (response.isSuccessful && response.body() != null) {
+                    val sync = response.body()!!
+                    val entities = sync.candidates.map { c ->
+                        CandidateEntity(
+                            id = c.id, name = c.name, rollNo = c.rollNo,
+                            applicationNo = c.applicationNo, examId = c.examId,
+                            centreCode = c.centreCode, photoUrl = c.photoUrl,
+                            status = c.status ?: "Pending", matchPercent = c.matchPercent,
+                            presentMark = c.presentMark, verifiedAt = c.verifiedAt,
+                            omrNo = c.omrNo, fatherName = c.fatherName,
+                            dob = c.dob, gender = c.gender
+                        )
+                    }
+                    db.candidateDao().insertAll(entities)
+                    Toast.makeText(this@DashboardActivity, "Synced \${entities.size} candidates", Toast.LENGTH_SHORT).show()
+                    updateStats()
+                } else {
+                    Toast.makeText(this@DashboardActivity, "Sync failed", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@DashboardActivity, "Sync error: \${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                binding.btnSyncData.isEnabled = true
+                binding.btnSyncData.text = "Sync Exam Data"
+            }
+        }
+    }
+
+    private fun updateStats() {
+        lifecycleScope.launch {
+            val total = db.candidateDao().countByExam(BuildConfig.EXAM_ID)
+            val verified = db.candidateDao().countVerified(BuildConfig.EXAM_ID)
+            val present = db.candidateDao().countPresent(BuildConfig.EXAM_ID)
+            binding.tvTotalCandidates.text = "\$total"
+            binding.tvVerified.text = "\$verified"
+            binding.tvPresent.text = "\$present"
+            binding.tvPending.text = "\${total - verified}"
+        }
+    }
+}`;
+
+      // ---- ui/VerificationActivity.kt ----
+      project[`app/src/main/java/${pkgPath}/ui/VerificationActivity.kt`] = `package ${pkgName}.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.util.Base64
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.BuildConfig
+import ${pkgName}.databinding.ActivityVerificationBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.db.PendingVerification
+import ${pkgName}.network.RetrofitClient
+import ${pkgName}.network.VerificationRequest
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.*
+
+class VerificationActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityVerificationBinding
+    private val db by lazy { AppDatabase.getInstance(this) }
+    private var candidateId: Int = 0
+    private var faceMatchPercent: Float? = null
+    private var fingerprintMatch: Boolean? = null
+    private var fingerprintScore: Int? = null
+    private var fingerprintNfiq: Int? = null
+    private var livenessPass: Boolean? = null
+    private var antiSpoofPass: Boolean? = null
+    private var capturedPhotoBase64: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityVerificationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        candidateId = intent.getIntExtra("candidate_id", 0)
+        if (candidateId == 0) { finish(); return }
+
+        loadCandidateInfo()
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 100)
+        } else {
+            startCamera()
+        }
+
+        binding.btnCaptureFace.setOnClickListener { captureFaceAndMatch() }
+        binding.btnCaptureFingerprint.setOnClickListener { captureFingerprint() }
+        binding.btnSubmit.setOnClickListener { submitVerification() }
+    }
+
+    private fun loadCandidateInfo() {
+        lifecycleScope.launch {
+            val candidate = db.candidateDao().getById(candidateId)
+            if (candidate != null) {
+                binding.tvCandidateName.text = candidate.name
+                binding.tvRollNo.text = "Roll: \${candidate.rollNo ?: "N/A"}"
+                binding.tvStatus.text = candidate.status
+            }
+        }
+    }
+
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(binding.cameraPreview.surfaceProvider)
+            }
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Camera error: \${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun captureFaceAndMatch() {
+        binding.tvFaceStatus.text = "Capturing face..."
+        // In production: capture image from camera, convert to Base64,
+        // send to server via RetrofitClient.api.faceMatch()
+        // For now, simulate the API call:
+        lifecycleScope.launch {
+            try {
+                val body = mapOf<String, Any>(
+                    "candidateId" to candidateId,
+                    "capturedPhotoBase64" to (capturedPhotoBase64 ?: ""),
+                    "livenessFrames" to 3
+                )
+                val response = RetrofitClient.api.faceMatch(body)
+                if (response.isSuccessful && response.body() != null) {
+                    val result = response.body()!!
+                    faceMatchPercent = result.confidence
+                    livenessPass = (result.liveness?.get("isLive") as? Boolean) ?: true
+                    antiSpoofPass = (result.antiSpoof?.get("isReal") as? Boolean) ?: true
+                    binding.tvFaceStatus.text = "Face: \${result.confidence}% | Liveness: \${if (livenessPass == true) "Pass" else "Fail"}"
+                    binding.tvFaceStatus.setTextColor(if (result.matched) 0xFF4CAF50.toInt() else 0xFFF44336.toInt())
+                }
+            } catch (e: Exception) {
+                binding.tvFaceStatus.text = "Face match error: \${e.message}"
+            }
+        }
+    }
+
+    private fun captureFingerprint() {
+        binding.tvFpStatus.text = "Place finger on scanner..."
+        // In production: Use Mantra MFS100 SDK to capture fingerprint
+        // mfs100.AutoCapture(fingerData, timeout, detectFinger)
+        // Then send to server via RetrofitClient.api.fingerprintCapture()
+        lifecycleScope.launch {
+            try {
+                val body = mapOf<String, Any>(
+                    "candidateId" to candidateId,
+                    "scannerModel" to BuildConfig.SCANNER_MODEL,
+                    "nfiqScore" to 4
+                )
+                val response = RetrofitClient.api.fingerprintCapture(body)
+                if (response.isSuccessful && response.body() != null) {
+                    val result = response.body()!!
+                    val matching = result.matching
+                    fingerprintMatch = matching["matched"] as? Boolean ?: false
+                    fingerprintScore = (matching["matchScore"] as? Double)?.toInt()
+                    fingerprintNfiq = (result.capture["quality"] as? Double)?.toInt()
+                    binding.tvFpStatus.text = "FP: \${if (fingerprintMatch == true) "Match" else "No Match"} | Score: \$fingerprintScore | NFIQ: \$fingerprintNfiq"
+                    binding.tvFpStatus.setTextColor(if (fingerprintMatch == true) 0xFF4CAF50.toInt() else 0xFFF44336.toInt())
+                }
+            } catch (e: Exception) {
+                binding.tvFpStatus.text = "FP error: \${e.message}"
+            }
+        }
+    }
+
+    private fun submitVerification() {
+        if (faceMatchPercent == null && fingerprintMatch == null) {
+            Toast.makeText(this, "Capture face or fingerprint first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        binding.btnSubmit.isEnabled = false
+        binding.btnSubmit.text = "Submitting..."
+        val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+        val operatorId = prefs.getString("username", "") ?: ""
+        val now = SimpleDateFormat("dd/MM/yyyy, HH:mm:ss", Locale.getDefault()).format(Date())
+
+        lifecycleScope.launch {
+            try {
+                val request = VerificationRequest(
+                    candidateId = candidateId,
+                    examId = BuildConfig.EXAM_ID,
+                    operatorId = operatorId,
+                    centreCode = "",
+                    deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID),
+                    faceMatchPercent = faceMatchPercent,
+                    fingerprintMatch = fingerprintMatch,
+                    fingerprintScore = fingerprintScore,
+                    fingerprintNfiq = fingerprintNfiq,
+                    scannerModel = BuildConfig.SCANNER_MODEL,
+                    livenessPass = livenessPass,
+                    antiSpoofPass = antiSpoofPass,
+                    omrNo = null, gpsLat = null, gpsLng = null,
+                    capturedPhotoUrl = null,
+                    verificationType = "face+fingerprint"
+                )
+                val response = RetrofitClient.api.submitVerification(request)
+                if (response.isSuccessful && response.body() != null) {
+                    val result = response.body()!!
+                    db.candidateDao().updateVerification(
+                        candidateId, result.status, result.matchPercent, now, null, true
+                    )
+                    Toast.makeText(this@VerificationActivity, "Status: \${result.status}", Toast.LENGTH_LONG).show()
+                    finish()
+                } else {
+                    // Save offline
+                    saveOffline(operatorId, now)
+                }
+            } catch (e: Exception) {
+                // Network error - save offline
+                saveOffline(operatorId, now)
+            } finally {
+                binding.btnSubmit.isEnabled = true
+                binding.btnSubmit.text = "Submit Verification"
+            }
+        }
+    }
+
+    private suspend fun saveOffline(operatorId: String, timestamp: String) {
+        db.verificationDao().insert(PendingVerification(
+            candidateId = candidateId,
+            examId = BuildConfig.EXAM_ID,
+            operatorId = operatorId,
+            centreCode = "",
+            deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID),
+            faceMatchPercent = faceMatchPercent,
+            fingerprintMatch = fingerprintMatch,
+            fingerprintScore = fingerprintScore,
+            fingerprintNfiq = fingerprintNfiq,
+            scannerModel = BuildConfig.SCANNER_MODEL,
+            livenessPass = livenessPass,
+            antiSpoofPass = antiSpoofPass,
+            verificationType = "face+fingerprint"
+        ))
+        db.candidateDao().updateVerification(
+            candidateId, if ((faceMatchPercent ?: 0f) >= ${threshold}) "Verified" else "Failed",
+            faceMatchPercent?.let { "\$it%" }, timestamp, null, false
+        )
+        Toast.makeText(this@VerificationActivity, "Saved offline - will sync when online", Toast.LENGTH_LONG).show()
+        finish()
+    }
+}`;
+
+      // ---- service/HeartbeatService.kt ----
+      project[`app/src/main/java/${pkgPath}/service/HeartbeatService.kt`] = `package ${pkgName}.service
+
+import android.app.*
+import android.content.Context
+import android.content.Intent
+import android.os.*
+import androidx.core.app.NotificationCompat
+import ${pkgName}.BuildConfig
+import ${pkgName}.network.HeartbeatRequest
+import ${pkgName}.network.RetrofitClient
+import kotlinx.coroutines.*
+
+class HeartbeatService : Service() {
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
+
+    companion object {
+        fun start(context: Context) {
+            val intent = Intent(context, HeartbeatService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        val notification = NotificationCompat.Builder(this, "heartbeat")
+            .setContentTitle("MPA Verify Active")
+            .setContentText("Sending device status to HQ")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .build()
+        startForeground(1, notification)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        scope.launch {
+            while (isActive) {
+                sendHeartbeat()
+                delay(30_000) // every 30 seconds
+            }
+        }
+        return START_STICKY
+    }
+
+    private suspend fun sendHeartbeat() {
+        try {
+            val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+            val request = HeartbeatRequest(
+                deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID),
+                operatorId = prefs.getString("username", "") ?: "",
+                centreCode = "",
+                examId = BuildConfig.EXAM_ID,
+                batteryLevel = getBatteryLevel(),
+                gpsLat = null, gpsLng = null,
+                scannerConnected = true,
+                scannerModel = BuildConfig.SCANNER_MODEL,
+                appVersion = BuildConfig.VERSION_NAME
+            )
+            RetrofitClient.api.heartbeat(request)
+        } catch (_: Exception) { }
+    }
+
+    private fun getBatteryLevel(): Int {
+        val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
+        return bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel("heartbeat", "Device Status", NotificationManager.IMPORTANCE_LOW)
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        }
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onDestroy() { job.cancel(); super.onDestroy() }
+}`;
+
+      // ---- ui/CandidateListActivity.kt ----
+      project[`app/src/main/java/${pkgPath}/ui/CandidateListActivity.kt`] = `package ${pkgName}.ui
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import ${pkgName}.BuildConfig
+import ${pkgName}.databinding.ActivityCandidateListBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.db.CandidateEntity
+import kotlinx.coroutines.launch
+
+class CandidateListActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityCandidateListBinding
+    private val db by lazy { AppDatabase.getInstance(this) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityCandidateListBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.recyclerView.layoutManager = LinearLayoutManager(this)
+        loadCandidates()
+    }
+
+    override fun onResume() { super.onResume(); loadCandidates() }
+
+    private fun loadCandidates() {
+        lifecycleScope.launch {
+            val candidates = db.candidateDao().getByExam(BuildConfig.EXAM_ID)
+            if (candidates.isEmpty()) {
+                Toast.makeText(this@CandidateListActivity, "No candidates. Sync data first.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            // TODO: Set up RecyclerView Adapter with candidate list
+            // On item click: start VerificationActivity with candidate_id
+            // Example:
+            // val intent = Intent(this@CandidateListActivity, VerificationActivity::class.java)
+            // intent.putExtra("candidate_id", candidate.id)
+            // startActivity(intent)
+        }
+    }
+}`;
+
+      // ---- XML Layouts ----
+      project[`app/src/main/res/layout/activity_login.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="32dp"
+    android:gravity="center" android:background="#F5F5F5">
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="MPA Verify" android:textSize="28sp" android:textStyle="bold"
+        android:textColor="#1565C0" android:layout_marginBottom="8dp" />
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="${build.examName || 'Exam'}" android:textSize="14sp"
+        android:textColor="#666666" android:layout_marginBottom="32dp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etUsername" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:hint="Username"
+            android:inputType="text" android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp" style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        app:passwordToggleEnabled="true" xmlns:app="http://schemas.android.com/apk/res-auto">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etPassword" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:hint="Password"
+            android:inputType="textPassword" android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnLogin" android:layout_width="match_parent"
+        android:layout_height="56dp" android:text="Sign In"
+        android:textSize="16sp" />
+
+    <TextView android:id="@+id/tvServerUrl" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="10sp"
+        android:textColor="#999999" android:layout_marginTop="24dp" />
+</LinearLayout>`;
+
+      project[`app/src/main/res/layout/activity_dashboard.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="20dp" android:background="#F5F5F5">
+
+    <TextView android:id="@+id/tvOperatorName" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold"
+        android:textColor="#1565C0" android:layout_marginBottom="4dp" />
+
+    <TextView android:id="@+id/tvExamId" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="12sp"
+        android:textColor="#666666" android:layout_marginBottom="24dp" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginBottom="24dp">
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginEnd="8dp">
+            <TextView android:id="@+id/tvTotalCandidates" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="0" android:textSize="24sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Total" android:textSize="11sp" android:textColor="#666" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginEnd="8dp">
+            <TextView android:id="@+id/tvVerified" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="0" android:textSize="24sp"
+                android:textStyle="bold" android:textColor="#4CAF50" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Verified" android:textSize="11sp" android:textColor="#666" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginEnd="8dp">
+            <TextView android:id="@+id/tvPresent" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="0" android:textSize="24sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Present" android:textSize="11sp" android:textColor="#666" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/card_bg" android:padding="16dp">
+            <TextView android:id="@+id/tvPending" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="0" android:textSize="24sp"
+                android:textStyle="bold" android:textColor="#FF9800" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Pending" android:textSize="11sp" android:textColor="#666" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnSyncData"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:text="Sync Exam Data" android:layout_marginBottom="12dp"
+        android:backgroundTint="#1565C0" />
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnStartVerification"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:text="Start Verification" android:layout_marginBottom="12dp"
+        android:backgroundTint="#4CAF50" />
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnLogout"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:text="Logout" style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:textColor="#F44336" />
+</LinearLayout>`;
+
+      project[`app/src/main/res/layout/activity_verification.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="#F5F5F5">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="16dp">
+
+    <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold"
+        android:textColor="#333" android:layout_marginBottom="4dp" />
+    <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#666"
+        android:layout_marginBottom="4dp" />
+    <TextView android:id="@+id/tvStatus" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#999"
+        android:layout_marginBottom="16dp" />
+
+    <androidx.camera.view.PreviewView android:id="@+id/cameraPreview"
+        android:layout_width="match_parent" android:layout_height="300dp"
+        android:layout_marginBottom="16dp" android:background="#000" />
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFace"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:text="Capture Face &amp; Match" android:backgroundTint="#1565C0"
+        android:layout_marginBottom="8dp" />
+    <TextView android:id="@+id/tvFaceStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="Face: Not captured"
+        android:textSize="13sp" android:textColor="#666" android:layout_marginBottom="16dp" />
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint"
+        android:layout_width="match_parent" android:layout_height="48dp"
+        android:text="Capture Fingerprint" android:backgroundTint="#FF9800"
+        android:layout_marginBottom="8dp" />
+    <TextView android:id="@+id/tvFpStatus" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="Fingerprint: Not captured"
+        android:textSize="13sp" android:textColor="#666" android:layout_marginBottom="24dp" />
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnSubmit"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:text="Submit Verification" android:backgroundTint="#4CAF50" />
+</LinearLayout>
+</ScrollView>`;
+
+      project[`app/src/main/res/layout/activity_candidate_list.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="#F5F5F5">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Candidates" android:textSize="20sp" android:textStyle="bold"
+        android:padding="16dp" android:textColor="#333" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/recyclerView"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:padding="8dp" />
+</LinearLayout>`;
+
+      project[`app/src/main/res/drawable/card_bg.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="12dp" />
+    <stroke android:width="1dp" android:color="#E0E0E0" />
+</shape>`;
+
+      project[`app/src/main/res/values/themes.xml`] = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MpaVerify" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#1565C0</item>
+        <item name="colorPrimaryVariant">#0D47A1</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#4CAF50</item>
+        <item name="android:statusBarColor">#0D47A1</item>
+    </style>
+</resources>`;
+
+      project["README.md"] = `# MPA Verify - ${build.examName || "Exam"} (Android Project)
+
+## Generated from MPA Biometric Verification System
+- Server: ${serverUrl}
+- Exam ID: ${examId}
+- Exam: ${build.examName}
+- Version: ${build.version}
+- Scanner: ${scanner}
+- Face Threshold: ${threshold}%
+
+## Setup Instructions
+
+1. Open Android Studio (2023.2+)
+2. Create New Project > Empty Activity (Kotlin)
+3. Replace all files with the files from this JSON
+4. Download Mantra MFS100 SDK (.aar) from https://download.mantratecapp.com/
+5. Place the .aar file in app/libs/ folder
+6. Download FaceNet TFLite model from https://github.com/niceBhaworWorawut/facenet and place in app/src/main/assets/
+7. Click "Sync Project with Gradle Files"
+8. Build > Generate Signed APK
+
+## Project Structure
+- network/ - Retrofit API service + data models
+- db/ - Room database for offline storage
+- ui/ - Activities (Login, Dashboard, CandidateList, Verification)
+- service/ - Heartbeat background service
+- res/layout/ - XML layouts for all screens
+
+## API Endpoints Used
+- POST /api/auth/login
+- GET /api/sync/{examId}
+- POST /api/biometric/face-match
+- POST /api/biometric/fingerprint-capture
+- POST /api/verification/submit
+- POST /api/verification/heartbeat
+- GET /api/biometric/sdk-config
+`;
+
+      const fileContent = JSON.stringify({
+        projectName: `MPA_Verify_${examName}`,
+        generatedAt: new Date().toISOString(),
+        serverUrl,
+        examId,
+        examName: build.examName,
+        version: build.version,
+        packageName: pkgName,
+        instructions: "Each key in 'files' is a file path relative to the Android project root. Create these files in Android Studio.",
+        files: project,
+      }, null, 2);
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename=MPA_Verify_${examName}_v${build.version}_FULL_PROJECT.json`);
+      res.send(fileContent);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
