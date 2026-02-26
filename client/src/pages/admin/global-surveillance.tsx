@@ -1,261 +1,303 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Radar, Eye, Search, BrainCircuit, Mic, Waves, Fingerprint, Activity, Map, Cpu, Zap, Volume2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Radar, Eye, BrainCircuit, Mic, Waves, Fingerprint, Cpu, Volume2, Save, Zap, Activity } from "lucide-react";
 
 export default function GlobalSurveillance() {
-  const [activeTab, setActiveTab] = useState<'kinesics' | 'rfid' | 'voice'>('kinesics');
+  const [activeTab, setActiveTab] = useState<"kinesics" | "rfid" | "voice">("kinesics");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: exams = [] } = useQuery({
+    queryKey: ["exams"],
+    queryFn: api.exams.list,
+  });
+  const [selectedExamId, setSelectedExamId] = useState<string>("");
+
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["/api/global-tech-settings", selectedExamId],
+    queryFn: () => fetch(`/api/global-tech-settings/${selectedExamId || 0}`).then(r => r.json()),
+    enabled: true,
+  });
+
+  const [kinesicsEnabled, setKinesicsEnabled] = useState(false);
+  const [rfidEnabled, setRfidEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [kinesicsSettings, setKinesicsSettings] = useState<any>({
+    microExpressions: true,
+    stressAnalysis: true,
+    gazeTracking: true,
+    confidenceThreshold: 70,
+  });
+  const [rfidSettings, setRfidSettings] = useState<any>({
+    passiveTracking: true,
+    entryExitLog: true,
+    unauthorizedMovement: true,
+    scanInterval: 5,
+  });
+  const [voiceSettings, setVoiceSettings] = useState<any>({
+    passphraseMatch: true,
+    syntheticDetection: false,
+    backgroundAnomaly: false,
+    sampleDuration: 3,
+  });
+
+  useEffect(() => {
+    if (settings && !settings.message) {
+      setKinesicsEnabled(settings.kinesicsEnabled ?? false);
+      setRfidEnabled(settings.rfidEnabled ?? false);
+      setVoiceEnabled(settings.voiceBiometricsEnabled ?? false);
+      if (settings.settings) {
+        if (settings.settings.kinesics) setKinesicsSettings(settings.settings.kinesics);
+        if (settings.settings.rfid) setRfidSettings(settings.settings.rfid);
+        if (settings.settings.voice) setVoiceSettings(settings.settings.voice);
+      }
+    }
+  }, [settings]);
+
+  useEffect(() => {
+    if (exams.length > 0 && !selectedExamId) {
+      setSelectedExamId(String(exams[0].id));
+    }
+  }, [exams]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => fetch("/api/global-tech-settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        examId: selectedExamId ? Number(selectedExamId) : null,
+        kinesicsEnabled,
+        rfidEnabled,
+        voiceBiometricsEnabled: voiceEnabled,
+        settings: {
+          kinesics: kinesicsSettings,
+          rfid: rfidSettings,
+          voice: voiceSettings,
+        },
+      }),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/global-tech-settings"] });
+      toast({ title: "Settings saved successfully" });
+    },
+    onError: (err: Error) => toast({ title: "Error saving", description: err.message, variant: "destructive" }),
+  });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 font-sans pb-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-5 animate-in fade-in duration-300 font-sans pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-bold text-gray-900 tracking-tight flex items-center gap-3">
-            <Radar className="w-8 h-8 text-indigo-600" /> Advanced Global Surveillance
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2" data-testid="text-surveillance-title">
+            <Radar className="w-5 h-5 text-indigo-600" /> Advanced Surveillance
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Next-gen verification technologies inspired by international security protocols</p>
+          <p className="text-sm text-gray-500">Configure next-gen verification technologies per exam</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full font-medium text-sm border border-indigo-100 shadow-sm">
-          <BrainCircuit className="w-4 h-4 animate-pulse" /> Neural Engine Active
+        <div className="flex items-center gap-2">
+          <Select value={selectedExamId} onValueChange={setSelectedExamId}>
+            <SelectTrigger className="h-8 w-48 text-xs" data-testid="select-exam-surveillance">
+              <SelectValue placeholder="Select Exam" />
+            </SelectTrigger>
+            <SelectContent>
+              {exams.map((exam: any) => (
+                <SelectItem key={exam.id} value={String(exam.id)}>{exam.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            data-testid="button-save-surveillance"
+          >
+            {saveMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+            Save All
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Card className={`shadow-sm border-2 transition-all cursor-pointer ${activeTab === 'kinesics' ? 'border-indigo-500 bg-indigo-50/30' : 'border-gray-100 hover:border-indigo-200'}`} onClick={() => setActiveTab('kinesics')}>
-          <CardContent className="p-6 flex flex-col items-center text-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${activeTab === 'kinesics' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-indigo-50 text-indigo-600'}`}>
-              <Eye className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">Kinesics & Micro-Expressions</h3>
-              <p className="text-sm text-gray-500 mt-2">Behavioral analysis detecting stress or deception during verification (China/US standard)</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={`shadow-sm border-2 transition-all cursor-pointer ${activeTab === 'rfid' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-100 hover:border-blue-200'}`} onClick={() => setActiveTab('rfid')}>
-          <CardContent className="p-6 flex flex-col items-center text-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${activeTab === 'rfid' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-blue-50 text-blue-600'}`}>
-              <Waves className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">UHF RFID Tracking</h3>
-              <p className="text-sm text-gray-500 mt-2">Passive tracking of candidate movement within the examination center (South Korea model)</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={`shadow-sm border-2 transition-all cursor-pointer ${activeTab === 'voice' ? 'border-purple-500 bg-purple-50/30' : 'border-gray-100 hover:border-purple-200'}`} onClick={() => setActiveTab('voice')}>
-          <CardContent className="p-6 flex flex-col items-center text-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${activeTab === 'voice' ? 'bg-purple-600 text-white shadow-lg shadow-purple-200' : 'bg-purple-50 text-purple-600'}`}>
-              <Mic className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">Voice Biometrics</h3>
-              <p className="text-sm text-gray-500 mt-2">Vocal passphrase matching combined with background noise anomaly detection</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <TabCard
+          active={activeTab === "kinesics"}
+          enabled={kinesicsEnabled}
+          onClick={() => setActiveTab("kinesics")}
+          icon={<Eye className="w-5 h-5" />}
+          title="Kinesics & Micro-Expressions"
+          desc="Behavioral analysis for stress/deception"
+          color="indigo"
+          testId="tab-kinesics"
+        />
+        <TabCard
+          active={activeTab === "rfid"}
+          enabled={rfidEnabled}
+          onClick={() => setActiveTab("rfid")}
+          icon={<Waves className="w-5 h-5" />}
+          title="UHF RFID Tracking"
+          desc="Passive candidate movement tracking"
+          color="blue"
+          testId="tab-rfid"
+        />
+        <TabCard
+          active={activeTab === "voice"}
+          enabled={voiceEnabled}
+          onClick={() => setActiveTab("voice")}
+          icon={<Mic className="w-5 h-5" />}
+          title="Voice Biometrics"
+          desc="Vocal passphrase + noise anomaly"
+          color="purple"
+          testId="tab-voice"
+        />
       </div>
 
-      {activeTab === 'kinesics' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4 duration-300">
-          <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
-            <div className="bg-slate-900 p-6 text-white border-b border-slate-800">
-              <div className="flex items-center gap-3 mb-2">
-                <BrainCircuit className="w-6 h-6 text-indigo-400" />
-                <h3 className="font-bold text-xl">Behavioral Analysis Engine</h3>
+      {activeTab === "kinesics" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="shadow-sm border-gray-100 rounded-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">Kinesics Configuration</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500">Enable</span>
+                  <Switch checked={kinesicsEnabled} onCheckedChange={setKinesicsEnabled} data-testid="switch-kinesics" />
+                </div>
               </div>
-              <p className="text-slate-400 text-sm">Monitors facial micro-expressions and eye tracking during the photo capture phase to detect nervousness, coaching, or earpiece listening.</p>
-            </div>
-            <CardContent className="p-0">
-              <div className="p-6 space-y-6">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Eye className="w-5 h-5 text-indigo-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Pupil Dilation Tracking (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Measures abnormal pupil responses indicating cognitive overload or stress.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-                
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Activity className="w-5 h-5 text-indigo-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Micro-Expression Scanner (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Detects 43 distinct facial muscle movements to identify hidden anxiety.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Search className="w-5 h-5 text-indigo-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Gaze Deviation Alert (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Flags if a candidate is repeatedly looking off-camera (potential coaching).</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
+              <div className="space-y-3">
+                <ToggleRow label="Micro-Expression Analysis" desc="Detect involuntary facial micro-expressions during verification" icon={<Eye className="w-4 h-4 text-indigo-600" />}
+                  checked={kinesicsSettings.microExpressions} onChange={(v) => setKinesicsSettings({ ...kinesicsSettings, microExpressions: v })} testId="switch-micro-expr" />
+                <ToggleRow label="Stress Pattern Analysis" desc="Monitor physiological stress indicators" icon={<Activity className="w-4 h-4 text-indigo-600" />}
+                  checked={kinesicsSettings.stressAnalysis} onChange={(v) => setKinesicsSettings({ ...kinesicsSettings, stressAnalysis: v })} testId="switch-stress" />
+                <ToggleRow label="Gaze Tracking" desc="Track eye movement for distraction or prompting" icon={<Fingerprint className="w-4 h-4 text-indigo-600" />}
+                  checked={kinesicsSettings.gazeTracking} onChange={(v) => setKinesicsSettings({ ...kinesicsSettings, gazeTracking: v })} testId="switch-gaze" />
               </div>
             </CardContent>
           </Card>
-
-          <Card className="shadow-sm border-gray-100 rounded-xl bg-slate-50 border-dashed">
-            <CardContent className="p-8 flex flex-col items-center justify-center h-full text-center">
-              <div className="w-64 h-64 relative mb-6">
-                {/* Simulated Wireframe Face Scanner */}
-                <div className="absolute inset-0 bg-[url('https://cdn-icons-png.flaticon.com/512/3035/3035048.png')] bg-cover opacity-10 blur-[1px]"></div>
-                <div className="absolute inset-0 border-2 border-indigo-500/30 rounded-full animate-pulse"></div>
-                
-                {/* Scanning lines */}
-                <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_red]"></div>
-                <div className="absolute top-1/3 right-1/4 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_red]"></div>
-                <div className="absolute bottom-1/3 left-1/2 w-2 h-2 bg-green-500 rounded-full shadow-[0_0_10px_green]"></div>
-                
-                {/* HUD Elements */}
-                <div className="absolute top-4 left-0 text-[10px] font-mono text-indigo-600 text-left">
-                  STRESS: LOW<br/>
-                  HEART RATE: ~72BPM<br/>
-                  FOCUS: CENTER
-                </div>
-              </div>
-              <h3 className="font-bold text-gray-900">Live Kinesics Demo</h3>
-              <p className="text-sm text-gray-500 mt-2 max-w-sm">Requires compatible AI accelerator chip on the verification tablet (NPU supported).</p>
-            </CardContent>
+          <Card className="shadow-sm border-gray-100 rounded-lg bg-slate-900 text-white flex flex-col items-center justify-center p-6">
+            <BrainCircuit className="w-10 h-10 text-indigo-400 mb-3" />
+            <h3 className="font-bold text-white text-base mb-1">Neural Analysis Engine</h3>
+            <p className="text-slate-400 text-xs text-center mb-4">Real-time behavioral pattern recognition</p>
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${kinesicsEnabled ? "bg-green-900/50 text-green-400 border border-green-500/30" : "bg-gray-700 text-gray-400 border border-gray-600"}`}>
+              {kinesicsEnabled ? "Active" : "Disabled"}
+            </div>
           </Card>
         </div>
       )}
 
-      {activeTab === 'rfid' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4 duration-300">
-          <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
-            <div className="bg-blue-900 p-6 text-white border-b border-blue-800">
-              <div className="flex items-center gap-3 mb-2">
-                <Map className="w-6 h-6 text-blue-400" />
-                <h3 className="font-bold text-xl">Center Geolocation & RFID</h3>
+      {activeTab === "rfid" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="shadow-sm border-gray-100 rounded-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">RFID Configuration</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500">Enable</span>
+                  <Switch checked={rfidEnabled} onCheckedChange={setRfidEnabled} data-testid="switch-rfid" />
+                </div>
               </div>
-              <p className="text-blue-200 text-sm">Integration with UHF RFID tags embedded in OMR sheets or ID cards to track movement across the examination hall.</p>
-            </div>
-            <CardContent className="p-0">
-              <div className="p-6 space-y-6">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Waves className="w-5 h-5 text-blue-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">OMR Proximity Alert (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Alerts if OMR sheet moves outside the designated classroom zone.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-                
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Zap className="w-5 h-5 text-blue-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Multi-Tag Collision (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Detects if two candidate tags are suspiciously close to each other for &gt;5 mins.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
+              <div className="space-y-3">
+                <ToggleRow label="Passive Movement Tracking" desc="Track candidate movement via UHF RFID tags" icon={<Waves className="w-4 h-4 text-blue-600" />}
+                  checked={rfidSettings.passiveTracking} onChange={(v) => setRfidSettings({ ...rfidSettings, passiveTracking: v })} testId="switch-passive" />
+                <ToggleRow label="Entry/Exit Logging" desc="Log entry and exit times at exam venues" icon={<Zap className="w-4 h-4 text-blue-600" />}
+                  checked={rfidSettings.entryExitLog} onChange={(v) => setRfidSettings({ ...rfidSettings, entryExitLog: v })} testId="switch-entry-exit" />
+                <ToggleRow label="Unauthorized Movement Alert" desc="Alert on unexpected candidate movement patterns" icon={<Radar className="w-4 h-4 text-blue-600" />}
+                  checked={rfidSettings.unauthorizedMovement} onChange={(v) => setRfidSettings({ ...rfidSettings, unauthorizedMovement: v })} testId="switch-unauth" />
               </div>
             </CardContent>
           </Card>
-          
-          <Card className="shadow-sm border-gray-100 rounded-xl">
-            <CardContent className="p-6 h-full flex flex-col items-center justify-center">
-              <div className="w-full max-w-sm aspect-square bg-slate-100 rounded-full border-4 border-slate-200 relative flex items-center justify-center overflow-hidden mb-6">
-                <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full animate-[ping_3s_infinite]"></div>
-                <div className="absolute inset-4 border-4 border-blue-500/40 rounded-full animate-[ping_2s_infinite]"></div>
-                <div className="absolute inset-8 border-4 border-blue-500/60 rounded-full animate-[ping_1s_infinite]"></div>
-                <Map className="w-12 h-12 text-blue-600 relative z-10" />
-                
-                {/* Dots representing tracked items */}
-                <div className="absolute top-1/4 left-1/3 w-3 h-3 bg-green-500 rounded-full shadow-lg z-20"></div>
-                <div className="absolute bottom-1/3 right-1/4 w-3 h-3 bg-red-500 rounded-full shadow-lg z-20">
-                  <div className="absolute inset-0 bg-red-500 rounded-full animate-ping"></div>
-                </div>
-              </div>
-              <h3 className="font-bold text-gray-900">Zonal Tracking Simulator</h3>
-              <p className="text-sm text-gray-500 mt-2 text-center">Requires physical RFID gateways installed at center entry points and classroom doors.</p>
-            </CardContent>
+          <Card className="shadow-sm border-gray-100 rounded-lg bg-slate-900 text-white flex flex-col items-center justify-center p-6">
+            <Waves className="w-10 h-10 text-blue-400 mb-3" />
+            <h3 className="font-bold text-white text-base mb-1">RFID Tracking System</h3>
+            <p className="text-slate-400 text-xs text-center mb-4">Passive monitoring via UHF radio frequency</p>
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${rfidEnabled ? "bg-green-900/50 text-green-400 border border-green-500/30" : "bg-gray-700 text-gray-400 border border-gray-600"}`}>
+              {rfidEnabled ? "Active" : "Disabled"}
+            </div>
           </Card>
         </div>
       )}
 
-      {activeTab === 'voice' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-bottom-4 duration-300">
-          <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
-            <div className="bg-purple-900 p-6 text-white border-b border-purple-800">
-              <div className="flex items-center gap-3 mb-2">
-                <Volume2 className="w-6 h-6 text-purple-400" />
-                <h3 className="font-bold text-xl">Acoustic Signature Matching</h3>
+      {activeTab === "voice" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="shadow-sm border-gray-100 rounded-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">Voice Biometrics Configuration</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500">Enable</span>
+                  <Switch checked={voiceEnabled} onCheckedChange={setVoiceEnabled} data-testid="switch-voice" />
+                </div>
               </div>
-              <p className="text-purple-200 text-sm">Extracts over 100 physical vocal tract characteristics during verification. Deep-fake audio and synthetic voice resistant.</p>
-            </div>
-            <CardContent className="p-0">
-              <div className="p-6 space-y-6">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Mic className="w-5 h-5 text-purple-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Voice Print Generation (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Requires candidate to read a random 4-digit code aloud during face capture.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-                
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Cpu className="w-5 h-5 text-purple-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Synthetic Audio Detection (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">AI model that detects AI-generated voices or pre-recorded playback.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-                
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex gap-4">
-                    <div className="mt-1"><Volume2 className="w-5 h-5 text-purple-600" /></div>
-                    <div>
-                      <div className="font-bold text-gray-900">Background Anomaly Flag (Optional)</div>
-                      <div className="text-sm text-gray-500 mt-1">Flags if whispering or coaching is detected in the audio background.</div>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
+              <div className="space-y-3">
+                <ToggleRow label="Passphrase Matching" desc="Voice passphrase identity verification" icon={<Mic className="w-4 h-4 text-purple-600" />}
+                  checked={voiceSettings.passphraseMatch} onChange={(v) => setVoiceSettings({ ...voiceSettings, passphraseMatch: v })} testId="switch-passphrase" />
+                <ToggleRow label="Synthetic Audio Detection" desc="Detect AI-generated or pre-recorded playback" icon={<Cpu className="w-4 h-4 text-purple-600" />}
+                  checked={voiceSettings.syntheticDetection} onChange={(v) => setVoiceSettings({ ...voiceSettings, syntheticDetection: v })} testId="switch-synthetic" />
+                <ToggleRow label="Background Anomaly" desc="Flag whisper/coaching in audio background" icon={<Volume2 className="w-4 h-4 text-purple-600" />}
+                  checked={voiceSettings.backgroundAnomaly} onChange={(v) => setVoiceSettings({ ...voiceSettings, backgroundAnomaly: v })} testId="switch-bg-anomaly" />
               </div>
             </CardContent>
           </Card>
-          
-          <Card className="shadow-sm border-gray-100 rounded-xl bg-slate-900 text-white flex flex-col items-center justify-center p-8">
-             <div className="w-full flex items-center justify-center gap-1 h-32 mb-8">
-               {[...Array(20)].map((_, i) => (
-                 <div 
-                   key={i} 
-                   className="w-2 bg-purple-500 rounded-full" 
-                   style={{ 
-                     height: `${Math.random() * 100}%`,
-                     animation: `pulse ${0.5 + Math.random()}s infinite alternate`
-                   }}
-                 ></div>
-               ))}
-             </div>
-             <h3 className="font-bold text-white text-xl mb-2">Acoustic Model Configured</h3>
-             <p className="text-slate-400 text-sm text-center">Ready to capture and process multi-channel audio data on candidate verification.</p>
+          <Card className="shadow-sm border-gray-100 rounded-lg bg-slate-900 text-white flex flex-col items-center justify-center p-6">
+            <Mic className="w-10 h-10 text-purple-400 mb-3" />
+            <h3 className="font-bold text-white text-base mb-1">Voice Analysis Engine</h3>
+            <p className="text-slate-400 text-xs text-center mb-4">Multi-channel acoustic processing</p>
+            <div className={`px-3 py-1 rounded-full text-xs font-medium ${voiceEnabled ? "bg-green-900/50 text-green-400 border border-green-500/30" : "bg-gray-700 text-gray-400 border border-gray-600"}`}>
+              {voiceEnabled ? "Active" : "Disabled"}
+            </div>
+            <div className="w-full flex items-center justify-center gap-1 h-16 mt-4">
+              {[...Array(16)].map((_, i) => (
+                <div key={i} className={`w-1.5 rounded-full transition-all ${voiceEnabled ? "bg-purple-500" : "bg-gray-600"}`} style={{ height: `${20 + Math.random() * 80}%` }} />
+              ))}
+            </div>
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function TabCard({ active, enabled, onClick, icon, title, desc, color, testId }: {
+  active: boolean; enabled: boolean; onClick: () => void; icon: React.ReactNode; title: string; desc: string; color: string; testId: string;
+}) {
+  const borderColor = active ? `border-${color}-500` : "border-gray-100";
+  return (
+    <Card
+      className={`shadow-sm border-2 transition-all cursor-pointer ${active ? `border-${color}-500 bg-${color}-50/30` : `border-gray-100 hover:border-${color}-200`}`}
+      onClick={onClick}
+      data-testid={testId}
+    >
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${active ? `bg-${color}-600 text-white` : `bg-${color}-50 text-${color}-600`}`}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-semibold text-gray-900 text-sm truncate">{title}</h3>
+            <div className={`w-2 h-2 rounded-full ${enabled ? "bg-green-500" : "bg-gray-300"}`} />
+          </div>
+          <p className="text-[10px] text-gray-500 truncate">{desc}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ToggleRow({ label, desc, icon, checked, onChange, testId }: {
+  label: string; desc: string; icon: React.ReactNode; checked: boolean; onChange: (v: boolean) => void; testId: string;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+      <div className="flex gap-3">
+        <div className="mt-0.5">{icon}</div>
+        <div>
+          <div className="text-xs font-medium text-gray-900">{label}</div>
+          <div className="text-[10px] text-gray-500">{desc}</div>
+        </div>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} data-testid={testId} />
     </div>
   );
 }
