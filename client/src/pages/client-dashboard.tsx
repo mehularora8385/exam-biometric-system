@@ -41,7 +41,8 @@ export default function ClientDashboard() {
     enabled: !!clientUsername,
   });
 
-  const clientExam = clientExams.length > 0 ? clientExams[0] : null;
+  const [selectedExamIdx, setSelectedExamIdx] = useState(0);
+  const clientExam = clientExams.length > selectedExamIdx ? clientExams[selectedExamIdx] : (clientExams.length > 0 ? clientExams[0] : null);
   const examId = clientExam?.id;
   const examTitle = clientExam?.name || "Loading...";
 
@@ -109,7 +110,20 @@ export default function ClientDashboard() {
               <img src={clientExam.clientLogo} alt="" className="w-10 h-10 object-contain rounded-lg border border-gray-200 bg-white p-0.5" data-testid="img-client-logo" />
             )}
             <div className="flex flex-col">
-              <span className="font-semibold text-gray-900 text-sm leading-tight" data-testid="text-exam-name">{examTitle}</span>
+              {clientExams.length > 1 ? (
+                <select
+                  data-testid="select-client-exam"
+                  className="font-semibold text-gray-900 text-sm bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer pr-4 -ml-1"
+                  value={selectedExamIdx}
+                  onChange={(e) => setSelectedExamIdx(Number(e.target.value))}
+                >
+                  {clientExams.map((ex: any, idx: number) => (
+                    <option key={ex.id} value={idx}>{ex.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="font-semibold text-gray-900 text-sm leading-tight" data-testid="text-exam-name">{examTitle}</span>
+              )}
               <span className="text-[11px] text-gray-400">{clientExam?.client || ""}</span>
             </div>
           </div>

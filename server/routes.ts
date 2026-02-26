@@ -1444,19 +1444,21 @@ export async function registerRoutes(
   app.get("/api/client/exams", async (req, res) => {
     try {
       const username = req.query.username as string;
-      const allExams = await storage.listExams();
-      if (username) {
-        const clientExams = allExams.filter(e => e.clientLoginId === username);
-        res.json(clientExams);
-      } else {
-        res.json(allExams);
+      if (!username) {
+        return res.json([]);
       }
+      const allExams = await storage.listExams();
+      const clientExams = allExams.filter(e => e.clientLoginId === username);
+      res.json(clientExams);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.get("/api/client/dashboard", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      if (!examId) {
+        return res.json({ totalCandidates: 0, verified: 0, pending: 0, notVerified: 0, present: 0, absent: 0, totalCenters: 0, activeCenters: 0, totalOperators: 0, activeOperators: 0, centerStats: [] });
+      }
       const stats = await storage.getClientDashboardStats(examId);
       res.json(stats);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -1465,19 +1467,20 @@ export async function registerRoutes(
   app.get("/api/client/operators", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
-      if (examId) {
-        const ops = await storage.listOperatorsByExam(examId);
-        res.json(ops);
-      } else {
-        const ops = await storage.listOperators();
-        res.json(ops);
+      if (!examId) {
+        return res.json([]);
       }
+      const ops = await storage.listOperatorsByExam(examId);
+      res.json(ops);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.get("/api/client/candidates", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      if (!examId) {
+        return res.json([]);
+      }
       const list = await storage.listCandidates(examId);
       res.json(list);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
