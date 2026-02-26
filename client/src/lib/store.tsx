@@ -109,21 +109,72 @@ const MOCK_CANDIDATES: Candidate[] = [
 ].map(c => ({ ...c, examId: "EX-2025-001", verificationStatus: "PENDING" as const }));
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AppState>({
-    operator: null,
-    exams: MOCK_EXAMS,
-    selectedExam: null,
-    candidates: [],
-    attendance: [],
-    registrations: [],
-    isDownloaded: false,
+  const [state, setState] = useState<AppState>(() => {
+    try {
+      const saved = localStorage.getItem("mpa_session");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const loginTime = parsed._loginTime || 0;
+        const elapsed = Date.now() - loginTime;
+        const SESSION_DURATION = 5 * 60 * 1000;
+        if (elapsed < SESSION_DURATION && parsed.operator) {
+          return {
+            operator: parsed.operator,
+            exams: MOCK_EXAMS,
+            selectedExam: parsed.selectedExam || null,
+            candidates: [],
+            attendance: [],
+            registrations: [],
+            isDownloaded: false,
+          };
+        } else {
+          localStorage.removeItem("mpa_session");
+        }
+      }
+    } catch {}
+    return {
+      operator: null,
+      exams: MOCK_EXAMS,
+      selectedExam: null,
+      candidates: [],
+      attendance: [],
+      registrations: [],
+      isDownloaded: false,
+    };
   });
 
+  useEffect(() => {
+    if (state.operator) {
+      const existing = localStorage.getItem("mpa_session");
+      let loginTime = Date.now();
+      try {
+        if (existing) {
+          const parsed = JSON.parse(existing);
+          if (parsed._loginTime) loginTime = parsed._loginTime;
+        }
+      } catch {}
+      localStorage.setItem("mpa_session", JSON.stringify({
+        operator: state.operator,
+        selectedExam: state.selectedExam,
+        _loginTime: loginTime,
+      }));
+    }
+  }, [state.operator, state.selectedExam]);
+
   const login = (operator: Operator) => {
+    localStorage.setItem("mpa_session", JSON.stringify({
+      operator,
+      selectedExam: null,
+      _loginTime: Date.now(),
+    }));
     setState(prev => ({ ...prev, operator }));
   };
 
   const logout = () => {
+    localStorage.removeItem("mpa_session");
+    localStorage.removeItem("role");
+    localStorage.removeItem("displayName");
+    localStorage.removeItem("username");
     setState(prev => ({ ...prev, operator: null, selectedExam: null }));
   };
 
