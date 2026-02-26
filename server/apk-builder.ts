@@ -299,70 +299,66 @@ export async function buildApk(
     const versionCode = buildId;
     const versionName = `3.${Math.floor(buildId / 10)}.${buildId % 10}`;
 
-    log("Step 1/6: Creating project directory...");
+
+    log("Step 1/7: Creating project directory...");
     await onProgress(10, logs.join("\n"));
     if (fs.existsSync(buildDir)) fs.rmSync(buildDir, { recursive: true });
     fs.mkdirSync(buildDir, { recursive: true });
 
-    log("Step 2/6: Generating Android project files...");
+    log("Step 2/7: Generating Android project files...");
     await onProgress(20, logs.join("\n"));
     writeProjectFiles(buildDir, pkgName, pkgPath, config, versionCode, versionName);
     log(`  Package: ${pkgName}`);
     log(`  Version: ${versionName} (code: ${versionCode})`);
 
-    log("Step 3/6: Injecting exam config into assets/config.json...");
+    log("Step 3/7: Injecting exam config into assets/config.json...");
     await onProgress(30, logs.join("\n"));
     log(`  examId=${config.examId}, mode=${config.biometricMode}, threshold=${config.faceMatchThreshold}`);
 
-    log("Step 4/6: Checking build environment...");
+    log("Step 4/7: Generating Gradle wrapper...");
     await onProgress(40, logs.join("\n"));
 
-    const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || "";
-    const hasAndroidSdk = androidHome && fs.existsSync(androidHome);
-    const hasGradleWrapper = fs.existsSync(path.join(buildDir, "gradlew"));
-
-    if (!hasAndroidSdk) {
-      log("  Android SDK not found - creating downloadable project archive");
-
-      log("Step 5/6: Creating project ZIP...");
-      await onProgress(60, logs.join("\n"));
-      try {
-        const zipPath = path.join(APK_OUTPUT_DIR, `MPA_Verify_${examName}_v${versionName}.zip`);
-        execSync(`cd "${buildDir}" && tar -czf "${zipPath}" .`, { stdio: "pipe" });
-        log(`  Archive: ${zipPath}`);
-        const zipSize = (fs.statSync(zipPath).size / (1024 * 1024)).toFixed(1);
-        log(`  Size: ${zipSize} MB`);
-        await onProgress(80, logs.join("\n"));
-
-        log("Step 6/6: Project ready for download");
-        log("  To build APK: Open project in Android Studio > Build > Generate Signed APK");
-        log("  Required: Place Mantra MFS100 .aar in app/libs/");
-        log("  Required: Place FaceNet .tflite in app/src/main/assets/");
-        await onProgress(100, logs.join("\n"));
-
-        return { success: true, apkPath: zipPath, logs: logs.join("\n") };
-      } catch (e: any) {
-        log(`  Archive failed: ${e.message}`);
-        return { success: true, apkPath: buildDir, logs: logs.join("\n") };
-      }
+    try {
+      execSync(`cd "${buildDir}" && gradle wrapper --gradle-version 8.4 2>&1`, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
+      log("  Generated: gradlew, gradlew.bat, gradle-wrapper.jar");
+      execSync(`chmod +x "${buildDir}/gradlew"`);
+      log("  Set gradlew as executable");
+    } catch (wrapperErr: any) {
+      log(`  Gradle wrapper generation failed: ${wrapperErr.message}`);
+      log("  Ensure Gradle is installed on server: apt install gradle");
+      return { success: false, logs: logs.join("\n") };
     }
+    await onProgress(50, logs.join("\n"));
 
-    log(`  Android SDK: ${androidHome}`);
+    log("Step 5/7: Checking Android SDK...");
+    const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || "";
+    if (androidHome) log(`  ANDROID_HOME: ${androidHome}`);
+    else log("  ANDROID_HOME not set - will attempt build with system defaults");
+    await onProgress(55, logs.join("\n"));
 
-    log("Step 5/6: Running Gradle assembleRelease...");
+    log("Step 6/7: Running ./gradlew assembleRelease...");
     await onProgress(60, logs.join("\n"));
 
     try {
-      const gradleCmd = hasGradleWrapper ? "./gradlew" : "gradle";
-      const output = execSync(`cd "${buildDir}" && ${gradleCmd} assembleRelease --no-daemon 2>&1`, { timeout: 300000, maxBuffer: 50 * 1024 * 1024 }).toString();
-      output.split("\n").slice(-20).forEach(l => log("  " + l));
-      await onProgress(80, logs.join("\n"));
-    } catch (e: any) {
-      log(`  Build FAILED: ${e.message}`);
+      const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 600000, maxBuffer: 50 * 1024 * 1024 }).toString();
+      const outputLines = output.split("\n");
+      outputLines.slice(-30).forEach(l => log("  " + l));
+      log(`  Build completed successfully (${outputLines.length} output lines)`);
+      await onProgress(85, logs.join("\n"));
+    } catch (buildErr: any) {
+      log("  BUILD FAILED");
+      if (buildErr.stdout) {
+        const stdout = buildErr.stdout.toString();
+        stdout.split("\n").slice(-40).forEach((l: string) => log("  " + l));
+      }
+      if (buildErr.stderr) {
+        const stderr = buildErr.stderr.toString();
+        stderr.split("\n").slice(-20).forEach((l: string) => log("  ERR: " + l));
+      }
       return { success: false, logs: logs.join("\n") };
     }
 
-    log("Step 6/6: Copying APK to output...");
+    log("Step 7/7: Locating and copying signed APK...");
     await onProgress(90, logs.join("\n"));
 
     const apkPaths = [
