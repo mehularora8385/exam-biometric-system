@@ -1567,7 +1567,7 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
 
   fs.writeFileSync(path.join(buildDir, "build.gradle"), generateProjectBuildGradle());
   fs.writeFileSync(path.join(buildDir, "settings.gradle"), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\nrootProject.name = "${appName}"\ninclude ':app'`);
-  fs.writeFileSync(path.join(buildDir, "gradle.properties"), `org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nkotlin.code.style=official\nandroid.nonTransitiveRClass=true\norg.gradle.parallel=true\norg.gradle.caching=true`);
+  fs.writeFileSync(path.join(buildDir, "gradle.properties"), `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\norg.gradle.daemon=false\norg.gradle.workers.max=2\nandroid.useAndroidX=true\nkotlin.code.style=official\nandroid.nonTransitiveRClass=true\norg.gradle.parallel=true\norg.gradle.caching=true`);
   fs.writeFileSync(path.join(buildDir, "gradle", "wrapper", "gradle-wrapper.properties"), `distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists`);
   fs.writeFileSync(path.join(buildDir, "app", "build.gradle"), generateAppBuildGradle(pkgName, versionCode, versionName));
   fs.writeFileSync(path.join(buildDir, "app", "proguard-rules.pro"), `-keep class com.mantra.** { *; }\n-keep class com.mfs100.** { *; }\n-dontwarn com.mantra.**\n-keep class org.tensorflow.** { *; }\n-dontwarn org.tensorflow.**\n-keep class com.google.mlkit.** { *; }`);
@@ -1668,7 +1668,7 @@ export async function buildApk(
     try {
       const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, PATH: `${gradleHome}/bin:${process.env.PATH}` };
       if (androidHome) buildEnv.ANDROID_HOME = androidHome;
-      const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 600000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+      const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
       const outputLines = output.split("\n");
       outputLines.slice(-30).forEach(l => log("  " + l));
       log(`  Build completed successfully (${outputLines.length} output lines)`);
