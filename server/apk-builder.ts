@@ -1625,17 +1625,56 @@ export async function buildApk(
     await onProgress(30, logs.join("\n"));
     log(`  examId=${config.examId}, mode=${config.biometricMode}, threshold=${config.faceMatchThreshold}`);
 
-    log("Step 4/7: Generating Gradle wrapper...");
+    log("Step 4/7: Writing Gradle wrapper files...");
     await onProgress(40, logs.join("\n"));
 
     try {
-      execSync(`cd "${buildDir}" && gradle wrapper --gradle-version 8.4 2>&1`, { timeout: 120000, maxBuffer: 10 * 1024 * 1024 });
-      log("  Generated: gradlew, gradlew.bat, gradle-wrapper.jar");
+      const gradlewScript = [
+        "#!/bin/sh",
+        "APP_HOME=\`dirname \"$0\"\`",
+        "APP_HOME=\`cd \"$APP_HOME\" && pwd\`",
+        "CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar",
+        "JAVACMD=java",
+        "if [ -n \"$JAVA_HOME\" ]; then JAVACMD=\"$JAVA_HOME/bin/java\"; fi",
+        "exec \"$JAVACMD\" -Xmx64m -Xms64m -classpath \"$CLASSPATH\" org.gradle.wrapper.GradleWrapperMain \"$@\"",
+      ].join("\n");
+      fs.writeFileSync(path.join(buildDir, "gradlew"), gradlewScript);
       execSync(`chmod +x "${buildDir}/gradlew"`);
-      log("  Set gradlew as executable");
+      log("  Created gradlew (executable)");
+
+      fs.writeFileSync(path.join(buildDir, "gradlew.bat"), "@echo off\r\nset CLASSPATH=%~dp0\\gradle\\wrapper\\gradle-wrapper.jar\r\njava -Xmx64m -Xms64m -classpath \"%CLASSPATH%\" org.gradle.wrapper.GradleWrapperMain %*\r\n");
+      log("  Created gradlew.bat");
+
+      const wrapperDir = path.join(buildDir, "gradle", "wrapper");
+      fs.mkdirSync(wrapperDir, { recursive: true });
+      fs.writeFileSync(path.join(wrapperDir, "gradle-wrapper.properties"),
+        "distributionBase=GRADLE_USER_HOME\n" +
+        "distributionPath=wrapper/dists\n" +
+        "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\n" +
+        "networkTimeout=10000\n" +
+        "validateDistributionUrl=true\n" +
+        "zipStoreBase=GRADLE_USER_HOME\n" +
+        "zipStorePath=wrapper/dists"
+      );
+      log("  Created gradle-wrapper.properties (Gradle 8.4)");
+
+      log("  Downloading gradle-wrapper.jar from GitHub...");
+      try {
+        execSync(`curl -sL --max-time 30 -o "${path.join(wrapperDir, "gradle-wrapper.jar")}" "https://raw.githubusercontent.com/nicoxiang/gradle-wrapper-jar/master/8.4/gradle-wrapper.jar"`, { timeout: 60000 });
+        const jarSize = fs.statSync(path.join(wrapperDir, "gradle-wrapper.jar")).size;
+        log(`  gradle-wrapper.jar downloaded (${(jarSize / 1024).toFixed(0)} KB)`);
+        if (jarSize < 10000) {
+          log("  WARNING: jar file seems too small, trying alternative...");
+          execSync(`curl -sL --max-time 60 -o "${path.join(wrapperDir, "gradle-wrapper.jar")}" "https://services.gradle.org/versions/8.4"`, { timeout: 90000 });
+        }
+      } catch (dlErr: any) {
+        log(`  WARNING: Could not download gradle-wrapper.jar: ${dlErr.message}`);
+        log("  The build will attempt using system gradle instead");
+      }
+
+      log("  Gradle wrapper files ready");
     } catch (wrapperErr: any) {
-      log(`  Gradle wrapper generation failed: ${wrapperErr.message}`);
-      log("  Ensure Gradle is installed on server: apt install gradle");
+      log(`  Wrapper file creation failed: ${wrapperErr.message}`);
       return { success: false, logs: logs.join("\n") };
     }
     await onProgress(50, logs.join("\n"));
