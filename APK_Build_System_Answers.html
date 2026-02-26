@@ -1,0 +1,232 @@
+<html>
+<head><meta charset="UTF-8"><style>
+body{font-family:Calibri,Arial,sans-serif;margin:40px;line-height:1.6;color:#222}
+h1{color:#1565C0;border-bottom:3px solid #1565C0;padding-bottom:10px;font-size:24px}
+h2{color:#0D47A1;margin-top:30px;font-size:18px}
+h3{color:#1976D2;font-size:15px;margin-top:20px}
+pre{background:#f5f5f5;border:1px solid #ddd;padding:12px;border-radius:6px;font-family:Consolas,monospace;font-size:13px;overflow-x:auto}
+code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-family:Consolas,monospace;font-size:13px}
+table{border-collapse:collapse;width:100%;margin:10px 0}
+th,td{border:1px solid #ccc;padding:8px 12px;text-align:left;font-size:13px}
+th{background:#1565C0;color:white}
+tr:nth-child(even){background:#f9f9f9}
+.note{background:#FFF3E0;border-left:4px solid #FF9800;padding:10px 15px;margin:10px 0;border-radius:4px}
+.important{background:#FFEBEE;border-left:4px solid #F44336;padding:10px 15px;margin:10px 0;border-radius:4px}
+.success{background:#E8F5E9;border-left:4px solid #4CAF50;padding:10px 15px;margin:10px 0;border-radius:4px}
+.header-info{color:#666;font-size:14px;margin-bottom:30px}
+</style></head>
+<body>
+<h1>MPA Biometric Verification System - APK Auto-Build System Technical Documentation</h1>
+<p class="header-info">Document Version: 1.0 | Date: February 2026 | Project: exam-biometric-system</p>
+<hr>
+
+<h2>Question 1: Where is the Android template stored on the server?</h2>
+<p>The Android project is <strong>generated dynamically</strong> per build. Each time admin clicks Build APK, a fresh complete Android project is created at:</p>
+<pre>/apk-builds/{buildId}/</pre>
+<p>This path is defined in <code>server/apk-builder.ts</code>:</p>
+<pre>const APK_BUILDS_DIR = path.join(process.cwd(), "apk-builds");</pre>
+<p>For example, build ID 5 creates the following structure:</p>
+<pre>
+/apk-builds/5/
+  build.gradle                            (Project-level Gradle)
+  settings.gradle                         (Project settings)
+  gradle.properties                       (Gradle JVM + Android config)
+  gradle/wrapper/
+    gradle-wrapper.properties             (Gradle 8.4 distribution URL)
+  keystore/                               (Signing keystore location)
+  app/
+    build.gradle                          (App-level Gradle with all dependencies)
+    proguard-rules.pro                    (ProGuard rules for Mantra SDK, TFLite)
+    libs/                                 (Place Mantra MFS100 .aar here)
+    src/main/
+      AndroidManifest.xml                 (All permissions + activities declared)
+      assets/
+        config.json                       (Exam config - auto-injected)
+      java/com/mpa/verify/{examname}/
+        MpaApplication.kt                (Application class)
+        model/
+          Models.kt                       (Candidate, LoginRequest, etc.)
+        network/
+          ApiService.kt                   (Retrofit API interface)
+          RetrofitClient.kt               (Retrofit setup with server URL)
+        db/
+          AppDatabase.kt                  (Room DB - candidates + pending)
+        ui/
+          SplashActivity.kt               (Splash screen + auto-login check)
+          LoginActivity.kt                (Operator login)
+          DashboardActivity.kt            (Stats + sync + navigation)
+          CandidateListActivity.kt        (Candidate list + adapter)
+          AttendanceActivity.kt           (Mark attendance)
+          VerificationActivity.kt         (Face + fingerprint + OMR)
+        service/
+          HeartbeatService.kt             (30s heartbeat to server)
+          SyncService.kt                  (Upload pending verifications)
+        receiver/
+          BootReceiver.kt                 (Auto-start on device boot)
+      res/
+        layout/ (7 XML layouts)
+        values/ (strings.xml, themes.xml, colors.xml)
+        drawable/ (ic_fingerprint.xml, card_bg.xml)
+</pre>
+<div class="note"><strong>Note:</strong> The package name follows the pattern <code>com.mpa.verify.{examname}</code> where examname is the exam title with non-alphanumeric characters removed and lowercased.</div>
+
+<hr>
+<h2>Question 2: Does the generated Android project include Gradle wrapper?</h2>
+<p>The generated project includes Gradle configuration files but <strong>not the binary wrapper files</strong>:</p>
+<table>
+<tr><th>File</th><th>Generated?</th><th>Notes</th></tr>
+<tr><td><code>build.gradle</code> (project level)</td><td><strong>Yes</strong></td><td>AGP 8.2.2, Kotlin 1.9.22</td></tr>
+<tr><td><code>app/build.gradle</code> (app level)</td><td><strong>Yes</strong></td><td>All dependencies, signing config, SDK versions</td></tr>
+<tr><td><code>settings.gradle</code></td><td><strong>Yes</strong></td><td>Plugin management + module include</td></tr>
+<tr><td><code>gradle.properties</code></td><td><strong>Yes</strong></td><td>JVM args, AndroidX, parallel builds</td></tr>
+<tr><td><code>gradle/wrapper/gradle-wrapper.properties</code></td><td><strong>Yes</strong></td><td>Points to Gradle 8.4 distribution</td></tr>
+<tr><td><code>gradlew</code> (Unix shell script)</td><td><strong>No</strong></td><td>Binary - must be copied or generated</td></tr>
+<tr><td><code>gradlew.bat</code> (Windows batch)</td><td><strong>No</strong></td><td>Binary - must be copied or generated</td></tr>
+<tr><td><code>gradle/wrapper/gradle-wrapper.jar</code></td><td><strong>No</strong></td><td>Binary JAR - must be copied or generated</td></tr>
+</table>
+<h3>How to add the missing wrapper files:</h3>
+<p><strong>Option A:</strong> Run this once on the server (requires Gradle installed):</p>
+<pre>cd /apk-builds/{buildId}
+gradle wrapper --gradle-version 8.4</pre>
+<p><strong>Option B:</strong> Copy gradlew, gradlew.bat, and gradle/wrapper/gradle-wrapper.jar from any existing Android Studio project into the build directory.</p>
+<div class="note"><strong>Fallback behavior:</strong> The build system checks for gradlew first. If not found, it tries the system gradle command. If neither is available, it creates a downloadable archive (.tar.gz) instead.</div>
+
+<hr>
+<h2>Question 3: Where is the release signing keystore stored and how is APK signing configured?</h2>
+<h3>Keystore Location:</h3>
+<pre>/keystore/mpa-release.jks</pre>
+<p>Relative to each build directory: <code>../keystore/mpa-release.jks</code></p>
+<h3>Gradle Signing Configuration (in app/build.gradle):</h3>
+<pre>
+signingConfigs {
+    release {
+        storeFile file('../keystore/mpa-release.jks')
+        storePassword System.getenv('KEYSTORE_PASSWORD') ?: 'mpa@2024secure'
+        keyAlias 'mpa-verify'
+        keyPassword System.getenv('KEY_PASSWORD') ?: 'mpa@2024secure'
+    }
+}
+
+buildTypes {
+    release {
+        minifyEnabled true
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                      'proguard-rules.pro'
+        signingConfig signingConfigs.release
+    }
+}
+</pre>
+<h3>Signing Parameters:</h3>
+<table>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Keystore file</td><td><code>../keystore/mpa-release.jks</code></td></tr>
+<tr><td>Store password</td><td>Env: KEYSTORE_PASSWORD (default: mpa@2024secure)</td></tr>
+<tr><td>Key alias</td><td>mpa-verify</td></tr>
+<tr><td>Key password</td><td>Env: KEY_PASSWORD (default: mpa@2024secure)</td></tr>
+</table>
+<h3>How to create the keystore (run once on server):</h3>
+<pre>
+mkdir -p keystore
+
+keytool -genkey -v \
+  -keystore keystore/mpa-release.jks \
+  -alias mpa-verify \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -storepass mpa@2024secure \
+  -keypass mpa@2024secure \
+  -dname "CN=MPA Verification, O=MPA, L=India, C=IN"
+</pre>
+<div class="important"><strong>Important:</strong> For production, change the default passwords and set them via environment variables KEYSTORE_PASSWORD and KEY_PASSWORD on your server.</div>
+
+<hr>
+<h2>Question 4: What exact command is executed during /api/apk/build to generate the APK?</h2>
+<p>The build is triggered by <code>POST /api/apk/build/:examId</code>. The exact command executed (from <code>server/apk-builder.ts</code>):</p>
+<h3>Primary command (if gradlew exists):</h3>
+<pre>cd "/apk-builds/{buildId}" &amp;&amp; ./gradlew assembleRelease --no-daemon 2&gt;&amp;1</pre>
+<h3>Fallback command (if gradlew not found, system gradle used):</h3>
+<pre>cd "/apk-builds/{buildId}" &amp;&amp; gradle assembleRelease --no-daemon 2&gt;&amp;1</pre>
+<h3>Command parameters:</h3>
+<table>
+<tr><th>Parameter</th><th>Value</th></tr>
+<tr><td>Working directory</td><td><code>/apk-builds/{buildId}</code></td></tr>
+<tr><td>Timeout</td><td>300,000 ms (5 minutes)</td></tr>
+<tr><td>Max output buffer</td><td>50 MB</td></tr>
+<tr><td>Flags</td><td>--no-daemon (prevents background daemon)</td></tr>
+<tr><td>Output redirect</td><td>2&gt;&amp;1 (stderr merged into stdout for logging)</td></tr>
+</table>
+<h3>Complete build flow (6 steps):</h3>
+<table>
+<tr><th>Step</th><th>Progress</th><th>Action</th></tr>
+<tr><td>Step 1</td><td>10%</td><td>Create project directory</td></tr>
+<tr><td>Step 2</td><td>20%</td><td>Generate all Android project files (Kotlin, XML, Gradle)</td></tr>
+<tr><td>Step 3</td><td>30%</td><td>Inject exam config into assets/config.json</td></tr>
+<tr><td>Step 4</td><td>40%</td><td>Check for Android SDK (ANDROID_HOME env variable)</td></tr>
+<tr><td>Step 5</td><td>60%</td><td>Run Gradle assembleRelease (or create ZIP archive if no SDK)</td></tr>
+<tr><td>Step 6</td><td>90-100%</td><td>Locate APK, copy to /public/apks/, update database</td></tr>
+</table>
+<div class="note"><strong>If ANDROID_HOME is not set:</strong> The system skips Gradle entirely and creates a .tar.gz archive of the project that can be downloaded and opened in Android Studio for manual compilation.</div>
+<h3>Required environment for auto-build on server:</h3>
+<pre>
+# Install JDK
+apt install openjdk-17-jdk
+
+# Install Android SDK command-line tools and set environment variable
+export ANDROID_HOME=/path/to/android-sdk
+
+# Install required SDK components
+sdkmanager "build-tools;34.0.0" "platforms;android-34"
+</pre>
+
+<hr>
+<h2>Question 5: Where are the built APK files stored publicly for download?</h2>
+<h3>Output directory:</h3>
+<pre>/public/apks/</pre>
+<p>Defined in <code>server/apk-builder.ts</code>:</p>
+<pre>const APK_OUTPUT_DIR = path.join(process.cwd(), "public", "apks");</pre>
+<h3>File naming pattern:</h3>
+<table>
+<tr><th>Scenario</th><th>File name pattern</th><th>Example</th></tr>
+<tr><td>With Android SDK (APK built)</td><td>MPA_Verify_{ExamName}_v{version}.apk</td><td>MPA_Verify_SSCExam_v3.2.14.apk</td></tr>
+<tr><td>Without Android SDK (archive)</td><td>MPA_Verify_{ExamName}_v{version}.zip</td><td>MPA_Verify_RailwayExam_v3.1.7.zip</td></tr>
+</table>
+<h3>Download methods:</h3>
+<p><strong>Method 1: API endpoint</strong></p>
+<pre>GET /api/apk/download/:examId</pre>
+<p>This finds the latest successful build for the specified exam and streams the file with proper headers:</p>
+<ul>
+<li>APK: <code>Content-Type: application/vnd.android.package-archive</code></li>
+<li>Archive: <code>Content-Type: application/gzip</code></li>
+<li>Header: <code>Content-Disposition: attachment; filename=...</code></li>
+</ul>
+<p><strong>Method 2: Direct static file URL</strong></p>
+<pre>https://mpaverification.com/public/apks/MPA_Verify_SSCExam_v3.2.14.apk</pre>
+<p>The directory is served as static files via Express:</p>
+<pre>app.use('/public/apks', express.static(apkOutputDir));</pre>
+<h3>Full directory example after multiple builds:</h3>
+<pre>
+/public/apks/
+  MPA_Verify_SSCExam_v3.2.14.apk
+  MPA_Verify_RailwayExam_v3.1.7.zip
+  MPA_Verify_UPSCPrelims_v3.0.5.apk
+  MPA_Verify_StatePSC_v3.3.42.zip
+</pre>
+<div class="success"><strong>Admin Panel Integration:</strong> After a successful build, the "Download APK" button (purple) appears in the APK management page. The button calls /api/apk/download/:examId which handles finding and streaming the correct file.</div>
+
+<hr>
+<h2>Summary - All File Paths</h2>
+<table>
+<tr><th>Item</th><th>Path</th></tr>
+<tr><td>Build projects</td><td><code>/apk-builds/{buildId}/</code></td></tr>
+<tr><td>Built APKs/archives</td><td><code>/public/apks/</code></td></tr>
+<tr><td>Signing keystore</td><td><code>/keystore/mpa-release.jks</code></td></tr>
+<tr><td>Build logic</td><td><code>server/apk-builder.ts</code></td></tr>
+<tr><td>API routes</td><td><code>server/routes.ts</code></td></tr>
+<tr><td>Database schema</td><td><code>shared/schema.ts</code> (apk_builds table)</td></tr>
+<tr><td>Frontend UI</td><td><code>client/src/pages/admin/apk.tsx</code></td></tr>
+<tr><td>API client</td><td><code>client/src/lib/api.ts</code></td></tr>
+</table>
+
+<hr>
+<p style="text-align:center;color:#999;font-size:12px">MPA Biometric Verification System - APK Build System Documentation - February 2026</p>
+</body>
+</html>
