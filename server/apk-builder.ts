@@ -162,6 +162,7 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:${"$"}{camerax_version}"
     implementation "androidx.camera:camera-view:${"$"}{camerax_version}"
     implementation 'com.google.mlkit:face-detection:16.1.6'
+    implementation 'com.google.mediapipe:tasks-vision:0.10.9'
     implementation 'org.tensorflow:tensorflow-lite:2.14.0'
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
@@ -199,10 +200,20 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   fs.writeFileSync(path.join(srcDir, "MpaApplication.kt"), `package ${pkgName}\nimport android.app.Application\nclass MpaApplication : Application() {\n    override fun onCreate() { super.onCreate(); instance = this }\n    companion object { lateinit var instance: MpaApplication; private set }\n}`);
 
   fs.mkdirSync(path.join(srcDir, "model"), { recursive: true });
-  fs.writeFileSync(path.join(srcDir, "model", "Models.kt"), `package ${pkgName}.model\nimport androidx.room.Entity\nimport androidx.room.PrimaryKey\nimport com.google.gson.annotations.SerializedName\n\n@Entity(tableName = "candidates")\ndata class Candidate(\n    @PrimaryKey val id: Int,\n    @SerializedName("exam_id") val examId: Int,\n    @SerializedName("roll_no") val rollNo: String,\n    val name: String,\n    @SerializedName("father_name") val fatherName: String?,\n    val dob: String?,\n    val slot: String?,\n    @SerializedName("centre_code") val centreCode: String,\n    @SerializedName("centre_name") val centreName: String?,\n    @SerializedName("photo_url") val photoUrl: String?,\n    @SerializedName("attendance_status") var attendanceStatus: String = "absent",\n    @SerializedName("verification_status") var verificationStatus: String = "pending",\n    @SerializedName("face_match_percent") var faceMatchPercent: Float? = null,\n    @SerializedName("omr_number") var omrNumber: String? = null,\n    @SerializedName("verified_photo") var verifiedPhoto: String? = null,\n    var synced: Boolean = false\n)\n\n@Entity(tableName = "pending_verifications")\ndata class PendingVerification(\n    @PrimaryKey(autoGenerate = true) val id: Int = 0,\n    val candidateId: Int,\n    val rollNo: String,\n    val verifiedPhoto: String?,\n    val faceMatchPercent: Float,\n    val omrNumber: String?,\n    val fingerprint: String?,\n    val timestamp: Long = System.currentTimeMillis(),\n    var uploaded: Boolean = false\n)\n\ndata class LoginRequest(val username: String, val password: String, val deviceId: String)\ndata class LoginResponse(val success: Boolean, val user: UserData?, val message: String?)\ndata class UserData(val id: Int, val username: String, val fullName: String, val role: String)\ndata class AttendanceRequest(val attendanceStatus: String, val attendanceOperatorId: Int)\ndata class VerificationRequest(val verificationStatus: String, val verifiedPhoto: String?, val faceMatchPercent: Float, val omrNumber: String?, val verificationOperatorId: Int)\ndata class HeartbeatRequest(val deviceId: String, val operatorId: Int, val battery: Int, val gps: String?)\ndata class ApiResponse(val success: Boolean, val message: String?)\ndata class ExamConfig(val id: Int, val name: String, val faceMatchThreshold: Int, val strictMode: Boolean)\n`);
+  fs.writeFileSync(path.join(srcDir, "model", "Models.kt"), `package ${pkgName}.model\nimport androidx.room.Entity\nimport androidx.room.PrimaryKey\nimport com.google.gson.annotations.SerializedName\n\n@Entity(tableName = "candidates")\ndata class Candidate(\n    @PrimaryKey val id: Int,\n    @SerializedName("exam_id") val examId: Int,\n    @SerializedName("roll_no") val rollNo: String,\n    val name: String,\n    @SerializedName("father_name") val fatherName: String?,\n    val dob: String?,\n    val slot: String?,\n    @SerializedName("centre_code") val centreCode: String,\n    @SerializedName("centre_name") val centreName: String?,\n    @SerializedName("photo_url") val photoUrl: String?,\n    @SerializedName("attendance_status") var attendanceStatus: String = "absent",\n    @SerializedName("verification_status") var verificationStatus: String = "pending",\n    @SerializedName("face_match_percent") var faceMatchPercent: Float? = null,\n    @SerializedName("omr_number") var omrNumber: String? = null,\n    @SerializedName("verified_photo") var verifiedPhoto: String? = null,\n    var synced: Boolean = false\n)\n\n@Entity(tableName = "pending_verifications")\ndata class PendingVerification(\n    @PrimaryKey(autoGenerate = true) val id: Int = 0,\n    val candidateId: Int,\n    val rollNo: String,\n    val verifiedPhoto: String?,\n    val faceMatchPercent: Float,\n    val omrNumber: String?,\n    val fingerprint: String?,\n    val timestamp: Long = System.currentTimeMillis(),\n    var uploaded: Boolean = false\n)\n\ndata class LoginRequest(val username: String, val password: String, val deviceId: String)\ndata class LoginResponse(val success: Boolean, val user: UserData?, val message: String?)\ndata class UserData(val id: Int, val username: String, val fullName: String, val role: String)\ndata class AttendanceRequest(val attendanceStatus: String, val attendanceOperatorId: Int)\ndata class VerificationRequest(val verificationStatus: String, val verifiedPhoto: String?, val faceMatchPercent: Float, val omrNumber: String?, val verificationOperatorId: Int)\ndata class HeartbeatRequest(val deviceId: String, val operatorId: Int, val battery: Int, val gps: String?)\ndata class ApiResponse(val success: Boolean, val message: String?)\ndata class ExamConfig(val id: Int, val name: String, val faceMatchThreshold: Int, val strictMode: Boolean)
+  data class FaceVerifyRequest(val candidateId: Int, val faceEmbedding: List<Float>, val livenessScore: Float, val capturedImageBase64: String)
+  data class FaceVerifyResponse(val success: Boolean, val matchPercent: Float, val message: String?)
+  data class FingerprintVerifyRequest(val candidateId: Int, val fingerprintTemplate: String, val quality: Int, val scannerModel: String)
+  data class FingerprintVerifyResponse(val success: Boolean, val matched: Boolean, val score: Float, val message: String?)
+  data class SyncRequest(val verifications: List<SyncVerification>)
+  data class SyncVerification(val candidateId: Int, val rollNo: String, val faceMatchPercent: Float, val omrNumber: String?, val verifiedPhoto: String?, val fingerprint: String?, val timestamp: Long)
+  data class SyncResponse(val success: Boolean, val syncedCount: Int, val failedCount: Int)\n`);
 
   fs.mkdirSync(path.join(srcDir, "network"), { recursive: true });
-  fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/auth/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>\n}`);
+  fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/auth/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>
+      @POST("api/face/verify") suspend fun verifyFace(@Body request: FaceVerifyRequest): Response<FaceVerifyResponse>
+      @POST("api/fingerprint/verify") suspend fun verifyFingerprint(@Body request: FingerprintVerifyRequest): Response<FingerprintVerifyResponse>
+      @POST("api/verification/sync") suspend fun syncVerifications(@Body request: SyncRequest): Response<SyncResponse>\n}`);
 
   fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create()).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
 
@@ -229,6 +240,292 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   fs.writeFileSync(path.join(srcDir, "ui", "CandidateListActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.LayoutInflater\nimport android.view.ViewGroup\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport androidx.recyclerview.widget.LinearLayoutManager\nimport androidx.recyclerview.widget.RecyclerView\nimport ${pkgName}.databinding.ActivityCandidateListBinding\nimport ${pkgName}.databinding.ItemCandidateBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.Candidate\nimport kotlinx.coroutines.launch\nclass CandidateListActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCandidateListBinding\n    private var mode = "attendance"; private var examId = 0\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCandidateListBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        mode = intent.getStringExtra("mode") ?: "attendance"; examId = intent.getIntExtra("examId", 0)\n        binding.tvTitle.text = if (mode == "attendance") "Mark Attendance" else "Biometric Verification"\n        loadCandidates()\n    }\n    private fun loadCandidates() { lifecycleScope.launch { val candidates = AppDatabase.getInstance(this@CandidateListActivity).candidateDao().getByExam(examId); binding.rvCandidates.layoutManager = LinearLayoutManager(this@CandidateListActivity); binding.rvCandidates.adapter = CandidateAdapter(candidates) { c -> startActivity(Intent(this@CandidateListActivity, if (mode == "attendance") AttendanceActivity::class.java else VerificationActivity::class.java).putExtra("candidateId", c.id).putExtra("examId", examId)) }; binding.tvCount.text = "${"$"}{candidates.size} candidates" } }\n    override fun onResume() { super.onResume(); loadCandidates() }\n}\nclass CandidateAdapter(private val items: List<Candidate>, private val onClick: (Candidate) -> Unit) : RecyclerView.Adapter<CandidateAdapter.VH>() {\n    inner class VH(val b: ItemCandidateBinding) : RecyclerView.ViewHolder(b.root)\n    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(ItemCandidateBinding.inflate(LayoutInflater.from(parent.context), parent, false))\n    override fun getItemCount() = items.size\n    override fun onBindViewHolder(h: VH, pos: Int) { val c = items[pos]; h.b.tvName.text = c.name; h.b.tvRollNo.text = "Roll: ${"$"}{c.rollNo}"; h.b.tvStatus.text = "${"$"}{c.attendanceStatus} | ${"$"}{c.verificationStatus}"; h.itemView.setOnClickListener { onClick(c) } }\n}`);
 
   fs.writeFileSync(path.join(srcDir, "ui", "AttendanceActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityAttendanceBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.AttendanceRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass AttendanceActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityAttendanceBinding\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityAttendanceBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        val cId = intent.getIntExtra("candidateId", 0); val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@AttendanceActivity).candidateDao().getByExam(examId).find { it.id == cId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}"; binding.tvCurrentStatus.text = "Status: ${"$"}{it.attendanceStatus}" } }\n        binding.btnMarkPresent.setOnClickListener { lifecycleScope.launch { try { val r = RetrofitClient.getApi().markAttendance(cId, AttendanceRequest("present", opId)); if (r.isSuccessful) { val db = AppDatabase.getInstance(this@AttendanceActivity); db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; db.candidateDao().update(it) }; Toast.makeText(this@AttendanceActivity, "Marked Present", Toast.LENGTH_SHORT).show(); finish() } } catch (e: Exception) { Toast.makeText(this@AttendanceActivity, "Error", Toast.LENGTH_SHORT).show() } } }\n    }\n}`);
+
+    fs.mkdirSync(path.join(srcDir, "biometric"), { recursive: true });
+
+    fs.writeFileSync(path.join(srcDir, "biometric", "FaceVerificationHelper.kt"), `package ${pkgName}.biometric
+
+  import android.content.Context
+  import android.graphics.Bitmap
+  import android.util.Log
+  import com.google.mlkit.vision.common.InputImage
+  import com.google.mlkit.vision.face.FaceDetection
+  import com.google.mlkit.vision.face.FaceDetectorOptions
+  import org.tensorflow.lite.Interpreter
+  import java.io.FileInputStream
+  import java.nio.ByteBuffer
+  import java.nio.ByteOrder
+  import java.nio.MappedByteBuffer
+  import java.nio.channels.FileChannel
+  import kotlin.math.sqrt
+
+  class FaceVerificationHelper(private val context: Context) {
+      private var interpreter: Interpreter? = null
+      private val inputSize = 112
+      private val embeddingSize = 128
+      private val tag = "FaceVerification"
+
+      private val faceDetectorOptions = FaceDetectorOptions.Builder()
+          .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+          .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+          .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+          .setMinFaceSize(0.15f)
+          .build()
+      private val faceDetector = FaceDetection.getClient(faceDetectorOptions)
+
+      init {
+          try {
+              val modelFile = loadModelFile("models/facenet.tflite")
+              interpreter = Interpreter(modelFile)
+              Log.d(tag, "FaceNet model loaded successfully")
+          } catch (e: Exception) {
+              Log.e(tag, "Failed to load FaceNet model: \${e.message}")
+          }
+      }
+
+      private fun loadModelFile(modelPath: String): MappedByteBuffer {
+          val assetFileDescriptor = context.assets.openFd(modelPath)
+          val fileInputStream = FileInputStream(assetFileDescriptor.fileDescriptor)
+          val fileChannel = fileInputStream.channel
+          return fileChannel.map(FileChannel.MapMode.READ_ONLY, assetFileDescriptor.startOffset, assetFileDescriptor.declaredLength)
+      }
+
+      fun detectFace(bitmap: Bitmap, callback: (Boolean, String) -> Unit) {
+          val image = InputImage.fromBitmap(bitmap, 0)
+          faceDetector.process(image)
+              .addOnSuccessListener { faces ->
+                  if (faces.isNotEmpty()) {
+                      val face = faces[0]
+                      val smileProb = face.smilingProbability ?: 0f
+                      val leftEyeOpen = face.leftEyeOpenProbability ?: 0f
+                      val rightEyeOpen = face.rightEyeOpenProbability ?: 0f
+                      callback(true, "Face detected: smile=\${smileProb}, eyes=\${leftEyeOpen}/\${rightEyeOpen}")
+                  } else {
+                      callback(false, "No face detected")
+                  }
+              }
+              .addOnFailureListener { e -> callback(false, "Detection failed: \${e.message}") }
+      }
+
+      fun generateEmbedding(bitmap: Bitmap): FloatArray? {
+          if (interpreter == null) return null
+          val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
+          val inputBuffer = ByteBuffer.allocateDirect(4 * inputSize * inputSize * 3).apply { order(ByteOrder.nativeOrder()) }
+          val pixels = IntArray(inputSize * inputSize)
+          resized.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
+          for (pixel in pixels) {
+              inputBuffer.putFloat(((pixel shr 16 and 0xFF) - 127.5f) / 128.0f)
+              inputBuffer.putFloat(((pixel shr 8 and 0xFF) - 127.5f) / 128.0f)
+              inputBuffer.putFloat(((pixel and 0xFF) - 127.5f) / 128.0f)
+          }
+          val output = Array(1) { FloatArray(embeddingSize) }
+          interpreter?.run(inputBuffer, output)
+          return output[0]
+      }
+
+      fun compareFaces(embedding1: FloatArray, embedding2: FloatArray): Float {
+          var dotProduct = 0f
+          var norm1 = 0f
+          var norm2 = 0f
+          for (i in embedding1.indices) {
+              dotProduct += embedding1[i] * embedding2[i]
+              norm1 += embedding1[i] * embedding1[i]
+              norm2 += embedding2[i] * embedding2[i]
+          }
+          val cosineSimilarity = dotProduct / (sqrt(norm1) * sqrt(norm2))
+          return ((cosineSimilarity + 1f) / 2f * 100f).coerceIn(0f, 100f)
+      }
+
+      fun release() {
+          interpreter?.close()
+          faceDetector.close()
+      }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "biometric", "FingerprintHelper.kt"), `package ${pkgName}.biometric
+
+  import android.content.Context
+  import android.hardware.usb.UsbDevice
+  import android.hardware.usb.UsbManager
+  import android.util.Log
+
+  class FingerprintHelper(private val context: Context) {
+      private val tag = "FingerprintHelper"
+      private var mfs100Device: Any? = null
+      private var isInitialized = false
+
+      fun initialize(): Boolean {
+          try {
+              val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+              val deviceList = usbManager.deviceList
+              var mantraDevice: UsbDevice? = null
+              for ((_, device) in deviceList) {
+                  if (device.vendorId == 0x1A34 || device.productId == 0x0802) {
+                      mantraDevice = device
+                      break
+                  }
+              }
+              if (mantraDevice != null) {
+                  Log.d(tag, "Mantra MFS100 found: \${mantraDevice.deviceName}")
+                  val clazz = Class.forName("com.mantra.mfs100.MFS100")
+                  mfs100Device = clazz.getConstructor(Context::class.java).newInstance(context)
+                  isInitialized = true
+                  return true
+              } else {
+                  Log.w(tag, "MFS100 not connected via USB")
+                  return false
+              }
+          } catch (e: ClassNotFoundException) {
+              Log.e(tag, "MFS100 SDK not found in libs/. Add MFS100.jar to app/libs/")
+              return false
+          } catch (e: Exception) {
+              Log.e(tag, "Init failed: \${e.message}")
+              return false
+          }
+      }
+
+      fun captureFingerprint(timeout: Int = 10000, callback: (success: Boolean, template: String?, quality: Int, error: String?) -> Unit) {
+          if (!isInitialized) {
+              callback(false, null, 0, "Scanner not initialized")
+              return
+          }
+          try {
+              val device = mfs100Device ?: throw Exception("Device null")
+              val captureMethod = device.javaClass.getMethod("AutoCapture", Int::class.java, Int::class.java, Boolean::class.java)
+              val result = captureMethod.invoke(device, timeout, 60, true)
+              val qualityMethod = result.javaClass.getMethod("getQuality")
+              val templateMethod = result.javaClass.getMethod("getISOTemplate")
+              val quality = qualityMethod.invoke(result) as Int
+              val isoTemplate = templateMethod.invoke(result) as ByteArray
+              val templateBase64 = android.util.Base64.encodeToString(isoTemplate, android.util.Base64.NO_WRAP)
+              Log.d(tag, "Capture OK, quality=\$quality, template size=\${isoTemplate.size}")
+              callback(true, templateBase64, quality, null)
+          } catch (e: Exception) {
+              Log.e(tag, "Capture failed: \${e.message}")
+              callback(false, null, 0, e.message)
+          }
+      }
+
+      fun matchFingerprints(template1: ByteArray, template2: ByteArray): Int {
+          if (!isInitialized || mfs100Device == null) return 0
+          return try {
+              val matchMethod = mfs100Device!!.javaClass.getMethod("MatchISO", ByteArray::class.java, ByteArray::class.java)
+              matchMethod.invoke(mfs100Device, template1, template2) as Int
+          } catch (e: Exception) {
+              Log.e(tag, "Match failed: \${e.message}")
+              0
+          }
+      }
+
+      fun release() {
+          try {
+              mfs100Device?.let {
+                  val disposeMethod = it.javaClass.getMethod("Dispose")
+                  disposeMethod.invoke(it)
+              }
+          } catch (_: Exception) {}
+          isInitialized = false
+      }
+  }`);
+    fs.writeFileSync(path.join(srcDir, "biometric", "LivenessDetector.kt"), `package ${pkgName}.biometric
+
+  import android.graphics.Bitmap
+  import android.util.Log
+  import com.google.mlkit.vision.common.InputImage
+  import com.google.mlkit.vision.face.FaceDetection
+  import com.google.mlkit.vision.face.FaceDetectorOptions
+
+  class LivenessDetector {
+      private val tag = "LivenessDetector"
+      private val faceDetectorOptions = FaceDetectorOptions.Builder()
+          .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+          .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+          .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+          .build()
+      private val faceDetector = FaceDetection.getClient(faceDetectorOptions)
+
+      enum class Challenge { BLINK, SMILE, TURN_LEFT, TURN_RIGHT }
+      data class LivenessResult(val isLive: Boolean, val score: Float, val message: String)
+
+      private var currentChallenge: Challenge = Challenge.BLINK
+      private var blinkDetected = false
+      private var smileDetected = false
+      private var headTurnDetected = false
+      private var frameCount = 0
+      private var passedChallenges = 0
+
+      fun startNewSession() {
+          blinkDetected = false
+          smileDetected = false
+          headTurnDetected = false
+          frameCount = 0
+          passedChallenges = 0
+          currentChallenge = Challenge.values().random()
+          Log.d(tag, "New liveness session, challenge: \$currentChallenge")
+      }
+
+      fun getCurrentChallenge(): String {
+          return when (currentChallenge) {
+              Challenge.BLINK -> "Please blink your eyes"
+              Challenge.SMILE -> "Please smile"
+              Challenge.TURN_LEFT -> "Turn your head left"
+              Challenge.TURN_RIGHT -> "Turn your head right"
+          }
+      }
+
+      fun processFrame(bitmap: Bitmap, callback: (LivenessResult) -> Unit) {
+          frameCount++
+          val image = InputImage.fromBitmap(bitmap, 0)
+          faceDetector.process(image)
+              .addOnSuccessListener { faces ->
+                  if (faces.isEmpty()) {
+                      callback(LivenessResult(false, 0f, "No face detected"))
+                      return@addOnSuccessListener
+                  }
+                  val face = faces[0]
+                  val leftEyeOpen = face.leftEyeOpenProbability ?: 0.5f
+                  val rightEyeOpen = face.rightEyeOpenProbability ?: 0.5f
+                  val smileProb = face.smilingProbability ?: 0f
+                  val headY = face.headEulerAngleY
+
+                  when (currentChallenge) {
+                      Challenge.BLINK -> {
+                          if (leftEyeOpen < 0.2f && rightEyeOpen < 0.2f) blinkDetected = true
+                          if (blinkDetected && leftEyeOpen > 0.7f && rightEyeOpen > 0.7f) {
+                              passedChallenges++
+                              callback(LivenessResult(true, 0.95f, "Blink detected - Liveness confirmed"))
+                              return@addOnSuccessListener
+                          }
+                      }
+                      Challenge.SMILE -> {
+                          if (smileProb > 0.7f) {
+                              passedChallenges++
+                              callback(LivenessResult(true, 0.90f, "Smile detected - Liveness confirmed"))
+                              return@addOnSuccessListener
+                          }
+                      }
+                      Challenge.TURN_LEFT -> {
+                          if (headY > 25f) {
+                              passedChallenges++
+                              callback(LivenessResult(true, 0.92f, "Head turn detected - Liveness confirmed"))
+                              return@addOnSuccessListener
+                          }
+                      }
+                      Challenge.TURN_RIGHT -> {
+                          if (headY < -25f) {
+                              passedChallenges++
+                              callback(LivenessResult(true, 0.92f, "Head turn detected - Liveness confirmed"))
+                              return@addOnSuccessListener
+                          }
+                      }
+                  }
+                  val progress = (frameCount.toFloat() / 30f).coerceAtMost(0.8f)
+                  callback(LivenessResult(false, progress, getCurrentChallenge()))
+              }
+              .addOnFailureListener { e -> callback(LivenessResult(false, 0f, "Error: \${e.message}")) }
+      }
+
+      fun release() { faceDetector.close() }
+  }`);
 }
 
 function writeLayoutFiles(resDir: string) {
@@ -260,7 +557,7 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
   const resDir = path.join(buildDir, "app", "src", "main", "res");
   const assetsDir = path.join(buildDir, "app", "src", "main", "assets");
 
-  [srcDir, path.join(resDir, "layout"), path.join(resDir, "values"), path.join(resDir, "drawable"), assetsDir, path.join(buildDir, "app", "libs"), path.join(buildDir, "keystore"), path.join(buildDir, "gradle", "wrapper")].forEach(d => fs.mkdirSync(d, { recursive: true }));
+  [srcDir, path.join(resDir, "layout"), path.join(resDir, "values"), path.join(resDir, "drawable"), assetsDir, path.join(assetsDir, "models"), path.join(buildDir, "app", "libs"), path.join(buildDir, "app", "src", "main", "jniLibs", "armeabi-v7a"), path.join(buildDir, "app", "src", "main", "jniLibs", "arm64-v8a"), path.join(buildDir, "keystore"), path.join(buildDir, "gradle", "wrapper")].forEach(d => fs.mkdirSync(d, { recursive: true }));
 
   fs.writeFileSync(path.join(buildDir, "build.gradle"), generateProjectBuildGradle());
   fs.writeFileSync(path.join(buildDir, "settings.gradle"), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\nrootProject.name = "${appName}"\ninclude ':app'`);
@@ -270,6 +567,13 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
   fs.writeFileSync(path.join(buildDir, "app", "proguard-rules.pro"), `-keep class com.mantra.** { *; }\n-keep class com.mfs100.** { *; }\n-dontwarn com.mantra.**\n-keep class org.tensorflow.** { *; }\n-dontwarn org.tensorflow.**\n-keep class com.google.mlkit.** { *; }`);
   fs.writeFileSync(path.join(buildDir, "app", "src", "main", "AndroidManifest.xml"), generateAndroidManifest(pkgName));
   fs.writeFileSync(path.join(assetsDir, "config.json"), generateConfigJson(config));
+
+    fs.writeFileSync(path.join(assetsDir, "models", "README.txt"), "Place FaceNet TFLite model here:\n- facenet.tflite (or mobile_face_net.tflite)\nDownload from: https://github.com/sirius-ai/MobileFaceNets\nThe app loads this model for face embedding generation and matching.");
+
+    fs.writeFileSync(path.join(buildDir, "app", "libs", "README.txt"), "Place Mantra MFS100 SDK files here:\n- MFS100.jar (or MFS100.aar)\nDownload from: https://download.mantratecapp.com\nRequired for fingerprint scanner integration.");
+
+    fs.writeFileSync(path.join(buildDir, "app", "src", "main", "jniLibs", "armeabi-v7a", "README.txt"), "Place Mantra native library here:\n- libMFS100.so\nExtract from Mantra MFS100 SDK package.");
+    fs.writeFileSync(path.join(buildDir, "app", "src", "main", "jniLibs", "arm64-v8a", "README.txt"), "Place Mantra native library here:\n- libMFS100.so\nExtract from Mantra MFS100 SDK package.");
   fs.writeFileSync(path.join(resDir, "values", "strings.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">${appName}</string><string name="exam_name">${config.examName}</string></resources>`);
   fs.writeFileSync(path.join(resDir, "values", "themes.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="Theme.MpaVerify" parent="Theme.Material3.DayNight.NoActionBar"><item name="colorPrimary">@color/primary</item><item name="colorOnPrimary">@color/white</item></style>\n    <style name="Theme.MpaVerify.Splash" parent="Theme.Material3.DayNight.NoActionBar"><item name="android:windowBackground">@color/primary</item></style>\n</resources>`);
   fs.writeFileSync(path.join(resDir, "values", "colors.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="primary">#1565C0</color><color name="primary_dark">#0D47A1</color><color name="secondary">#26A69A</color><color name="white">#FFFFFF</color><color name="black">#000000</color><color name="success">#4CAF50</color><color name="error">#F44336</color><color name="warning">#FF9800</color></resources>`);

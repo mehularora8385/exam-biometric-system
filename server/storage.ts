@@ -45,6 +45,7 @@ export interface IStorage {
 
   listCandidates(examId?: number): Promise<Candidate[]>;
   getCandidate(id: number): Promise<Candidate | undefined>;
+  getCandidateByRollNo(rollNo: string): Promise<Candidate | undefined>;
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
   updateCandidate(id: number, candidate: Partial<InsertCandidate>): Promise<Candidate | undefined>;
   deleteCandidate(id: number): Promise<void>;
@@ -189,7 +190,12 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(candidates);
   }
 
-  async getCandidate(id: number): Promise<Candidate | undefined> {
+  
+
+  async getCandidateByRollNo(rollNo: string): Promise<Candidate | undefined> {
+    const rows = await db.select().from(candidates).where(eq(candidates.rollNo, rollNo)).limit(1);
+    return rows[0];
+  }async getCandidate(id: number): Promise<Candidate | undefined> {
     const [c] = await db.select().from(candidates).where(eq(candidates.id, id));
     return c;
   }
