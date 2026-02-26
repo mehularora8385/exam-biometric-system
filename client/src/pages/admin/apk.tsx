@@ -884,7 +884,7 @@ export default function GenerateAPK() {
                                       onClick={() => api.apkBuilds.downloadBuiltApk(apk.examId!)}
                                       data-testid={`button-download-apk-${apk.id || idx}`}
                                     >
-                                      <Download className="w-3.5 h-3.5" /> Download APK
+                                      <Download className="w-3.5 h-3.5" /> {apk.apkPath?.endsWith(".zip") ? "Download Project ZIP" : "Download APK"}
                                     </button>
                                   ) : (
                                     <button
