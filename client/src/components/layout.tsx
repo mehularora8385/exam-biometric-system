@@ -98,7 +98,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setLocation("/")}>
+                <DropdownMenuItem onClick={() => setLocation(state.operator.role === "ADMIN" || state.operator.role === "admin" ? "/admin-panel" : "/")}>
                   Dashboard
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLocation("/sync")}>
