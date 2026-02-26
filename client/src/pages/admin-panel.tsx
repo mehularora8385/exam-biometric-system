@@ -27,7 +27,7 @@ export default function AdminPanel() {
 
   const renderPage = () => {
     switch(activePage) {
-      case "dashboard": return <Dashboard selectedExamId={selectedExamId} />;
+      case "dashboard": return <Dashboard selectedExamId={selectedExamId} setActivePage={setActivePage} />;
       case "department": return <DepartmentMaster />;
       case "designation": return <DesignationMaster />;
       case "exam": return <ExamMaster setActivePage={setActivePage} />;
@@ -47,7 +47,7 @@ export default function AdminPanel() {
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
       case "device-management": return <DeviceManagement />;
-      default: return <Dashboard selectedExamId={selectedExamId} />;
+      default: return <Dashboard selectedExamId={selectedExamId} setActivePage={setActivePage} />;
     }
   };
 
