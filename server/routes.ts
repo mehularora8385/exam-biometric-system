@@ -1549,8 +1549,7 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  return httpServer;
-}
+
 
   // =====================================================
   // FULL ANDROID PROJECT TEMPLATE GENERATOR
@@ -2770,3 +2769,6 @@ class CandidateListActivity : AppCompatActivity() {
       res.send(fileContent);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+
+  return httpServer;
+}
