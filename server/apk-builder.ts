@@ -1655,10 +1655,39 @@ export async function buildApk(
     }
     await onProgress(50, logs.join("\n"));
 
-    log("Step 5/7: Checking Android SDK...");
-    const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || "";
-    if (androidHome) log(`  ANDROID_HOME: ${androidHome}`);
-    else log("  ANDROID_HOME not set - build may fail if SDK not found");
+    log("Step 5/7: Setting up Android SDK...");
+    const sdkSearchPaths = [
+      process.env.ANDROID_HOME,
+      process.env.ANDROID_SDK_ROOT,
+      "/opt/android-sdk",
+      "/usr/lib/android-sdk",
+      "/root/Android/Sdk",
+      "/home/android-sdk",
+      "/opt/android",
+    ].filter(Boolean) as string[];
+    let androidHome = "";
+    for (const p of sdkSearchPaths) {
+      if (fs.existsSync(p)) { androidHome = p; break; }
+    }
+    if (!androidHome) {
+      try {
+        const sdkResult = execSync("find /opt /usr/lib /root -maxdepth 3 -name \"sdkmanager\" -type f 2>/dev/null | head -1").toString().trim();
+        if (sdkResult) {
+          androidHome = path.resolve(sdkResult, "..", "..", "..", "..");
+          log(`  Found SDK via sdkmanager: ${androidHome}`);
+        }
+      } catch (_) {}
+    }
+    if (androidHome) {
+      log(`  ANDROID_HOME: ${androidHome}`);
+      fs.writeFileSync(path.join(buildDir, "local.properties"), `sdk.dir=${androidHome}\n`);
+      log("  Written local.properties with sdk.dir");
+    } else {
+      log("  ERROR: Android SDK not found anywhere on system");
+      log("  Install: apt install android-sdk OR sdkmanager --install \"platforms;android-34\"");
+      log("  Expected locations: /opt/android-sdk, /usr/lib/android-sdk");
+      return { success: false, logs: logs.join("\n") };
+    }
     await onProgress(55, logs.join("\n"));
 
     log("Step 6/7: Running Gradle build...");
@@ -1666,8 +1695,7 @@ export async function buildApk(
     log(`  Command: ${gradleBin} assembleRelease`);
 
     try {
-      const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, PATH: `${gradleHome}/bin:${process.env.PATH}` };
-      if (androidHome) buildEnv.ANDROID_HOME = androidHome;
+      const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${gradleHome}/bin:${androidHome}/cmdline-tools/latest/bin:${androidHome}/platform-tools:${process.env.PATH}` };
       const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
       const outputLines = output.split("\n");
       outputLines.slice(-30).forEach(l => log("  " + l));
