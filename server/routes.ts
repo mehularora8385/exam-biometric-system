@@ -97,11 +97,24 @@ export async function registerRoutes(
 
   app.put("/api/exams/:id", async (req, res) => {
     try {
-      const exam = await storage.updateExam(Number(req.params.id), req.body);
+      const allowedFields = ["name", "code", "client", "status", "candidatesCount", "verifiedCount",
+        "apkPassword", "clientLoginId", "clientLoginPass", "biometricMode", "flowType",
+        "attendanceMode", "omrMode", "faceLiveness", "irisEnabled", "retryLimit", "clientLogo"];
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (req.body[key] !== undefined) {
+          updateData[key] = req.body[key];
+        }
+      }
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+      const exam = await storage.updateExam(Number(req.params.id), updateData);
       if (!exam) return res.status(404).json({ message: "Exam not found" });
       res.json(exam);
     } catch (e: any) {
-      res.status(400).json({ message: e.message });
+      console.error("Error updating exam:", e);
+      res.status(500).json({ message: e.message || "Failed to update exam" });
     }
   });
 
