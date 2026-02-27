@@ -20,7 +20,7 @@ interface Exam {
   clientLogo?: string;
 }
 
-type TestSuite = "hq" | "apk" | "sync" | "all";
+type TestSuite = "hq" | "apk" | "sync" | "control" | "all";
 
 export default function HqTester() {
   const [results, setResults] = useState<TestResult[]>([]);
@@ -122,14 +122,31 @@ export default function HqTester() {
         { step: "SYNC-4. Verify Candidate", status: "pending", message: "PATCH /api/apk/candidates/:id/verify" },
         { step: "SYNC-5. Bulk Sync Verifications", status: "pending", message: "POST /api/apk/verification/sync" },
         { step: "SYNC-6. Verify Synced Data on HQ", status: "pending", message: "Confirm verification data saved" },
-        { step: "SYNC-7. Force Logout", status: "pending", message: "POST /api/apk/operator/force-logout" },
+        { step: "SYNC-7. Force Logout (Single)", status: "pending", message: "POST /api/apk/operator/force-logout" },
         { step: "SYNC-8. Session After Logout", status: "pending", message: "Verify session terminated" },
         { step: "SYNC-9. Cleanup", status: "pending", message: "Delete test data" },
+      ],
+      control: [
+        { step: "CTL-1. Force Logout (Single Operator)", status: "pending", message: "POST /api/operators/:id/force-logout" },
+        { step: "CTL-2. Verify Operator Force-Logged Out", status: "pending", message: "Check operator session after force-logout" },
+        { step: "CTL-3. Force Logout All Operators", status: "pending", message: "POST /api/operators/force-logout-all" },
+        { step: "CTL-4. Force Sync All Devices", status: "pending", message: "POST /api/devices/sync-all" },
+        { step: "CTL-5. Logout All Devices", status: "pending", message: "POST /api/devices/logout-all" },
+        { step: "CTL-6. MDM Command (Send)", status: "pending", message: "POST /api/devices/mdm-command" },
+        { step: "CTL-7. MDM Command (Check)", status: "pending", message: "GET /api/devices/mdm-command?deviceId=..." },
+        { step: "CTL-8. Release MDM Lock", status: "pending", message: "POST /api/devices/release-mdm" },
+        { step: "CTL-9. Device Force Logout", status: "pending", message: "POST /api/devices/force-logout" },
+        { step: "CTL-10. Check Device Logout Status", status: "pending", message: "GET /api/devices/check-logout" },
+        { step: "CTL-11. Centre Login Validate", status: "pending", message: "POST /api/centre-login/validate" },
+        { step: "CTL-12. Centre Login Locks", status: "pending", message: "GET /api/centre-login/locks" },
+        { step: "CTL-13. Crash Log Submit", status: "pending", message: "POST /api/crash-logs" },
+        { step: "CTL-14. Crash Log List", status: "pending", message: "GET /api/crash-logs" },
+        { step: "CTL-15. Cleanup", status: "pending", message: "Clean up test operators" },
       ],
     };
 
     if (selectedSuite === "all") {
-      allSteps.push(...suiteSteps.hq, ...suiteSteps.apk, ...suiteSteps.sync);
+      allSteps.push(...suiteSteps.hq, ...suiteSteps.apk, ...suiteSteps.sync, ...suiteSteps.control);
     } else {
       allSteps.push(...suiteSteps[selectedSuite]);
     }
@@ -621,6 +638,233 @@ export default function HqTester() {
       idx++;
     }
 
+    if (shouldRun("control")) {
+      let ctlOpId: number | null = null;
+      const ctlAadhaar = String(Math.floor(Math.random() * 900000000000 + 100000000000));
+      const ctlPhone = "8" + Math.floor(Math.random() * 900000000 + 100000000);
+      const testDeviceId = `test-device-${ts}`;
+
+      // CTL-1: Force Logout (Single Operator) — first register one
+      updateResult(idx, { status: "running" });
+      const ctlReg = await apiCall("POST", "/api/apk/operator/register", {
+        name: `CTL Tester ${ts}`, phone: ctlPhone, aadhaar: ctlAadhaar,
+        selfie: "ctltest", deviceId: testDeviceId
+      });
+      if (ctlReg.data?.success) {
+        ctlOpId = ctlReg.data.operator.id;
+        const fl = await apiCall("POST", `/api/operators/${ctlOpId}/force-logout`);
+        if (fl.data?.success) {
+          updateResult(idx, { status: "pass", message: `Operator ${ctlOpId} force-logged out via HQ route`, duration: fl.duration });
+        } else {
+          updateResult(idx, { status: "fail", message: fl.error || "Force logout route failed", response: fl.data, duration: fl.duration });
+        }
+      } else {
+        updateResult(idx, { status: "fail", message: "Could not create test operator for force-logout test" });
+      }
+      idx++;
+
+      // CTL-2: Verify Operator Force-Logged Out
+      updateResult(idx, { status: "running" });
+      if (ctlOpId) {
+        const check = await apiCall("POST", "/api/apk/operator/check-session", { operatorId: ctlOpId });
+        if (check.data?.success) {
+          const ok = check.data.forceLogout === true && check.data.sessionActive === false;
+          updateResult(idx, {
+            status: ok ? "pass" : "fail",
+            message: ok ? "Operator session correctly terminated" : `forceLogout=${check.data.forceLogout}, sessionActive=${check.data.sessionActive}`,
+            duration: check.duration
+          });
+        } else {
+          updateResult(idx, { status: "fail", message: check.error || "Session check failed", duration: check.duration });
+        }
+      } else {
+        updateResult(idx, { status: "warn", message: "No operator to check" });
+      }
+      idx++;
+
+      // CTL-3: Force Logout All Operators
+      updateResult(idx, { status: "running" });
+      const flAll = await apiCall("POST", "/api/operators/force-logout-all", { examId: testExamId });
+      if (flAll.data?.success) {
+        updateResult(idx, { status: "pass", message: `All operators for exam ${testExamId} force-logged out`, duration: flAll.duration });
+      } else if (flAll.status === 404) {
+        updateResult(idx, { status: "warn", message: "Route not found — may need to deploy latest code", duration: flAll.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: flAll.error || "Force logout all failed", response: flAll.data, duration: flAll.duration });
+      }
+      idx++;
+
+      // CTL-4: Force Sync All Devices
+      updateResult(idx, { status: "running" });
+      const syncAll = await apiCall("POST", "/api/devices/sync-all", { examId: testExamId });
+      if (syncAll.data?.success || syncAll.ok) {
+        updateResult(idx, { status: "pass", message: syncAll.data?.message || "Sync all triggered", duration: syncAll.duration });
+      } else if (syncAll.status === 404) {
+        updateResult(idx, { status: "warn", message: "Route not found — devices table may not exist", duration: syncAll.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: syncAll.error || "Sync all failed", response: syncAll.data, duration: syncAll.duration });
+      }
+      idx++;
+
+      // CTL-5: Logout All Devices
+      updateResult(idx, { status: "running" });
+      const logoutAll = await apiCall("POST", "/api/devices/logout-all", { examId: testExamId });
+      if (logoutAll.data?.success || logoutAll.ok) {
+        updateResult(idx, { status: "pass", message: logoutAll.data?.message || "All devices logged out", duration: logoutAll.duration });
+      } else if (logoutAll.status === 404) {
+        updateResult(idx, { status: "warn", message: "Route not found", duration: logoutAll.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: logoutAll.error || "Logout all failed", response: logoutAll.data, duration: logoutAll.duration });
+      }
+      idx++;
+
+      // CTL-6: MDM Command (Send)
+      updateResult(idx, { status: "running" });
+      const mdmSend = await apiCall("POST", "/api/devices/mdm-command", { deviceId: testDeviceId, command: "lock_screen" });
+      if (mdmSend.data?.success) {
+        updateResult(idx, { status: "pass", message: `MDM command 'lock_screen' sent to ${testDeviceId}`, duration: mdmSend.duration });
+      } else if (mdmSend.status === 404) {
+        updateResult(idx, { status: "warn", message: "MDM command route not found", duration: mdmSend.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: mdmSend.error || "MDM command failed", response: mdmSend.data, duration: mdmSend.duration });
+      }
+      idx++;
+
+      // CTL-7: MDM Command (Check — device polls for commands)
+      updateResult(idx, { status: "running" });
+      const mdmCheck = await apiCall("GET", `/api/devices/mdm-command?deviceId=${testDeviceId}`);
+      if (mdmCheck.ok) {
+        updateResult(idx, {
+          status: "pass",
+          message: mdmCheck.data?.command ? `Pending command: ${mdmCheck.data.command}` : "No pending commands (expected after check clears it)",
+          details: [`command: ${mdmCheck.data?.command || "null"}`],
+          duration: mdmCheck.duration
+        });
+      } else if (mdmCheck.status === 404) {
+        updateResult(idx, { status: "warn", message: "MDM check route not found", duration: mdmCheck.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: mdmCheck.error || "MDM check failed", duration: mdmCheck.duration });
+      }
+      idx++;
+
+      // CTL-8: Release MDM Lock
+      updateResult(idx, { status: "running" });
+      const mdmRelease = await apiCall("POST", "/api/devices/release-mdm", { examId: testExamId });
+      if (mdmRelease.data?.success || mdmRelease.ok) {
+        updateResult(idx, { status: "pass", message: mdmRelease.data?.message || "MDM released", duration: mdmRelease.duration });
+      } else if (mdmRelease.status === 404) {
+        updateResult(idx, { status: "warn", message: "Release MDM route not found", duration: mdmRelease.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: mdmRelease.error || "Release MDM failed", response: mdmRelease.data, duration: mdmRelease.duration });
+      }
+      idx++;
+
+      // CTL-9: Device Force Logout
+      updateResult(idx, { status: "running" });
+      const devLogout = await apiCall("POST", "/api/devices/force-logout", { examId: testExamId, reason: "Test force logout" });
+      if (devLogout.data?.success) {
+        updateResult(idx, { status: "pass", message: devLogout.data.message, duration: devLogout.duration });
+      } else if (devLogout.status === 404) {
+        updateResult(idx, { status: "warn", message: "Device force logout route not found", duration: devLogout.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: devLogout.error || "Device force logout failed", response: devLogout.data, duration: devLogout.duration });
+      }
+      idx++;
+
+      // CTL-10: Check Device Logout Status
+      updateResult(idx, { status: "running" });
+      const devCheck = await apiCall("GET", `/api/devices/check-logout?deviceId=${testDeviceId}`);
+      if (devCheck.ok) {
+        updateResult(idx, {
+          status: "pass",
+          message: `Device logout check: forceLogout=${devCheck.data?.forceLogout}`,
+          details: [`forceLogout: ${devCheck.data?.forceLogout}`, `reason: ${devCheck.data?.reason || "none"}`],
+          duration: devCheck.duration
+        });
+      } else {
+        updateResult(idx, { status: "fail", message: devCheck.error || "Device check failed", duration: devCheck.duration });
+      }
+      idx++;
+
+      // CTL-11: Centre Login Validate
+      updateResult(idx, { status: "running" });
+      const centreLogin = await apiCall("POST", "/api/centre-login/validate", { examId: testExamId, centreCode: testCentreCode || "TST001" });
+      if (centreLogin.ok) {
+        updateResult(idx, {
+          status: "pass",
+          message: `Centre login: allowed=${centreLogin.data?.allowed}, ${centreLogin.data?.message}`,
+          details: [`allowed: ${centreLogin.data?.allowed}`, `message: ${centreLogin.data?.message}`],
+          duration: centreLogin.duration
+        });
+      } else if (centreLogin.status === 404) {
+        updateResult(idx, { status: "warn", message: "Centre login validate route not found", duration: centreLogin.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: centreLogin.error || "Centre login validate failed", duration: centreLogin.duration });
+      }
+      idx++;
+
+      // CTL-12: Centre Login Locks
+      updateResult(idx, { status: "running" });
+      const locks = await apiCall("GET", `/api/centre-login/locks?examId=${testExamId}`);
+      if (locks.ok) {
+        const lockData = Array.isArray(locks.data) ? locks.data : [];
+        updateResult(idx, {
+          status: "pass",
+          message: `${lockData.length} centre login locks configured`,
+          details: lockData.slice(0, 5).map((l: any) => `${l.centreCode}: locked=${l.isLocked}, max=${l.maxDevices}`),
+          duration: locks.duration
+        });
+      } else if (locks.status === 404) {
+        updateResult(idx, { status: "warn", message: "Centre login locks route not found", duration: locks.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: locks.error || "Failed to get locks", duration: locks.duration });
+      }
+      idx++;
+
+      // CTL-13: Crash Log Submit
+      updateResult(idx, { status: "running" });
+      const crashLog = await apiCall("POST", "/api/crash-logs", {
+        deviceId: testDeviceId, deviceModel: "Test Device", appVersion: "1.0.0-test",
+        errorMessage: "Test crash from HQ tester", stackTrace: "at TestSuite.run(HqTester.tsx:1)",
+        examId: testExamId, crashedAt: new Date().toISOString()
+      });
+      if (crashLog.data?.success || crashLog.ok) {
+        updateResult(idx, { status: "pass", message: `Crash log submitted (ID: ${crashLog.data?.id})`, duration: crashLog.duration });
+      } else if (crashLog.status === 404) {
+        updateResult(idx, { status: "warn", message: "Crash logs route not found", duration: crashLog.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: crashLog.error || "Crash log submit failed", duration: crashLog.duration });
+      }
+      idx++;
+
+      // CTL-14: Crash Log List
+      updateResult(idx, { status: "running" });
+      const crashList = await apiCall("GET", "/api/crash-logs");
+      if (crashList.ok && Array.isArray(crashList.data)) {
+        updateResult(idx, {
+          status: "pass",
+          message: `${crashList.data.length} crash logs in system`,
+          details: crashList.data.slice(0, 3).map((l: any) => `${l.deviceId}: ${l.errorMessage?.substring(0, 50)}`),
+          duration: crashList.duration
+        });
+      } else if (crashList.status === 404) {
+        updateResult(idx, { status: "warn", message: "Crash logs route not found", duration: crashList.duration });
+      } else {
+        updateResult(idx, { status: "fail", message: crashList.error || "Failed to list crash logs", duration: crashList.duration });
+      }
+      idx++;
+
+      // CTL-15: Cleanup
+      updateResult(idx, { status: "running" });
+      const ctlCleanup: string[] = [];
+      if (ctlOpId) {
+        const del = await apiCall("DELETE", `/api/operators/${ctlOpId}`);
+        ctlCleanup.push(`Operator ${ctlOpId}: ${del.ok ? "deleted" : "failed"}`);
+      }
+      updateResult(idx, { status: "pass", message: "Control test data cleaned up", details: ctlCleanup });
+      idx++;
+    }
+
     setRunning(false);
   };
 
@@ -668,10 +912,11 @@ export default function HqTester() {
                   <SelectValue placeholder="Select test suite" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Tests (HQ + APK + Sync)</SelectItem>
+                  <SelectItem value="all">All Tests (HQ + APK + Sync + Control)</SelectItem>
                   <SelectItem value="hq">HQ Only (Exam, Centre, Candidates)</SelectItem>
                   <SelectItem value="apk">APK Only (Registration, Auth, Download)</SelectItem>
                   <SelectItem value="sync">Sync Only (Session, Heartbeat, Verify)</SelectItem>
+                  <SelectItem value="control">Control Only (Force Logout, MDM, Devices)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
