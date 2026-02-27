@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { registerApkRoutes } from "./apk-routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -64,6 +65,7 @@ app.use((req, res, next) => {
   const { seedDatabase } = await import("./seed");
   await seedDatabase();
   await registerRoutes(httpServer, app);
+  registerApkRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
