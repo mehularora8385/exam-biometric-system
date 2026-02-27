@@ -72,20 +72,22 @@ export default function ApkTester() {
     const steps: TestResult[] = [
       { step: "1. Check Client Logo", status: "pending", message: "Verify exam has logo uploaded" },
       { step: "2. Small Payload Registration", status: "pending", message: "Register with tiny selfie (like curl test)" },
-      { step: "3. Large Selfie Upload (50KB)", status: "pending", message: "Simulate real camera selfie through nginx" },
-      { step: "4. Large Selfie Upload (500KB)", status: "pending", message: "Simulate high-res selfie — tests nginx body limit" },
-      { step: "5. Verify DB Record", status: "pending", message: "Check operator was saved correctly in database" },
-      { step: "6. Response Format Check", status: "pending", message: "Verify JSON has all fields APK expects" },
-      { step: "7. Re-Registration (Same Aadhaar)", status: "pending", message: "Test re-registration returns existing operator" },
-      { step: "8. List Centres", status: "pending", message: `GET /api/apk/centres/${examId}` },
-      { step: "9. Select Centre", status: "pending", message: "POST /api/apk/operator/select-centre" },
-      { step: "10. Verify Centre Lock", status: "pending", message: "Check operator is locked to centre in DB" },
-      { step: "11. Session Check", status: "pending", message: "POST /api/apk/operator/check-session" },
-      { step: "12. Heartbeat", status: "pending", message: "POST /api/apk/verification/heartbeat" },
-      { step: "13. Get Candidates", status: "pending", message: `GET /api/apk/candidates/${examId}` },
-      { step: "14. Force Logout", status: "pending", message: "Test force-logout sets correct flags" },
-      { step: "15. Session After Logout", status: "pending", message: "Verify session is terminated" },
-      { step: "16. Cleanup", status: "pending", message: "Delete test operator from database" },
+      { step: "3. Selfie Upload (50KB)", status: "pending", message: "Compressed 120x120 selfie — typical APK output" },
+      { step: "4. Selfie Upload (500KB)", status: "pending", message: "Medium quality selfie — tests Express body parser" },
+      { step: "5. Selfie Upload (2MB)", status: "pending", message: "High-res selfie — tests nginx client_max_body_size" },
+      { step: "6. Selfie Upload (5MB)", status: "pending", message: "Full camera photo — worst case if compression fails" },
+      { step: "7. Verify DB Record", status: "pending", message: "Check operator was saved correctly in database" },
+      { step: "8. Response Format Check", status: "pending", message: "Verify JSON has all fields APK expects" },
+      { step: "9. Re-Registration (Same Aadhaar)", status: "pending", message: "Test re-registration returns existing operator" },
+      { step: "10. List Centres", status: "pending", message: `GET /api/apk/centres/${examId}` },
+      { step: "11. Select Centre", status: "pending", message: "POST /api/apk/operator/select-centre" },
+      { step: "12. Verify Centre Lock", status: "pending", message: "Check operator is locked to centre in DB" },
+      { step: "13. Session Check", status: "pending", message: "POST /api/apk/operator/check-session" },
+      { step: "14. Heartbeat", status: "pending", message: "POST /api/apk/verification/heartbeat" },
+      { step: "15. Get Candidates", status: "pending", message: `GET /api/apk/candidates/${examId}` },
+      { step: "16. Force Logout", status: "pending", message: "Test force-logout sets correct flags" },
+      { step: "17. Session After Logout", status: "pending", message: "Verify session is terminated" },
+      { step: "18. Cleanup", status: "pending", message: "Delete test operator from database" },
     ];
     setResults(steps);
 
@@ -143,7 +145,7 @@ export default function ApkTester() {
       updateResult(2, { status: "fail", message: isHtml ? "Server returned HTML — nginx is blocking the request! Add 'client_max_body_size 50M;' to nginx config" : (reg50k.error || "Failed"), details: isHtml ? ["nginx default limit is 1MB", "Add: client_max_body_size 50M; in the SSL server block", "Then: sudo nginx -t && sudo systemctl reload nginx"] : [], duration: reg50k.duration });
     }
 
-    // Step 4: Large Selfie Upload (500KB) - simulates uncompressed selfie
+    // Step 4: Selfie Upload (500KB)
     updateResult(3, { status: "running" });
     const fakeSelfie500k = "B".repeat(500000);
     const reg500k = await apiCall("POST", "/api/apk/operator/register", {
@@ -151,14 +153,46 @@ export default function ApkTester() {
       selfie: fakeSelfie500k, deviceId: "web-tester-500k"
     });
     if (reg500k.data?.success) {
-      updateResult(3, { status: "pass", message: `500KB selfie accepted! (${reg500k.duration}ms)`, details: [`Payload: ~500KB base64`, `This simulates a larger uncompressed selfie`, `Server + nginx both accept large payloads`], duration: reg500k.duration });
+      updateResult(3, { status: "pass", message: `500KB selfie accepted! (${reg500k.duration}ms)`, details: [`Payload: ~500KB base64`, `Medium quality selfie`, `Express body parser OK`], duration: reg500k.duration });
     } else {
       const isHtml = reg500k.raw?.startsWith("<") || reg500k.error?.includes("HTML");
-      updateResult(3, { status: "fail", message: isHtml ? "NGINX BLOCKED 500KB request! This is why the APK fails. Fix nginx client_max_body_size" : (reg500k.error || "Failed"), details: isHtml ? ["The real APK selfie is similar size", "Add: client_max_body_size 50M; in nginx SSL server block", "This is the ROOT CAUSE of the APK registration error"] : [], duration: reg500k.duration });
+      updateResult(3, { status: "fail", message: isHtml ? "Server returned HTML instead of JSON — nginx blocking!" : (reg500k.error || "Failed"), details: isHtml ? ["Add: client_max_body_size 50M; in nginx SSL server block"] : [], duration: reg500k.duration });
     }
 
-    // Step 5: Verify DB Record
+    // Step 5: Selfie Upload (2MB) - tests nginx limit
     updateResult(4, { status: "running" });
+    const fakeSelfie2m = "C".repeat(2000000);
+    const reg2m = await apiCall("POST", "/api/apk/operator/register", {
+      name: testName, phone: testPhone, aadhaar: testAadhaar,
+      selfie: fakeSelfie2m, deviceId: "web-tester-2m"
+    });
+    if (reg2m.data?.success) {
+      updateResult(4, { status: "pass", message: `2MB selfie accepted! (${reg2m.duration}ms)`, details: [`Payload: ~2MB base64`, `High-res selfie simulation`, `nginx client_max_body_size is set correctly`], duration: reg2m.duration });
+    } else {
+      const isHtml = reg2m.raw?.startsWith("<") || reg2m.error?.includes("HTML") || reg2m.status === 413;
+      updateResult(4, { status: "fail", message: isHtml ? "NGINX REJECTED 2MB payload! Default nginx limit is 1MB. Add 'client_max_body_size 50M;' to fix" : (reg2m.error || "Failed"), details: ["nginx default body limit is 1MB", "A 2MB selfie is common if APK compression is reduced", "Add: client_max_body_size 50M; in the SSL server block", "Then: sudo nginx -t && sudo systemctl reload nginx"], duration: reg2m.duration });
+    }
+
+    // Step 6: Selfie Upload (5MB) - worst case, compression fails
+    updateResult(5, { status: "running" });
+    const fakeSelfie5m = "D".repeat(5000000);
+    const reg5m = await apiCall("POST", "/api/apk/operator/register", {
+      name: testName, phone: testPhone, aadhaar: testAadhaar,
+      selfie: fakeSelfie5m, deviceId: "web-tester-5m"
+    });
+    if (reg5m.data?.success) {
+      updateResult(5, { status: "pass", message: `5MB selfie accepted! (${reg5m.duration}ms)`, details: [`Payload: ~5MB base64`, `Full camera photo — worst case scenario`, `Server handles even uncompressed photos`], duration: reg5m.duration });
+    } else {
+      const isHtml = reg5m.raw?.startsWith("<") || reg5m.error?.includes("HTML") || reg5m.status === 413;
+      if (isHtml) {
+        updateResult(5, { status: "fail", message: "NGINX REJECTED 5MB payload! If APK compression fails, registration breaks.", details: ["This is the worst-case scenario", "If the selfie compression on Android fails, the raw camera image is ~5MB", "Fix: client_max_body_size 50M; in nginx"], duration: reg5m.duration });
+      } else {
+        updateResult(5, { status: "warn", message: `5MB test: ${reg5m.error || "Server error"} — may need to increase Express limit`, details: ["Current Express limit is 50MB so this should work", "If failing, check server logs"], duration: reg5m.duration });
+      }
+    }
+
+    // Step 7: Verify DB Record
+    updateResult(6, { status: "running" });
     const dbCheck = await apiCall("GET", `/api/operators/${opId}`);
     if (dbCheck.ok && dbCheck.data) {
       const op = dbCheck.data;
@@ -173,20 +207,20 @@ export default function ApkTester() {
       if (op.forceLogout !== false) issues.push("forceLogout is not false");
 
       if (issues.length === 0) {
-        updateResult(4, { status: "pass", message: "All fields saved correctly in database", details: [
+        updateResult(6, { status: "pass", message: "All fields saved correctly in database", details: [
           `Name: ${op.name}`, `Phone: ${op.phone}`, `Aadhaar: ${op.aadhaar}`,
           `Selfie: ${op.selfieUrl ? "Saved (" + op.selfieUrl.length + " chars)" : "MISSING!"}`,
           `Device: ${op.deviceId}`, `Status: ${op.status}`, `Session active: ${op.sessionActive}`,
         ], duration: dbCheck.duration });
       } else {
-        updateResult(4, { status: "fail", message: `DB record issues: ${issues.join(", ")}`, details: issues, duration: dbCheck.duration });
+        updateResult(6, { status: "fail", message: `DB record issues: ${issues.join(", ")}`, details: issues, duration: dbCheck.duration });
       }
     } else {
-      updateResult(4, { status: "warn", message: "Could not verify DB record", duration: dbCheck.duration });
+      updateResult(6, { status: "warn", message: "Could not verify DB record", duration: dbCheck.duration });
     }
 
-    // Step 6: Response Format Check — verify all fields the APK Kotlin code expects
-    updateResult(5, { status: "running" });
+    // Step 8: Response Format Check — verify all fields the APK Kotlin code expects
+    updateResult(7, { status: "running" });
     const formatIssues: string[] = [];
     if (reg.data.success === undefined) formatIssues.push("Missing 'success' field");
     if (reg.data.operator === undefined) formatIssues.push("Missing 'operator' object");
@@ -202,7 +236,7 @@ export default function ApkTester() {
       if (!("examId" in op)) formatIssues.push("operator.examId missing — APK expects this field");
       if (!("examName" in op)) formatIssues.push("operator.examName missing — APK expects this field");
     }
-    updateResult(5, {
+    updateResult(7, {
       status: formatIssues.length === 0 ? "pass" : "fail",
       message: formatIssues.length === 0 ? "All response fields match APK Kotlin data classes" : `${formatIssues.length} field issues found — APK will crash!`,
       details: formatIssues.length === 0 ? [
@@ -214,8 +248,8 @@ export default function ApkTester() {
       response: reg.data
     });
 
-    // Step 7: Re-Registration
-    updateResult(6, { status: "running" });
+    // Step 9: Re-Registration
+    updateResult(8, { status: "running" });
     const reReg = await apiCall("POST", "/api/apk/operator/register", {
       name: testName, phone: testPhone, aadhaar: testAadhaar,
       selfie: "reregtest", deviceId: "web-tester-rereg"
@@ -228,36 +262,36 @@ export default function ApkTester() {
       if (!hasAlreadyReg) issues.push("Missing 'alreadyRegistered' field — will crash APK!");
       if (reReg.data.alreadyRegistered !== true) issues.push(`alreadyRegistered should be true, got: ${reReg.data.alreadyRegistered}`);
 
-      updateResult(6, {
+      updateResult(8, {
         status: issues.length === 0 ? "pass" : "fail",
         message: issues.length === 0 ? `Re-registration correct: same ID (${opId}), alreadyRegistered: true` : `Re-registration broken: ${issues.join("; ")}`,
         details: [`Same ID: ${sameId}`, `alreadyRegistered: ${reReg.data.alreadyRegistered}`, ...issues],
         response: reReg.data, duration: reReg.duration
       });
     } else {
-      updateResult(6, { status: "fail", message: reReg.error || "Re-registration failed", response: reReg.data, duration: reReg.duration });
+      updateResult(8, { status: "fail", message: reReg.error || "Re-registration failed", response: reReg.data, duration: reReg.duration });
     }
 
-    // Step 8: List Centres
-    updateResult(7, { status: "running" });
+    // Step 10: List Centres
+    updateResult(9, { status: "running" });
     const centres = await apiCall("GET", `/api/apk/centres/${examId}`);
     if (centres.ok && Array.isArray(centres.data) && centres.data.length > 0) {
       centreCode = centres.data[0].code;
-      updateResult(7, { status: "pass", message: `Found ${centres.data.length} centres. Using: ${centreCode}`, details: centres.data.slice(0, 5).map((c: any) => `${c.code} - ${c.name}`), duration: centres.duration });
+      updateResult(9, { status: "pass", message: `Found ${centres.data.length} centres. Using: ${centreCode}`, details: centres.data.slice(0, 5).map((c: any) => `${c.code} - ${c.name}`), duration: centres.duration });
     } else if (centres.ok && Array.isArray(centres.data) && centres.data.length === 0) {
-      updateResult(7, { status: "fail", message: "No centres found for this exam. Create centres first.", duration: centres.duration });
-      for (let i = 8; i <= 12; i++) updateResult(i, { status: "fail", message: "Skipped — no centres" });
-      await runForceLogoutTests(opId!, 13, updateResult);
-      await cleanupOperator(opId!, 15, updateResult);
+      updateResult(9, { status: "fail", message: "No centres found for this exam. Create centres first.", duration: centres.duration });
+      for (let i = 10; i <= 14; i++) updateResult(i, { status: "fail", message: "Skipped — no centres" });
+      await runForceLogoutTests(opId!, 15, updateResult);
+      await cleanupOperator(opId!, 17, updateResult);
       setRunning(false);
       return;
     } else {
-      updateResult(7, { status: "fail", message: centres.error || "Failed to list centres", response: centres.data, duration: centres.duration });
+      updateResult(9, { status: "fail", message: centres.error || "Failed to list centres", response: centres.data, duration: centres.duration });
     }
 
-    // Step 9: Select Centre
+    // Step 11: Select Centre
     if (centreCode) {
-      updateResult(8, { status: "running" });
+      updateResult(10, { status: "running" });
       const sel = await apiCall("POST", "/api/apk/operator/select-centre", {
         operatorId: opId, examId: Number(examId), centreCode
       });
@@ -267,66 +301,66 @@ export default function ApkTester() {
           `Candidates downloaded: ${sel.data.candidateCount ?? "unknown"}`,
           `Has candidates array: ${Array.isArray(sel.data.candidates) ? `Yes (${sel.data.candidates.length} items)` : "No"}`,
         ];
-        updateResult(8, { status: "pass", message: `Locked to ${sel.data.centreName || centreCode}, ${sel.data.candidateCount || 0} candidates`, details, duration: sel.duration });
+        updateResult(10, { status: "pass", message: `Locked to ${sel.data.centreName || centreCode}, ${sel.data.candidateCount || 0} candidates`, details, duration: sel.duration });
       } else {
-        updateResult(8, { status: "fail", message: sel.error || sel.data?.message || "Failed", response: sel.data, duration: sel.duration });
+        updateResult(10, { status: "fail", message: sel.error || sel.data?.message || "Failed", response: sel.data, duration: sel.duration });
       }
 
-      // Step 10: Verify Centre Lock in DB
-      updateResult(9, { status: "running" });
+      // Step 12: Verify Centre Lock in DB
+      updateResult(11, { status: "running" });
       const lockCheck = await apiCall("GET", `/api/operators/${opId}`);
       if (lockCheck.ok && lockCheck.data) {
         const op = lockCheck.data;
         const issues: string[] = [];
         if (op.centreCode !== centreCode) issues.push(`centreCode: expected '${centreCode}', got '${op.centreCode}'`);
         if (Number(op.examId) !== Number(examId)) issues.push(`examId: expected ${examId}, got ${op.examId}`);
-        updateResult(9, {
+        updateResult(11, {
           status: issues.length === 0 ? "pass" : "fail",
           message: issues.length === 0 ? `Operator locked to centre ${centreCode}, exam ${examId}` : `Lock issues: ${issues.join("; ")}`,
           details: [`centreCode: ${op.centreCode}`, `examId: ${op.examId}`, `examName: ${op.examName}`, ...issues],
           duration: lockCheck.duration
         });
       } else {
-        updateResult(9, { status: "warn", message: "Could not verify centre lock in DB", duration: lockCheck.duration });
+        updateResult(11, { status: "warn", message: "Could not verify centre lock in DB", duration: lockCheck.duration });
       }
     } else {
-      updateResult(8, { status: "fail", message: "No centre code available" });
-      updateResult(9, { status: "fail", message: "Skipped" });
+      updateResult(10, { status: "fail", message: "No centre code available" });
+      updateResult(11, { status: "fail", message: "Skipped" });
     }
 
-    // Step 11: Session Check
-    updateResult(10, { status: "running" });
+    // Step 13: Session Check
+    updateResult(12, { status: "running" });
     const session = await apiCall("POST", "/api/apk/operator/check-session", { operatorId: opId });
     if (session.data?.success) {
       const issues: string[] = [];
       if (session.data.sessionActive !== true) issues.push("sessionActive should be true");
       if (session.data.forceLogout !== false) issues.push("forceLogout should be false");
-      updateResult(10, {
+      updateResult(12, {
         status: issues.length === 0 ? "pass" : "fail",
         message: issues.length === 0 ? "Session active, no force logout" : `Session issues: ${issues.join("; ")}`,
         details: [`sessionActive: ${session.data.sessionActive}`, `forceLogout: ${session.data.forceLogout}`],
         response: session.data, duration: session.duration
       });
     } else {
-      updateResult(10, { status: "fail", message: session.error || "Session check failed", response: session.data, duration: session.duration });
+      updateResult(12, { status: "fail", message: session.error || "Session check failed", response: session.data, duration: session.duration });
     }
 
-    // Step 12: Heartbeat
-    updateResult(11, { status: "running" });
+    // Step 14: Heartbeat
+    updateResult(13, { status: "running" });
     const hb = await apiCall("POST", "/api/apk/verification/heartbeat", { operatorId: opId, deviceId: "web-tester", battery: 85, gps: null });
     if (hb.data?.success) {
-      updateResult(11, {
+      updateResult(13, {
         status: "pass",
         message: `Heartbeat OK. forceLogout: ${hb.data.forceLogout}`,
         details: [`forceLogout: ${hb.data.forceLogout}`],
         response: hb.data, duration: hb.duration
       });
     } else {
-      updateResult(11, { status: "fail", message: hb.error || "Heartbeat failed", response: hb.data, duration: hb.duration });
+      updateResult(13, { status: "fail", message: hb.error || "Heartbeat failed", response: hb.data, duration: hb.duration });
     }
 
-    // Step 13: Get Candidates
-    updateResult(12, { status: "running" });
+    // Step 15: Get Candidates
+    updateResult(14, { status: "running" });
     const cands = await apiCall("GET", `/api/apk/candidates/${examId}${centreCode ? `?centreCode=${centreCode}` : ""}`);
     if (cands.ok && Array.isArray(cands.data)) {
       const sample = cands.data[0];
@@ -335,7 +369,7 @@ export default function ApkTester() {
         const required = ["id", "exam_id", "roll_no", "name", "centre_code"];
         required.forEach(f => { if (sample[f] === undefined) fieldCheck.push(`Missing field: ${f}`); });
       }
-      updateResult(12, {
+      updateResult(14, {
         status: fieldCheck.length === 0 ? "pass" : "warn",
         message: `${cands.data.length} candidates downloaded${fieldCheck.length ? " (some fields missing)" : ""}`,
         details: [
@@ -346,14 +380,14 @@ export default function ApkTester() {
         response: sample || null, duration: cands.duration
       });
     } else {
-      updateResult(12, { status: "fail", message: cands.error || "Failed to get candidates", response: cands.data, duration: cands.duration });
+      updateResult(14, { status: "fail", message: cands.error || "Failed to get candidates", response: cands.data, duration: cands.duration });
     }
 
-    // Step 14-15: Force Logout Tests
-    await runForceLogoutTests(opId!, 13, updateResult);
+    // Step 16-17: Force Logout Tests
+    await runForceLogoutTests(opId!, 15, updateResult);
 
-    // Step 16: Cleanup
-    await cleanupOperator(opId!, 15, updateResult);
+    // Step 18: Cleanup
+    await cleanupOperator(opId!, 17, updateResult);
 
     setRunning(false);
   };
