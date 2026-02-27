@@ -581,7 +581,8 @@ class RegistrationActivity : AppCompatActivity() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Registration failed", e)
-                    Toast.makeText(this@RegistrationActivity, "Error: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+                    val errMsg = e.message ?: "Unknown error"
+                      Toast.makeText(this@RegistrationActivity, errMsg, Toast.LENGTH_LONG).show()
                 }
                 binding.btnRegister.isEnabled = true
                 binding.btnRegister.text = "Register"
@@ -606,7 +607,7 @@ class RegistrationActivity : AppCompatActivity() {
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .build()
-        val request = Request.Builder().url(url).post(body).build()
+        val request = Request.Builder().url(url).post(body).addHeader("Content-Type", "application/json").addHeader("Accept", "application/json").build()
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string() ?: "{}"
         Log.d(TAG, "Response code: ${"$"}{response.code}, body: ${"$"}{responseBody.take(500)}")
