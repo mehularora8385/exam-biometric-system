@@ -91,7 +91,7 @@ export interface IStorage {
   upsertGlobalTechSettings(settings: InsertGlobalTechSettings): Promise<GlobalTechSettings>;
 
   getDashboardStats(): Promise<any>;
-  getClientDashboardStats(examId?: number): Promise<any>;
+  getClientDashboardStats(examId?: number, slot?: string): Promise<any>;
   listOperatorsByExam(examId: number): Promise<Operator[]>;
 }
 
@@ -378,8 +378,10 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getDashboardStats(examId?: number): Promise<any> {
-    const examFilter = examId ? eq(candidates.examId, examId) : undefined;
+  async getDashboardStats(examId?: number, slot?: string): Promise<any> {
+    const slotFilter = slot ? eq(candidates.slot, slot) : undefined;
+    const baseExamFilter = examId ? eq(candidates.examId, examId) : undefined;
+    const examFilter = baseExamFilter && slotFilter ? and(baseExamFilter, slotFilter) : (slotFilter || baseExamFilter);
     const centerExamFilter = examId ? eq(centers.examId, examId) : undefined;
 
     const [examCount] = await db.select({ count: sql<number>`count(*)` }).from(exams);
@@ -454,8 +456,10 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getClientDashboardStats(examId?: number): Promise<any> {
-    const examFilter = examId ? eq(candidates.examId, examId) : undefined;
+  async getClientDashboardStats(examId?: number, slot?: string): Promise<any> {
+    const slotFilter = slot ? eq(candidates.slot, slot) : undefined;
+    const baseExamFilter = examId ? eq(candidates.examId, examId) : undefined;
+    const examFilter = baseExamFilter && slotFilter ? and(baseExamFilter, slotFilter) : (slotFilter || baseExamFilter);
     const centerFilter = examId ? eq(centers.examId, examId) : undefined;
 
     const [candidateCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter);

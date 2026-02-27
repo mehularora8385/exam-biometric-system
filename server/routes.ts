@@ -1514,7 +1514,8 @@ export async function registerRoutes(
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
-      const stats = await storage.getDashboardStats(examId);
+      const slot = req.query.slot ? String(req.query.slot) : undefined;
+      const stats = await storage.getDashboardStats(examId, slot);
       res.json(stats);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -1534,10 +1535,11 @@ export async function registerRoutes(
   app.get("/api/client/dashboard", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      const slot = req.query.slot ? String(req.query.slot) : undefined;
       if (!examId) {
         return res.json({ totalCandidates: 0, verified: 0, pending: 0, notVerified: 0, present: 0, absent: 0, totalCenters: 0, activeCenters: 0, totalOperators: 0, activeOperators: 0, centerStats: [] });
       }
-      const stats = await storage.getClientDashboardStats(examId);
+      const stats = await storage.getClientDashboardStats(examId, slot);
       res.json(stats);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -1556,10 +1558,12 @@ export async function registerRoutes(
   app.get("/api/client/candidates", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
+      const slot = req.query.slot ? String(req.query.slot) : undefined;
       if (!examId) {
         return res.json([]);
       }
-      const list = await storage.listCandidates(examId);
+      let list = await storage.listCandidates(examId);
+      if (slot) { list = list.filter((c: any) => c.slot === slot); }
       res.json(list);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

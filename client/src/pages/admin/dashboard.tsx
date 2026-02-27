@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,14 +17,23 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ selectedExamId, setActivePage }: DashboardProps) {
+  const [selectedSlot, setSelectedSlot] = useState<string>("all");
+  const slotParam = selectedSlot !== "all" ? selectedSlot : undefined;
+
   const { data: stats, isLoading } = useQuery({
-    queryKey: ["dashboard-stats", selectedExamId],
-    queryFn: () => api.dashboard.stats(selectedExamId),
+    queryKey: ["dashboard-stats", selectedExamId, slotParam],
+    queryFn: () => api.dashboard.stats(selectedExamId, slotParam),
   });
 
   const { data: exams = [] } = useQuery({
     queryKey: ["exams"],
     queryFn: api.exams.list,
+  });
+
+  const { data: slotsList = [] } = useQuery({
+    queryKey: ["slots", selectedExamId],
+    queryFn: () => api.slots.list(selectedExamId),
+    enabled: !!selectedExamId,
   });
 
   const { data: alertsData = [] } = useQuery({
@@ -74,7 +85,20 @@ export default function Dashboard({ selectedExamId, setActivePage }: DashboardPr
           <h1 className="text-xl font-bold text-gray-900" data-testid="text-dashboard-title">HQ Admin Dashboard</h1>
           <p className="text-gray-500 text-sm">System overview and quick access</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {selectedExamId && slotsList.length > 0 && (
+            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+              <SelectTrigger className="w-[180px] h-8 text-xs" data-testid="select-slot-filter">
+                <SelectValue placeholder="All Shifts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Shifts</SelectItem>
+                {slotsList.map((s: any) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Badge variant="outline" className="text-xs px-2 py-1 bg-green-50 text-green-700 border-green-200">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />
             System Online

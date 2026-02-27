@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, UserCheck, Clock, AlertCircle, Building2, Smartphone, TrendingUp, Search, 
   Shield, ChevronLeft, LayoutDashboard, GraduationCap, Eye, Loader2,
@@ -23,6 +24,7 @@ export default function ClientDashboard() {
   const [studentSearch, setStudentSearch] = useState("");
   const [studentStatusFilter, setStudentStatusFilter] = useState("all");
   const [studentCentreFilter, setStudentCentreFilter] = useState("all");
+  const [selectedSlot, setSelectedSlot] = useState("all");
 
   const handleLogout = () => {
     localStorage.removeItem("role");
@@ -46,9 +48,17 @@ export default function ClientDashboard() {
   const examId = clientExam?.id;
   const examTitle = clientExam?.name || "Loading...";
 
+  const slotParam = selectedSlot !== "all" ? selectedSlot : undefined;
+
+  const { data: slotsList = [] } = useQuery({
+    queryKey: ["client-slots", examId],
+    queryFn: () => api.slots.list(examId),
+    enabled: !!examId,
+  });
+
   const { data: dashStats, isLoading: statsLoading } = useQuery({
-    queryKey: ["client-dashboard", examId],
-    queryFn: () => api.client.dashboard(examId),
+    queryKey: ["client-dashboard", examId, slotParam],
+    queryFn: () => api.client.dashboard(examId, slotParam),
     enabled: !!examId,
     refetchInterval: 10000,
   });
@@ -61,8 +71,8 @@ export default function ClientDashboard() {
   });
 
   const { data: candidateList = [], isLoading: candidatesLoading } = useQuery({
-    queryKey: ["client-candidates", examId],
-    queryFn: () => api.client.candidates(examId),
+    queryKey: ["client-candidates", examId, slotParam],
+    queryFn: () => api.client.candidates(examId, slotParam),
     enabled: !!examId,
     refetchInterval: 10000,
   });
@@ -160,6 +170,19 @@ export default function ClientDashboard() {
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs font-semibold text-green-700">LIVE</span>
           </div>
+          {slotsList.length > 0 && (
+            <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+              <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-slot-filter">
+                <SelectValue placeholder="All Shifts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Shifts</SelectItem>
+                {slotsList.map((s: any) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex items-center gap-3 cursor-pointer" onClick={handleLogout} title="Click to logout" data-testid="btn-logout">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">

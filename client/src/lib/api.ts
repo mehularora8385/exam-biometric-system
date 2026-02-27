@@ -157,12 +157,12 @@ export const api = {
     update: (data: any) => request<any>("/global-tech-settings", { method: "PUT", body: JSON.stringify(data) }),
   },
   dashboard: {
-    stats: (examId?: number) => request<any>(`/dashboard/stats${examId ? `?examId=${examId}` : ""}`),
+    stats: (examId?: number, slot?: string) => { const p = new URLSearchParams(); if (examId) p.set("examId", String(examId)); if (slot) p.set("slot", slot); const q = p.toString(); return request<any>(`/dashboard/stats${q ? "?" + q : ""}`); },
   },
   client: {
     exams: (username: string) => request<any[]>(`/client/exams?username=${encodeURIComponent(username)}`),
-    dashboard: (examId?: number) => request<any>(`/client/dashboard${examId ? `?examId=${examId}` : ""}`),
+    dashboard: (examId?: number, slot?: string) => { const p = new URLSearchParams(); if (examId) p.set("examId", String(examId)); if (slot) p.set("slot", slot); const q = p.toString(); return request<any>(`/client/dashboard${q ? "?" + q : ""}`); },
     operators: (examId?: number) => request<any[]>(`/client/operators${examId ? `?examId=${examId}` : ""}`),
-    candidates: (examId?: number) => request<any[]>(`/client/candidates${examId ? `?examId=${examId}` : ""}`),
+    candidates: (examId?: number, slot?: string) => { const p = new URLSearchParams(); if (examId) p.set("examId", String(examId)); if (slot) p.set("slot", slot); const q = p.toString(); return request<any[]>(`/client/candidates${q ? "?" + q : ""}`); },
   },
 };
