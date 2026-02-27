@@ -68,13 +68,14 @@ export async function registerRoutes(
     try {
       const { username, password } = req.body;
       if (!username || !password) {
-        return res.status(400).json({ message: "Username and password required" });
+        return res.status(400).json({ success: false, message: "Username and password required" });
       }
       const user = await storage.getUserByUsername(username);
       if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        return res.status(401).json({ success: false, message: "Invalid credentials" });
       }
-      res.json({ id: user.id, username: user.username, role: user.role, displayName: user.displayName, name: user.displayName });
+      const deviceId = req.body.deviceId || req.body.device_id || "";
+        res.json({ success: true, user: { id: user.id, username: user.username, fullName: user.displayName || user.name || user.username, role: user.role }, message: "Login successful", deviceId });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -322,7 +323,52 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/candidates/upload", upload.single("file"), async (req, res) => {
+  // APK endpoint: mark attendance
+    app.patch("/api/candidates/:id/attendance", async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        const { attendanceStatus, attendanceOperatorId } = req.body;
+        const candidate = await storage.updateCandidate(id, {
+          presentMark: attendanceStatus === "present" ? "Present" : "Absent",
+          status: "Present"
+        });
+        if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+        res.json({ success: true, message: "Attendance marked" });
+      } catch (e: any) {
+        res.status(500).json({ success: false, message: e.message });
+      }
+    });
+
+    // APK endpoint: submit verification
+    app.patch("/api/candidates/:id/verify", async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        const { verificationStatus, verifiedPhoto, faceMatchPercent, omrNumber, verificationOperatorId } = req.body;
+        const candidate = await storage.updateCandidate(id, {
+          status: verificationStatus === "verified" ? "Verified" : "Pending",
+          capturedPhotoUrl: verifiedPhoto || null,
+          matchPercent: faceMatchPercent ? String(faceMatchPercent) : null,
+          omrNo: omrNumber || null,
+          verifiedAt: new Date().toISOString(),
+          fingerprintVerified: true
+        });
+        if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
+        res.json({ success: true, message: "Verification submitted" });
+      } catch (e: any) {
+        res.status(500).json({ success: false, message: e.message });
+      }
+    });
+
+    // APK endpoint: heartbeat
+    app.post("/api/verification/heartbeat", async (req, res) => {
+      try {
+        res.json({ success: true, message: "Heartbeat received" });
+      } catch (e: any) {
+        res.status(500).json({ success: false, message: e.message });
+      }
+    });
+
+      app.post("/api/candidates/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       
