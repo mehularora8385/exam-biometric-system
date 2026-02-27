@@ -1798,21 +1798,74 @@ export async function buildApk(
       log("Step 6/7: Setting up build tools...");
         await onProgress(75, logs.join("\n"));
 
-        const gradleHome = "/opt/gradle-8.4";
-        const gradleBin = path.join(gradleHome, "bin", "gradle");
-        let hasGradle = fs.existsSync(gradleBin);
+        // Check multiple Gradle locations
+        const gradleLocations = [
+          "/opt/gradle-8.4/bin/gradle",
+          path.join(process.env.HOME || "/root", ".sdkman/candidates/gradle/8.4/bin/gradle"),
+          path.join(process.env.HOME || "/root", ".sdkman/candidates/gradle/current/bin/gradle"),
+        ];
+        let gradleBin = "";
+        for (const loc of gradleLocations) {
+          if (fs.existsSync(loc)) { gradleBin = loc; break; }
+        }
+        let hasGradle = !!gradleBin;
 
-        // Auto-install Gradle if missing
+        // Auto-install Gradle via SDKMAN if missing
         if (!hasGradle) {
-          log("  Gradle not found, installing Gradle 8.4...");
+          log("  Gradle not found, installing via SDKMAN...");
           await onProgress(76, logs.join("\n"));
           try {
-            execSync('mkdir -p /opt && curl -fsSL https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip && unzip -q -o /tmp/gradle.zip -d /opt/ && rm /tmp/gradle.zip 2>&1', { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
-            hasGradle = fs.existsSync(gradleBin);
-            if (hasGradle) log("  ✓ Gradle 8.4 installed at " + gradleHome);
-            else log("  ✗ Gradle install failed");
+            const homeDir = process.env.HOME || "/root";
+            const sdkmanDir = path.join(homeDir, ".sdkman");
+            
+            // Install SDKMAN if not present
+            if (!fs.existsSync(path.join(sdkmanDir, "bin", "sdkman-init.sh"))) {
+              log("  Installing SDKMAN...");
+              execSync('curl -s https://get.sdkman.io | bash 2>&1', { timeout: 120000, maxBuffer: 10 * 1024 * 1024, env: { ...process.env, SDKMAN_DIR: sdkmanDir } });
+              log("  ✓ SDKMAN installed");
+            }
+
+            // Install Gradle 8.4 via SDKMAN
+            const sdkmanInit = path.join(sdkmanDir, "bin", "sdkman-init.sh");
+            if (fs.existsSync(sdkmanInit)) {
+              log("  Installing Gradle 8.4 via SDKMAN...");
+              execSync(`bash -c 'source "${sdkmanInit}" && sdk install gradle 8.4 2>&1'`, { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
+              const sdkmanGradle = path.join(sdkmanDir, "candidates", "gradle", "8.4", "bin", "gradle");
+              if (fs.existsSync(sdkmanGradle)) {
+                gradleBin = sdkmanGradle;
+                hasGradle = true;
+                log("  ✓ Gradle 8.4 installed via SDKMAN at " + gradleBin);
+              } else {
+                // Try current symlink
+                const currentGradle = path.join(sdkmanDir, "candidates", "gradle", "current", "bin", "gradle");
+                if (fs.existsSync(currentGradle)) {
+                  gradleBin = currentGradle;
+                  hasGradle = true;
+                  log("  ✓ Gradle installed via SDKMAN at " + gradleBin);
+                } else {
+                  log("  ✗ SDKMAN Gradle install completed but binary not found");
+                }
+              }
+            } else {
+              log("  ✗ SDKMAN init script not found");
+            }
           } catch (e: any) {
-            log("  ✗ Gradle install error: " + e.message.substring(0, 200));
+            log("  ✗ SDKMAN/Gradle install error: " + e.message.substring(0, 300));
+          }
+
+          // Fallback: direct download if SDKMAN failed
+          if (!hasGradle) {
+            log("  Trying direct Gradle download as fallback...");
+            try {
+              execSync('mkdir -p /opt && curl -fsSL https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip && unzip -q -o /tmp/gradle.zip -d /opt/ && rm /tmp/gradle.zip 2>&1', { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
+              if (fs.existsSync("/opt/gradle-8.4/bin/gradle")) {
+                gradleBin = "/opt/gradle-8.4/bin/gradle";
+                hasGradle = true;
+                log("  ✓ Gradle 8.4 installed at /opt/gradle-8.4");
+              }
+            } catch (e2: any) {
+              log("  ✗ Direct download also failed: " + e2.message.substring(0, 200));
+            }
           }
         } else {
           log("  ✓ Gradle found at " + gradleBin);
@@ -1882,7 +1935,8 @@ export async function buildApk(
           fs.writeFileSync(path.join(buildDir, "local.properties"), `sdk.dir=${androidHome}\n`);
 
           try {
-            const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${gradleHome}/bin:${androidHome}/cmdline-tools/latest/bin:${androidHome}/platform-tools:${process.env.PATH}`, JAVA_HOME: javaHome || "/usr/lib/jvm/java-17-openjdk-amd64" };
+            const gradleHome = path.dirname(path.dirname(gradleBin));
+            const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${path.dirname(gradleBin)}:${androidHome}/cmdline-tools/latest/bin:${androidHome}/platform-tools:${process.env.PATH}`, JAVA_HOME: javaHome || "/usr/lib/jvm/java-17-openjdk-amd64" };
             log("  Running: gradle assembleRelease (this may take 3-10 minutes on first build)...");
             await onProgress(88, logs.join("\n"));
             const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --no-parallel --warning-mode=none -Dorg.gradle.jvmargs="-Xmx2048m" 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
