@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import * as path from "path";
 import * as fs from "fs";
-import { buildApk, generateApkConfig, type BuildConfig } from "./apk-builder";
+import { buildApk, generateApkConfig, type BuildConfig , SDK_DIR } from "./apk-builder";
 import { type Server } from "http";
 import { storage } from "./storage";
   import { db } from "./db";
@@ -1773,7 +1773,74 @@ export async function registerRoutes(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
-  // DELETE /api/apk-builds/:id - Delete a single build
+
+    // GET /api/sdk/files - List uploaded SDK files
+    app.get('/api/sdk/files', async (_req, res) => {
+      try {
+        const sdkDir = SDK_DIR;
+        if (!fs.existsSync(sdkDir)) {
+          fs.mkdirSync(sdkDir, { recursive: true });
+          return res.json({ files: [], path: sdkDir });
+        }
+        const listFiles = (dir: string, prefix = ""): any[] => {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          const result: any[] = [];
+          for (const e of entries) {
+            const fullPath = path.join(dir, e.name);
+            if (e.isDirectory()) {
+              result.push(...listFiles(fullPath, prefix ? prefix + "/" + e.name : e.name));
+            } else {
+              const stat = fs.statSync(fullPath);
+              result.push({
+                name: e.name,
+                path: prefix ? prefix + "/" + e.name : e.name,
+                size: stat.size,
+                sizeStr: (stat.size / 1024).toFixed(1) + " KB",
+                type: e.name.endsWith('.jar') ? 'JAR Library' : e.name.endsWith('.so') ? 'Native Library' : e.name.endsWith('.tflite') ? 'AI Model' : 'Other',
+                modified: stat.mtime.toISOString()
+              });
+            }
+          }
+          return result;
+        };
+        res.json({ files: listFiles(sdkDir), path: sdkDir });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // POST /api/sdk/upload - Upload SDK files
+    const sdkUpload = multer({
+      storage: multer.diskStorage({
+        destination: (req, _file, cb) => {
+          const subDir = req.query.dir as string || '';
+          const dest = path.join(SDK_DIR, subDir);
+          fs.mkdirSync(dest, { recursive: true });
+          cb(null, dest);
+        },
+        filename: (_req, file, cb) => cb(null, file.originalname)
+      }),
+      limits: { fileSize: 100 * 1024 * 1024 }
+    });
+    app.post('/api/sdk/upload', sdkUpload.array('files', 10), async (req, res) => {
+      try {
+        const files = (req as any).files as any[];
+        const uploaded = files.map(f => ({ name: f.originalname, size: f.size, path: f.path }));
+        res.json({ success: true, uploaded, message: uploaded.length + ' files uploaded' });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // DELETE /api/sdk/files/:filename - Delete SDK file
+    app.delete('/api/sdk/files/:filename', async (req, res) => {
+      try {
+        const filename = decodeURIComponent(req.params.filename);
+        const filePath = path.join(SDK_DIR, filename);
+        if (!filePath.startsWith(SDK_DIR)) return res.status(400).json({ message: 'Invalid path' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });
+        fs.unlinkSync(filePath);
+        res.json({ success: true, message: 'File deleted' });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // DELETE /api/apk-builds/:id - Delete a single build
     app.delete('/api/apk-builds/:id', async (req, res) => {
       try {
         const id = Number(req.params.id);

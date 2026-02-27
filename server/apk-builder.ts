@@ -4,6 +4,7 @@ import * as path from "path";
 
 const APK_BUILDS_DIR = path.join(process.cwd(), "apk-builds");
 const APK_OUTPUT_DIR = path.join(process.cwd(), "public", "apks");
+const SDK_DIR = path.join(process.cwd(), "sdk");
 
 function ensureDirs() {
   [APK_BUILDS_DIR, APK_OUTPUT_DIR, path.join(process.cwd(), "keystore")].forEach(d => {
@@ -11,6 +12,73 @@ function ensureDirs() {
   });
 }
 
+
+  function copySDKFiles(buildDir: string, log: (msg: string) => void) {
+    const sdkDir = SDK_DIR;
+    if (!fs.existsSync(sdkDir)) {
+      log("  SDK directory not found at " + sdkDir);
+      return false;
+    }
+
+    let copied = 0;
+    const libsDir = path.join(buildDir, "app", "libs");
+    const modelsDir = path.join(buildDir, "app", "src", "main", "assets", "models");
+    const jniV7Dir = path.join(buildDir, "app", "src", "main", "jniLibs", "armeabi-v7a");
+    const jniV8Dir = path.join(buildDir, "app", "src", "main", "jniLibs", "arm64-v8a");
+
+    [libsDir, modelsDir, jniV7Dir, jniV8Dir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
+
+    const findAndCopy = (patterns: string[], destDir: string, destName?: string) => {
+      for (const pattern of patterns) {
+        const files = findFilesRecursive(sdkDir, pattern);
+        for (const file of files) {
+          const dest = path.join(destDir, destName || path.basename(file));
+          fs.copyFileSync(file, dest);
+          log("  Copied: " + path.basename(file) + " -> " + path.relative(buildDir, dest));
+          copied++;
+        }
+      }
+    };
+
+    findAndCopy([".jar"], libsDir);
+    findAndCopy([".tflite"], modelsDir);
+
+    const soFiles = findFilesRecursive(sdkDir, ".so");
+    for (const soFile of soFiles) {
+      const parentDir = path.basename(path.dirname(soFile));
+      if (parentDir === "arm64-v8a" || soFile.includes("arm64")) {
+        fs.copyFileSync(soFile, path.join(jniV8Dir, path.basename(soFile)));
+        log("  Copied: " + path.basename(soFile) + " -> jniLibs/arm64-v8a/");
+      } else {
+        fs.copyFileSync(soFile, path.join(jniV7Dir, path.basename(soFile)));
+        log("  Copied: " + path.basename(soFile) + " -> jniLibs/armeabi-v7a/");
+      }
+      if (parentDir !== "arm64-v8a" && parentDir !== "armeabi-v7a") {
+        fs.copyFileSync(soFile, path.join(jniV8Dir, path.basename(soFile)));
+        log("  Copied: " + path.basename(soFile) + " -> jniLibs/arm64-v8a/ (both archs)");
+      }
+      copied++;
+    }
+
+    log("  SDK files copied: " + copied);
+    return copied > 0;
+  }
+
+  function findFilesRecursive(dir: string, ext: string): string[] {
+    const results: string[] = [];
+    if (!fs.existsSync(dir)) return results;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...findFilesRecursive(fullPath, ext));
+      } else if (entry.name.endsWith(ext)) {
+        results.push(fullPath);
+      }
+    }
+    return results;
+  }
+  
 export interface BuildConfig {
   examId: number;
   examName: string;
@@ -1588,6 +1656,8 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
   writeLayoutFiles(resDir);
 }
 
+export { SDK_DIR };
+
 export function generateApkConfig(config: BuildConfig): string {
   return generateConfigJson(config);
 }
@@ -1621,11 +1691,20 @@ export async function buildApk(
     log(`  Package: ${pkgName}`);
     log(`  Version: ${versionName} (code: ${versionCode})`);
 
-    log("Step 3/7: Injecting exam config into assets/config.json...");
+    log("Step 3/7: Copying SDK files (jar, so, tflite) into project...");
+    await onProgress(35, logs.join("\n"));
+    const sdkCopied = copySDKFiles(buildDir, log);
+    if (!sdkCopied) {
+      log("  WARNING: No SDK files found in " + SDK_DIR);
+      log("  Upload SDK files via Admin > APK Builder > SDK Files tab");
+      log("  Or place files in: " + SDK_DIR);
+    }
+
+    log("Step 4/7: Injecting exam config into assets/config.json...");
     await onProgress(30, logs.join("\n"));
     log(`  examId=${config.examId}, mode=${config.biometricMode}, threshold=${config.faceMatchThreshold}`);
 
-    log("Step 4/5: Creating project archive...");
+    log("Step 5/7: Creating project archive...");
     await onProgress(50, logs.join("\n"));
 
     try {
@@ -1636,7 +1715,7 @@ export async function buildApk(
       log(`  Project archive: ${zipFileName} (${zipSize} MB)`);
       await onProgress(70, logs.join("\n"));
 
-      log("Step 5/5: Attempting server-side APK build...");
+      log("Step 6/7: Attempting server-side APK build...");
       await onProgress(75, logs.join("\n"));
 
       const gradleHome = "/opt/gradle-8.4";

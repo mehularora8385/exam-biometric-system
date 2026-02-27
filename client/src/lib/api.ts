@@ -131,7 +131,19 @@ export const api = {
     deleteBuild: (id: number) => request<any>(`/apk-builds/${id}`, { method: "DELETE" }),
     deleteAllFailed: () => request<any>(`/apk-builds/cleanup`, { method: "POST" }),
   },
-  auditLogs: {
+  sdk: {
+      listFiles: () => request<any>('/sdk/files'),
+      upload: async (files: File[], subDir?: string) => {
+        const form = new FormData();
+        files.forEach(f => form.append('files', f));
+        const url = subDir ? `${API_BASE}/sdk/upload?dir=${encodeURIComponent(subDir)}` : `${API_BASE}/sdk/upload`;
+        const res = await fetch(url, { method: 'POST', body: form, credentials: 'include' });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      },
+      deleteFile: (filename: string) => request<any>(`/sdk/files/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
+    },
+    auditLogs: {
     list: () => request<any[]>("/audit-logs"),
     create: (data: any) => request<any>("/audit-logs", { method: "POST", body: JSON.stringify(data) }),
   },

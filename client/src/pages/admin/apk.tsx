@@ -47,10 +47,18 @@ export default function GenerateAPK() {
   const [autoSync, setAutoSync] = useState(true);
   const [autoSyncMinutes, setAutoSyncMinutes] = useState("5");
   const [timeSyncCheck, setTimeSyncCheck] = useState(true);
+  const [sdkExpanded, setSdkExpanded] = useState(false);
 
   const { data: exams = [] } = useQuery({ queryKey: ["exams"], queryFn: api.exams.list });
 
-  const { data: generatedApks = [], isLoading } = useQuery({
+  const { data: sdkData } = useQuery({
+      queryKey: ["sdk-files"],
+      queryFn: () => api.sdk.listFiles(),
+      refetchInterval: 10000,
+    });
+    const sdkFiles = sdkData?.files || [];
+
+    const { data: generatedApks = [], isLoading } = useQuery({
     queryKey: ["apk-builds"],
     queryFn: () => api.apkBuilds.list(),
     refetchInterval: 3000,
