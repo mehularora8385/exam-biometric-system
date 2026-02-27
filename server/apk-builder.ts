@@ -581,7 +581,7 @@ class RegistrationActivity : AppCompatActivity() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Registration failed", e)
-                    Toast.makeText(this@RegistrationActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@RegistrationActivity, "Error: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
                 }
                 binding.btnRegister.isEnabled = true
                 binding.btnRegister.text = "Register"
@@ -591,7 +591,7 @@ class RegistrationActivity : AppCompatActivity() {
 
     private fun doRegister(name: String, phone: String, aadhaar: String, selfie: String, deviceId: String): String {
         val baseUrl = RetrofitClient.getBaseUrl()
-        val url = "${baseUrl}api/apk/operator/register"
+        val url = "${"$"}{baseUrl}api/apk/operator/register"
         Log.d(TAG, "Registering to: $url")
         val json = JSONObject()
         json.put("name", name)
@@ -600,7 +600,7 @@ class RegistrationActivity : AppCompatActivity() {
         json.put("selfie", selfie)
         json.put("deviceId", deviceId)
         val body = json.toString().toRequestBody("application/json".toMediaType())
-        Log.d(TAG, "Request body size: ${json.toString().length} bytes")
+        Log.d(TAG, "Request body size: ${"$"}{json.toString().length} bytes")
         val client = OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
@@ -609,9 +609,9 @@ class RegistrationActivity : AppCompatActivity() {
         val request = Request.Builder().url(url).post(body).build()
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string() ?: "{}"
-        Log.d(TAG, "Response code: ${response.code}, body: ${responseBody.take(500)}")
+        Log.d(TAG, "Response code: ${"$"}{response.code}, body: ${"$"}{responseBody.take(500)}")
         if (!response.isSuccessful) {
-            throw Exception("Server error ${response.code}: ${responseBody.take(200)}")
+            throw Exception("Server error ${"$"}{response.code}: ${"$"}{responseBody.take(200)}")
         }
         return responseBody
     }
@@ -640,7 +640,7 @@ class RegistrationActivity : AppCompatActivity() {
             val baos = ByteArrayOutputStream()
             scaled.compress(Bitmap.CompressFormat.JPEG, 50, baos)
             selfieBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-            Log.d(TAG, "Selfie base64 size: ${selfieBase64?.length} chars")
+            Log.d(TAG, "Selfie base64 size: ${"$"}{selfieBase64?.length} chars")
         }
     }
 
