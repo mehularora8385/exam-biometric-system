@@ -2364,7 +2364,7 @@ export async function buildApk(
             log("  Running: ./gradlew assembleRelease --no-daemon --stacktrace");
             log("  (this may take 3-10 minutes on first build...)");
             await onProgress(88, logs.join("\n"));
-            const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+            const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
             const outputLines = output.split("\n");
             outputLines.slice(-30).forEach(l => log("  " + l));
 
@@ -2398,7 +2398,7 @@ export async function buildApk(
           } catch (buildErr: any) {
             log("  ✗ Release build failed, trying debug build...");
               try {
-                const debugOutput = execSync(`cd "${buildDir}" && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+                const debugOutput = execSync(`cd "${buildDir}" && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1`, { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
                 const debugApk = path.join(buildDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
                 if (fs.existsSync(debugApk)) {
                   const examName = config.examName.replace(/[^a-zA-Z0-9]/g, "");
