@@ -128,6 +128,8 @@ export const api = {
     getBuildStatus: (buildId: number) => request<any>(`/apk/status/${buildId}`),
     downloadBuiltApk: (examId: number) => { window.open(`${API_BASE}/apk/download/${examId}`, "_blank"); },
     getBuildLogs: (buildId: number) => request<any>(`/apk/logs/${buildId}`),
+    deleteBuild: (id: number) => request<any>(`/apk-builds/${id}`, { method: "DELETE" }),
+    deleteAllFailed: () => request<any>(`/apk-builds/cleanup`, { method: "POST" }),
   },
   auditLogs: {
     list: () => request<any[]>("/audit-logs"),

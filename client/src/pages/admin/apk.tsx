@@ -972,7 +972,24 @@ export default function GenerateAPK() {
               </div>
 
               <div className="pt-2 flex items-center justify-between text-sm text-gray-500">
-                <div>Showing {generatedApks.length} entries</div>
+                <div className="flex items-center gap-3">
+                    <span>Showing {generatedApks.length} entries</span>
+                    
+                  <button
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium rounded-lg border border-red-200 transition-colors"
+                    onClick={async () => {
+                      if (!confirm('Delete all failed and stuck builds?')) return;
+                      try {
+                        const result = await api.apkBuilds.deleteAllFailed();
+                        toast({ title: "Cleanup Done", description: result.message || (result.deleted + ' builds removed') });
+                        queryClient.invalidateQueries({ queryKey: ['/api/apk-builds'] });
+                      } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                    }}
+                    data-testid="button-cleanup-builds"
+                  >
+                    <Trash2 className="w-4 h-4" /> Clean Up Failed
+                  </button>
+                  </div>
               </div>
             </CardContent>
           </Card>

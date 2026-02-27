@@ -709,10 +709,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Select at least one exam" });
       }
       const results = [];
+      const allBuilds = await storage.listApkBuilds();
       for (const examId of examIds) {
         const exam = await storage.getExam(examId);
         if (!exam) continue;
-        const version = `3.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 100)}`;
+        const examBuilds = allBuilds.filter(b => b.examId === examId);
+        const nextBuildNum = examBuilds.length + 1;
+        const version = `3.0.${nextBuildNum}`;
         const candidateCount = (await storage.listCandidates(examId)).length;
         const centerCount = (await storage.listCenters(examId)).length;
         const configJson = {
@@ -1625,7 +1628,10 @@ export async function registerRoutes(
       const centerCount = (await storage.listCenters(examId)).length;
       const features = req.body || {};
 
-      const version = `3.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 100)}`;
+      const allBuilds = await storage.listApkBuilds();
+      const examBuilds = allBuilds.filter(b => b.examId === examId);
+      const nextBuildNum = examBuilds.length + 1;
+      const version = `3.0.${nextBuildNum}`;
       const build = await storage.createApkBuild({
         version,
         description: `${exam.name} - Auto Build`,
@@ -1747,6 +1753,43 @@ export async function registerRoutes(
       res.json({ buildId: build.id, status: build.status, logs: build.buildLogs || 'No logs available' });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+
+
+    // POST /api/apk-builds/cleanup - Delete all failed and stuck builds
+    app.post('/api/apk-builds/cleanup', async (_req, res) => {
+      try {
+        const builds = await storage.listApkBuilds();
+        let deleted = 0;
+        for (const build of builds) {
+          if (['failed', 'Failed', 'building', 'Building'].includes(build.status)) {
+            if (build.apkPath && fs.existsSync(build.apkPath)) {
+              try { fs.unlinkSync(build.apkPath); } catch (_) {}
+            }
+            await db.delete(apkBuilds).where(eq(apkBuilds.id, build.id));
+            deleted++;
+          }
+        }
+        res.json({ success: true, deleted, message: deleted + ' builds cleaned up' });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+  // DELETE /api/apk-builds/:id - Delete a single build
+    app.delete('/api/apk-builds/:id', async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        const builds = await storage.listApkBuilds();
+        const build = builds.find(b => b.id === id);
+        if (!build) return res.status(404).json({ message: 'Build not found' });
+        if (build.apkPath && fs.existsSync(build.apkPath)) {
+          fs.unlinkSync(build.apkPath);
+        }
+        await db.delete(apkBuilds).where(eq(apkBuilds.id, id));
+        res.json({ success: true, message: 'Build deleted' });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+  
+  
 
   // =====================================================
   // FULL ANDROID PROJECT TEMPLATE GENERATOR
