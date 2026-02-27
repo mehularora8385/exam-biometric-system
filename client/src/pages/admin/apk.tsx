@@ -995,6 +995,18 @@ export default function GenerateAPK() {
                                       <Cpu className="w-3.5 h-3.5" /> Build APK
                                     </button>
                                   )}
+                                  <button
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                                    onClick={async () => {
+                                      try {
+                                        const logsData = await api.apkBuilds.getBuildLogs(apk.id);
+                                        setLogModal({ open: true, title: `Build Logs - ${apk.examName || "Build"} v${apk.version}`, logs: logsData.logs || "No logs available" });
+                                      } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                    }}
+                                    data-testid={`button-view-logs-success-${apk.id || idx}`}
+                                  >
+                                    <Eye className="w-3.5 h-3.5" /> View Logs
+                                  </button>
                                 </div>
                               ) : apk.status === "building" || apk.status === "Building" ? (
                                 <div className="flex flex-col items-center gap-1">
