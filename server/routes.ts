@@ -2084,6 +2084,9 @@ interface ApiService {
     @POST("api/verification/heartbeat")
     suspend fun heartbeat(@Body body: HeartbeatRequest): Response<Map<String, Any>>
 
+    @GET("api/devices/mdm-command")
+    suspend fun checkMdmCommand(@Query("deviceId") deviceId: String): Response<Map<String, Any>>
+
     @GET("api/candidates")
     suspend fun getCandidates(@Query("examId") examId: Int): Response<List<CandidateDto>>
 
@@ -2761,10 +2764,11 @@ class HeartbeatService : Service() {
     private suspend fun sendHeartbeat() {
         try {
             val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+            val deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID)
             val request = HeartbeatRequest(
-                deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID),
-                operatorId = prefs.getString("username", "") ?: "",
-                centreCode = "",
+                deviceId = deviceId,
+                operatorId = prefs.getInt("user_id", 0).toString(),
+                centreCode = prefs.getString("centreCode", "") ?: "",
                 examId = BuildConfig.EXAM_ID,
                 batteryLevel = getBatteryLevel(),
                 gpsLat = null, gpsLng = null,
@@ -2772,7 +2776,51 @@ class HeartbeatService : Service() {
                 scannerModel = BuildConfig.SCANNER_MODEL,
                 appVersion = BuildConfig.VERSION_NAME
             )
-            RetrofitClient.api.heartbeat(request)
+            val response = RetrofitClient.api.heartbeat(request)
+            if (response.isSuccessful) {
+                val body = response.body()
+                val forceLogout = body?.get("forceLogout") as? Boolean ?: false
+                if (forceLogout) {
+                    prefs.edit().putBoolean("forceLogout", true).apply()
+                    prefs.edit().putBoolean("isLoggedIn", false).apply()
+                    val logoutIntent = Intent("com.mpa.FORCE_LOGOUT")
+                    logoutIntent.setPackage(packageName)
+                    sendBroadcast(logoutIntent)
+                    stopSelf()
+                    return
+                }
+            }
+            checkMdmCommands(deviceId)
+        } catch (_: Exception) { }
+    }
+
+    private suspend fun checkMdmCommands(deviceId: String) {
+        try {
+            val response = RetrofitClient.api.checkMdmCommand(deviceId)
+            if (response.isSuccessful) {
+                val body = response.body()
+                val command = body?.get("command") as? String
+                if (!command.isNullOrEmpty()) {
+                    when (command) {
+                        "lock_screen" -> {
+                            val intent = Intent("com.mpa.MDM_LOCK")
+                            intent.setPackage(packageName)
+                            sendBroadcast(intent)
+                        }
+                        "wipe_data" -> {
+                            getSharedPreferences("mpa_session", MODE_PRIVATE).edit().clear().apply()
+                            val intent = Intent("com.mpa.FORCE_LOGOUT")
+                            intent.setPackage(packageName)
+                            sendBroadcast(intent)
+                        }
+                        "force_sync" -> {
+                            val intent = Intent("com.mpa.FORCE_SYNC")
+                            intent.setPackage(packageName)
+                            sendBroadcast(intent)
+                        }
+                    }
+                }
+            }
         } catch (_: Exception) { }
     }
 
@@ -2796,6 +2844,7 @@ class HeartbeatService : Service() {
       project[`app/src/main/java/${pkgPath}/ui/CandidateListActivity.kt`] = `package ${pkgName}.ui
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -2810,15 +2859,31 @@ import kotlinx.coroutines.launch
 class CandidateListActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCandidateListBinding
     private val db by lazy { AppDatabase.getInstance(this) }
+    private val forceLogoutReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            Toast.makeText(this@CandidateListActivity, "Session terminated by HQ", Toast.LENGTH_LONG).show()
+            getSharedPreferences("mpa_session", MODE_PRIVATE).edit().putBoolean("isLoggedIn", false).apply()
+            startActivity(Intent(this@CandidateListActivity, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCandidateListBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(forceLogoutReceiver, android.content.IntentFilter("com.mpa.FORCE_LOGOUT"), RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(forceLogoutReceiver, android.content.IntentFilter("com.mpa.FORCE_LOGOUT"))
+        }
         loadCandidates()
     }
 
+    override fun onDestroy() { try { unregisterReceiver(forceLogoutReceiver) } catch(_: Exception) {}; super.onDestroy() }
     override fun onResume() { super.onResume(); loadCandidates() }
 
     private fun loadCandidates() {
