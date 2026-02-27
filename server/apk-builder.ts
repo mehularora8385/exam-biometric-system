@@ -1937,9 +1937,19 @@ export async function buildApk(
           try {
             const gradleHome = path.dirname(path.dirname(gradleBin));
             const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${path.dirname(gradleBin)}:${androidHome}/cmdline-tools/latest/bin:${androidHome}/platform-tools:${process.env.PATH}`, JAVA_HOME: javaHome || "/usr/lib/jvm/java-17-openjdk-amd64" };
-            log("  Running: gradle assembleRelease (this may take 3-10 minutes on first build)...");
+
+            // Step 1: Generate Gradle wrapper inside the build directory
+            log("  Generating Gradle wrapper in build directory...");
+            await onProgress(86, logs.join("\n"));
+            execSync(`cd "${buildDir}" && "${gradleBin}" wrapper --gradle-version 8.4 2>&1`, { timeout: 120000, maxBuffer: 10 * 1024 * 1024, env: buildEnv });
+            execSync(`chmod +x "${buildDir}/gradlew"`, { timeout: 5000 });
+            log("  ✓ Gradle wrapper created");
+
+            // Step 2: Build APK using ./gradlew inside the build directory
+            log("  Running: ./gradlew assembleRelease --no-daemon --stacktrace");
+            log("  (this may take 3-10 minutes on first build...)");
             await onProgress(88, logs.join("\n"));
-            const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --no-parallel --warning-mode=none -Dorg.gradle.jvmargs="-Xmx2048m" 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+            const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
             const outputLines = output.split("\n");
             outputLines.slice(-30).forEach(l => log("  " + l));
 
