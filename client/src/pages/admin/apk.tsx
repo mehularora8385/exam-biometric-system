@@ -48,6 +48,7 @@ export default function GenerateAPK() {
   const [autoSyncMinutes, setAutoSyncMinutes] = useState("5");
   const [timeSyncCheck, setTimeSyncCheck] = useState(true);
   const [sdkExpanded, setSdkExpanded] = useState(false);
+  const [logModal, setLogModal] = useState<{ open: boolean; title: string; logs: string }>({ open: false, title: "", logs: "" });
 
   const { data: exams = [] } = useQuery({ queryKey: ["exams"], queryFn: api.exams.list });
 
@@ -1008,7 +1009,7 @@ export default function GenerateAPK() {
                                     className="text-xs text-blue-500 hover:underline mt-1"
                                     onClick={async () => {
                                       const status = await api.apkBuilds.getBuildStatus(apk.id);
-                                      if (status.buildLogs) alert(status.buildLogs);
+                                      setLogModal({ open: true, title: `Build Logs - ${apk.examName || "Build"} v${apk.version}`, logs: status.buildLogs || "No logs available" });
                                     }}
                                     data-testid={`button-view-logs-${apk.id || idx}`}
                                   >View Logs</button>
@@ -1020,8 +1021,8 @@ export default function GenerateAPK() {
                                     <button
                                       className="text-xs text-blue-500 hover:underline"
                                       onClick={async () => {
-                                        const logs = await api.apkBuilds.getBuildLogs(apk.id);
-                                        alert(logs.logs);
+                                        const logsData = await api.apkBuilds.getBuildLogs(apk.id);
+                                        setLogModal({ open: true, title: `Build Logs - ${apk.examName || "Build"} v${apk.version}`, logs: logsData.logs || "No logs available" });
                                       }}
                                       data-testid={`button-failed-logs-${apk.id || idx}`}
                                     >View Logs</button>
@@ -1288,6 +1289,23 @@ export default function GenerateAPK() {
           </Card>
         </div>
       </div>
-    </div>
+    
+        {logModal.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setLogModal({ ...logModal, open: false })} data-testid="log-modal-overlay">
+            <div className="bg-white rounded-xl shadow-xl w-[90vw] max-w-3xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-4 border-b">
+                <h3 className="font-bold text-lg" data-testid="log-modal-title">{logModal.title}</h3>
+                <button onClick={() => setLogModal({ ...logModal, open: false })} className="text-gray-400 hover:text-gray-600 text-xl font-bold" data-testid="button-close-logs">&times;</button>
+              </div>
+              <div className="flex-1 overflow-auto p-6">
+                <pre className="text-xs font-mono whitespace-pre-wrap bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto max-h-[60vh]" data-testid="log-modal-content">{logModal.logs}</pre>
+              </div>
+              <div className="px-6 py-3 border-t flex justify-end">
+                <button onClick={() => setLogModal({ ...logModal, open: false })} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium" data-testid="button-dismiss-logs">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+  </div>
   );
 }

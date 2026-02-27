@@ -1795,75 +1795,151 @@ export async function buildApk(
       log(`  Project archive: ${zipFileName} (${zipSize} MB)`);
       await onProgress(70, logs.join("\n"));
 
-      log("Step 6/7: Attempting server-side APK build...");
-      await onProgress(75, logs.join("\n"));
+      log("Step 6/7: Setting up build tools...");
+        await onProgress(75, logs.join("\n"));
 
-      const gradleHome = "/opt/gradle-8.4";
-      const gradleBin = path.join(gradleHome, "bin", "gradle");
-      const hasGradle = fs.existsSync(gradleBin);
+        const gradleHome = "/opt/gradle-8.4";
+        const gradleBin = path.join(gradleHome, "bin", "gradle");
+        let hasGradle = fs.existsSync(gradleBin);
 
-      const sdkPaths = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, "/opt/android-sdk", "/usr/lib/android-sdk", "/root/Android/Sdk"].filter(Boolean) as string[];
-      let androidHome = "";
-      for (const p of sdkPaths) { if (fs.existsSync(p)) { androidHome = p; break; } }
-      if (!androidHome) {
-        try {
-          const sdkResult = execSync("find /opt /usr/lib /root -maxdepth 4 -name \"build-tools\" -type d 2>/dev/null | head -1").toString().trim();
-          if (sdkResult) androidHome = path.resolve(sdkResult, "..");
-        } catch (_) {}
-      }
-
-      if (hasGradle && androidHome) {
-        log(`  Gradle: ${gradleBin}`);
-        log(`  SDK: ${androidHome}`);
-        fs.writeFileSync(path.join(buildDir, "local.properties"), `sdk.dir=${androidHome}\n`);
-
-        try {
-          const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${gradleHome}/bin:${androidHome}/cmdline-tools/latest/bin:${process.env.PATH}`, JAVA_HOME: process.env.JAVA_HOME || "/usr/lib/jvm/java-17-openjdk-amd64" };
-          const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --no-parallel -Dorg.gradle.jvmargs="-Xmx1536m" 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
-          output.split("\n").slice(-20).forEach(l => log("  " + l));
-
-          const apkPaths = [
-            path.join(buildDir, "app", "build", "outputs", "apk", "release", "app-release.apk"),
-            path.join(buildDir, "app", "build", "outputs", "apk", "release", "app-release-unsigned.apk"),
-          ];
-          let foundApk = apkPaths.find(p => fs.existsSync(p));
-          if (!foundApk) {
-            try {
-              const f = execSync(`find "${buildDir}" -name "*.apk" -type f 2>/dev/null`).toString().trim();
-              if (f) foundApk = f.split("\n")[0];
-            } catch (_) {}
+        // Auto-install Gradle if missing
+        if (!hasGradle) {
+          log("  Gradle not found, installing Gradle 8.4...");
+          await onProgress(76, logs.join("\n"));
+          try {
+            execSync('mkdir -p /opt && curl -fsSL https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip && unzip -q -o /tmp/gradle.zip -d /opt/ && rm /tmp/gradle.zip 2>&1', { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
+            hasGradle = fs.existsSync(gradleBin);
+            if (hasGradle) log("  ✓ Gradle 8.4 installed at " + gradleHome);
+            else log("  ✗ Gradle install failed");
+          } catch (e: any) {
+            log("  ✗ Gradle install error: " + e.message.substring(0, 200));
           }
-
-          if (foundApk) {
-            const apkFinal = path.join(APK_OUTPUT_DIR, `MPA_Verify_${examName}_v${versionName}.apk`);
-            fs.copyFileSync(foundApk, apkFinal);
-            log(`  APK built: ${apkFinal} (${(fs.statSync(apkFinal).size / (1024 * 1024)).toFixed(1)} MB)`);
-            await onProgress(100, logs.join("\n"));
-            return { success: true, apkPath: apkFinal, logs: logs.join("\n") };
-          } else {
-            log("  Build ran but APK not found - providing project ZIP instead");
-          }
-        } catch (buildErr: any) {
-          log("  Server build failed - providing project ZIP for Android Studio");
-          if (buildErr.stdout) buildErr.stdout.toString().split("\n").slice(-30).forEach((l: string) => log("  " + l));
-          if (buildErr.stderr) buildErr.stderr.toString().split("\n").slice(-10).forEach((l: string) => log("  ERR: " + l));
+        } else {
+          log("  ✓ Gradle found at " + gradleBin);
         }
-      } else {
-        if (!hasGradle) log("  Gradle 8.4 not found at /opt/gradle-8.4");
-        if (!androidHome) log("  Android SDK not found");
-        log("  Providing project ZIP for Android Studio build");
-      }
 
-      log("");
-      log("  ===== DOWNLOAD READY =====");
-      log("  Project ZIP is ready for download.");
-      log("  To build APK: Open ZIP in Android Studio > Build > Generate Signed APK");
-      log("  Required SDK files (not included in ZIP):");
-      log("    - Place MFS100.jar in app/libs/");
-      log("    - Place facenet.tflite in app/src/main/assets/models/");
-      log("    - Place libMFS100.so in app/src/main/jniLibs/armeabi-v7a/ and arm64-v8a/");
-      await onProgress(100, logs.join("\n"));
-      return { success: true, apkPath: zipPath, logs: logs.join("\n") };
+        // Find or install Android SDK
+        const sdkPaths = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, "/opt/android-sdk", "/usr/lib/android-sdk", "/root/Android/Sdk"].filter(Boolean) as string[];
+        let androidHome = "";
+        for (const p of sdkPaths) { if (fs.existsSync(p!)) { androidHome = p!; break; } }
+        if (!androidHome) {
+          try {
+            const sdkResult = execSync("find /opt /usr/lib /root -maxdepth 4 -name \"build-tools\" -type d 2>/dev/null | head -1", { timeout: 10000 }).toString().trim();
+            if (sdkResult) androidHome = path.resolve(sdkResult, "..");
+          } catch (_) {}
+        }
+
+        // Auto-install Android SDK command-line tools if missing
+        if (!androidHome) {
+          log("  Android SDK not found, installing...");
+          await onProgress(78, logs.join("\n"));
+          try {
+            const sdkRoot = "/opt/android-sdk";
+            execSync(`mkdir -p ${sdkRoot}/cmdline-tools && curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdtools.zip && unzip -q -o /tmp/cmdtools.zip -d /tmp/cmdtools-tmp && mv /tmp/cmdtools-tmp/cmdline-tools ${sdkRoot}/cmdline-tools/latest && rm -rf /tmp/cmdtools.zip /tmp/cmdtools-tmp 2>&1`, { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
+            
+            // Accept licenses and install required SDK packages
+            const sdkEnv = { ...process.env, ANDROID_HOME: sdkRoot, ANDROID_SDK_ROOT: sdkRoot, JAVA_HOME: process.env.JAVA_HOME || "/usr/lib/jvm/java-17-openjdk-amd64" };
+            const sdkmanager = path.join(sdkRoot, "cmdline-tools", "latest", "bin", "sdkmanager");
+            if (fs.existsSync(sdkmanager)) {
+              log("  Installing SDK packages (platform 34, build-tools 34.0.0)...");
+              await onProgress(80, logs.join("\n"));
+              execSync(`yes | "${sdkmanager}" --licenses 2>&1 || true`, { timeout: 120000, env: sdkEnv, maxBuffer: 10 * 1024 * 1024 });
+              execSync(`"${sdkmanager}" "platforms;android-34" "build-tools;34.0.0" "platform-tools" 2>&1`, { timeout: 600000, env: sdkEnv, maxBuffer: 10 * 1024 * 1024 });
+              androidHome = sdkRoot;
+              log("  ✓ Android SDK installed at " + sdkRoot);
+            } else {
+              log("  ✗ sdkmanager not found after download");
+            }
+          } catch (e: any) {
+            log("  ✗ SDK install error: " + e.message.substring(0, 300));
+          }
+        } else {
+          log("  ✓ Android SDK found at " + androidHome);
+        }
+
+        // Check for Java
+        let javaHome = process.env.JAVA_HOME || "";
+        if (!javaHome) {
+          const javaPaths = ["/usr/lib/jvm/java-17-openjdk-amd64", "/usr/lib/jvm/java-17", "/usr/lib/jvm/java-11-openjdk-amd64", "/usr/lib/jvm/java-11"];
+          for (const jp of javaPaths) { if (fs.existsSync(jp)) { javaHome = jp; break; } }
+        }
+        if (!javaHome) {
+          try {
+            const javaPath = execSync("which java 2>/dev/null").toString().trim();
+            if (javaPath) {
+              const realPath = execSync(`readlink -f "${javaPath}" 2>/dev/null`).toString().trim();
+              javaHome = realPath.replace(/\/bin\/java$/, "");
+            }
+          } catch (_) {}
+        }
+        if (javaHome) log("  ✓ Java: " + javaHome);
+        else log("  ✗ Java not found - APK build will likely fail");
+
+        log("Step 7/7: Building APK...");
+        await onProgress(85, logs.join("\n"));
+
+        if (hasGradle && androidHome) {
+          fs.writeFileSync(path.join(buildDir, "local.properties"), `sdk.dir=${androidHome}\n`);
+
+          try {
+            const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${gradleHome}/bin:${androidHome}/cmdline-tools/latest/bin:${androidHome}/platform-tools:${process.env.PATH}`, JAVA_HOME: javaHome || "/usr/lib/jvm/java-17-openjdk-amd64" };
+            log("  Running: gradle assembleRelease (this may take 3-10 minutes on first build)...");
+            await onProgress(88, logs.join("\n"));
+            const output = execSync(`cd "${buildDir}" && "${gradleBin}" assembleRelease --no-daemon --no-parallel --warning-mode=none -Dorg.gradle.jvmargs="-Xmx2048m" 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+            const outputLines = output.split("\n");
+            outputLines.slice(-30).forEach(l => log("  " + l));
+
+            const apkSearchPaths = [
+              path.join(buildDir, "app", "build", "outputs", "apk", "release", "app-release.apk"),
+              path.join(buildDir, "app", "build", "outputs", "apk", "release", "app-release-unsigned.apk"),
+              path.join(buildDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+            ];
+            let foundApk = apkSearchPaths.find(p => fs.existsSync(p));
+            if (!foundApk) {
+              try {
+                const f = execSync(`find "${buildDir}" -name "*.apk" -type f 2>/dev/null`).toString().trim();
+                if (f) foundApk = f.split("\n")[0];
+              } catch (_) {}
+            }
+
+            if (foundApk) {
+              const apkFinal = path.join(APK_OUTPUT_DIR, `MPA_Verify_${examName}_v${versionName}.apk`);
+              fs.copyFileSync(foundApk, apkFinal);
+              const apkSize = (fs.statSync(apkFinal).size / (1024 * 1024)).toFixed(1);
+              log("");
+              log("  ===== APK BUILD SUCCESSFUL =====");
+              log(`  APK: MPA_Verify_${examName}_v${versionName}.apk (${apkSize} MB)`);
+              log("  Both APK and project archive are available for download.");
+              await onProgress(100, logs.join("\n"));
+              return { success: true, apkPath: apkFinal, logs: logs.join("\n") };
+            } else {
+              log("  ✗ Build completed but APK file not found in output directory");
+              log("  Providing project archive for manual build in Android Studio");
+            }
+          } catch (buildErr: any) {
+            log("  ✗ Gradle build failed:");
+            const errOutput = buildErr.stdout ? buildErr.stdout.toString() : buildErr.message || "";
+            const errLines = errOutput.split("\n");
+            errLines.slice(-40).forEach((l: string) => { if (l.trim()) log("    " + l); });
+            if (buildErr.stderr) {
+              buildErr.stderr.toString().split("\n").slice(-15).forEach((l: string) => { if (l.trim()) log("    ERR: " + l); });
+            }
+            log("");
+            log("  Project archive (.tar.gz) is still available for download.");
+            log("  Open it in Android Studio to build APK manually.");
+          }
+        } else {
+          if (!hasGradle) log("  ✗ Could not install Gradle 8.4 - check server permissions");
+          if (!androidHome) log("  ✗ Could not install Android SDK - check server permissions");
+          log("  Providing project archive for manual build in Android Studio");
+        }
+
+        log("");
+        log("  ===== DOWNLOAD READY =====");
+        log("  Project archive (.tar.gz with SDK files included) is ready for download.");
+        log("  To build APK manually: Extract archive > Open in Android Studio > Build > Generate Signed APK");
+        await onProgress(100, logs.join("\n"));
+        return { success: true, apkPath: zipPath, logs: logs.join("\n") };
 
     } catch (archiveErr: any) {
       log(`  Archive creation failed: ${archiveErr.message}`);
