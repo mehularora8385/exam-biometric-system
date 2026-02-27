@@ -791,7 +791,92 @@ export default function GenerateAPK() {
           </Card>
         </div>
 
-        <div className="lg:col-span-12">
+        {/* SDK Files Section */}
+          <div className="lg:col-span-12">
+            <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center justify-between cursor-pointer" onClick={() => setSdkExpanded(!sdkExpanded)} data-testid="toggle-sdk-panel">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-50 rounded-lg"><Key className="w-5 h-5 text-purple-600" /></div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">SDK Files</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">Upload MFS100.jar, libMFS100.so, facenet.tflite for APK builds</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-medium px-2.5 py-1 rounded-full ${sdkFiles.length > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                      {sdkFiles.length > 0 ? sdkFiles.length + ' files uploaded' : 'No SDK files'}
+                    </span>
+                  </div>
+                </div>
+                {sdkExpanded && (
+                  <div className="space-y-4 pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg cursor-pointer transition-colors" data-testid="button-upload-sdk">
+                        <Upload className="w-4 h-4" /> Upload SDK Files
+                        <input type="file" multiple accept=".jar,.so,.tflite,.aar" className="hidden" onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          try {
+                            const soFiles = files.filter(f => f.name.endsWith('.so'));
+                            const otherFiles = files.filter(f => !f.name.endsWith('.so'));
+                            if (otherFiles.length > 0) await api.sdk.upload(otherFiles);
+                            if (soFiles.length > 0) await api.sdk.upload(soFiles, 'armeabi-v7a');
+                            if (soFiles.length > 0) await api.sdk.upload(soFiles, 'arm64-v8a');
+                            toast({ title: "SDK Files Uploaded", description: files.length + " files uploaded successfully" });
+                            queryClient.invalidateQueries({ queryKey: ["sdk-files"] });
+                          } catch (err: any) { toast({ title: "Upload Failed", description: err.message, variant: "destructive" }); }
+                          e.target.value = '';
+                        }} />
+                      </label>
+                      <p className="text-xs text-gray-500">Accepted: .jar, .so, .tflite, .aar (max 100MB each)</p>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 space-y-1">
+                      <p className="font-semibold">Required SDK files for APK build:</p>
+                      <p>1. <strong>MFS100.jar</strong> — Mantra fingerprint scanner library</p>
+                      <p>2. <strong>libMFS100.so</strong> — Native library (extract from jar if needed)</p>
+                      <p>3. <strong>facenet.tflite</strong> — FaceNet AI model for face matching</p>
+                      <p className="pt-1 text-blue-600">These files are automatically copied into each APK build.</p>
+                    </div>
+                    {sdkFiles.length > 0 ? (
+                      <Table>
+                        <TableHeader className="bg-gray-50">
+                          <TableRow>
+                            <TableHead className="text-xs font-semibold">File</TableHead>
+                            <TableHead className="text-xs font-semibold w-28">Type</TableHead>
+                            <TableHead className="text-xs font-semibold w-24 text-right">Size</TableHead>
+                            <TableHead className="text-xs font-semibold w-20 text-center"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sdkFiles.map((f: any, i: number) => (
+                            <TableRow key={i}>
+                              <TableCell className="text-sm font-mono" data-testid={`text-sdk-file-${i}`}>{f.path || f.name}</TableCell>
+                              <TableCell><span className={`text-xs px-2 py-0.5 rounded-full ${f.type === 'JAR Library' ? 'bg-orange-100 text-orange-700' : f.type === 'Native Library' ? 'bg-blue-100 text-blue-700' : f.type === 'AI Model' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>{f.type}</span></TableCell>
+                              <TableCell className="text-sm text-right text-gray-600">{f.sizeStr}</TableCell>
+                              <TableCell className="text-center">
+                                <button className="text-red-500 hover:text-red-700 p-1" onClick={async () => {
+                                  try {
+                                    await api.sdk.deleteFile(f.path || f.name);
+                                    toast({ title: "File Deleted" });
+                                    queryClient.invalidateQueries({ queryKey: ["sdk-files"] });
+                                  } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                                }} data-testid={`button-delete-sdk-${i}`}><Trash2 className="w-3.5 h-3.5" /></button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="text-center py-6 text-gray-400 text-sm">No SDK files uploaded yet. Upload the required files above.</div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-12">
           <Card className="shadow-sm border-gray-100 rounded-xl overflow-hidden">
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center justify-between">
