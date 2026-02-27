@@ -37,6 +37,12 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/admin/login" component={AdminLogin} />
       
+      <Route path="/dashboard">
+        <Layout>
+          <ProtectedRoute component={Dashboard} />
+        </Layout>
+      </Route>
+
       <Route path="/">
         <Layout>
           <ProtectedRoute component={Dashboard} />
