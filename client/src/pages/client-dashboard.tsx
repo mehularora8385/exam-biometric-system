@@ -50,18 +50,21 @@ export default function ClientDashboard() {
     queryKey: ["client-dashboard", examId],
     queryFn: () => api.client.dashboard(examId),
     enabled: !!examId,
+    refetchInterval: 10000,
   });
 
   const { data: operatorList = [], isLoading: opsLoading } = useQuery({
     queryKey: ["client-operators", examId],
     queryFn: () => api.client.operators(examId),
     enabled: !!examId,
+    refetchInterval: 10000,
   });
 
   const { data: candidateList = [], isLoading: candidatesLoading } = useQuery({
     queryKey: ["client-candidates", examId],
     queryFn: () => api.client.candidates(examId),
     enabled: !!examId,
+    refetchInterval: 10000,
   });
 
   const centreOptions = Array.from(new Set((dashStats?.centerStats || []).map((c: any) => c.code))).map(code => {
@@ -152,6 +155,10 @@ export default function ClientDashboard() {
           <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full">
             <Eye className="w-3.5 h-3.5 text-amber-600" />
             <span className="text-xs font-semibold text-amber-700">VIEW ONLY</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 border border-green-200 rounded-full" data-testid="live-indicator">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs font-semibold text-green-700">LIVE</span>
           </div>
           <div className="flex items-center gap-3 cursor-pointer" onClick={handleLogout} title="Click to logout" data-testid="btn-logout">
             <div className="flex items-center gap-2">
