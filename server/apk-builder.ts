@@ -291,7 +291,7 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
@@ -2090,7 +2090,7 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
   fs.writeFileSync(path.join(buildDir, "gradle.properties"), `org.gradle.jvmargs=-Xmx1536m -XX:+UseParallelGC -Dfile.encoding=UTF-8\norg.gradle.daemon=false\norg.gradle.workers.max=2\nandroid.useAndroidX=true\nkotlin.code.style=official\nandroid.nonTransitiveRClass=true\norg.gradle.parallel=true\norg.gradle.caching=true\nkotlin.incremental=true`);
   fs.writeFileSync(path.join(buildDir, "gradle", "wrapper", "gradle-wrapper.properties"), `distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists`);
   fs.writeFileSync(path.join(buildDir, "app", "build.gradle"), generateAppBuildGradle(pkgName, versionCode, versionName));
-  fs.writeFileSync(path.join(buildDir, "app", "proguard-rules.pro"), `-keep class com.mantra.** { *; }\n-keep class com.mfs100.** { *; }\n-dontwarn com.mantra.**\n-keep class org.tensorflow.** { *; }\n-dontwarn org.tensorflow.**\n-keep class com.google.mlkit.** { *; }\n-keep class com.mpa.verify.**.model.** { *; }\n-keepclassmembers class com.mpa.verify.**.model.** { *; }\n-keep class * implements java.io.Serializable { *; }\n-keepattributes Signature\n-keepattributes *Annotation*\n-keep class com.google.gson.** { *; }\n-keep class retrofit2.** { *; }\n-dontwarn retrofit2.**`);
+  fs.writeFileSync(path.join(buildDir, "app", "proguard-rules.pro"), `-keep class com.mantra.** { *; }\n-keep class com.mfs100.** { *; }\n-dontwarn com.mantra.**\n-keep class org.tensorflow.** { *; }\n-dontwarn org.tensorflow.**\n-keep class com.google.mlkit.** { *; }\n-keep class com.mpa.verify.**.model.** { *; }\n-keepclassmembers class com.mpa.verify.**.model.** { *; }\n-keep class * implements java.io.Serializable { *; }\n-keepattributes Signature,InnerClasses,EnclosingMethod\n-keepattributes *Annotation*\n-keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken\n-keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken\n-keep class com.google.gson.** { *; }\n-keep class retrofit2.** { *; }\n-dontwarn retrofit2.**`);
   fs.writeFileSync(path.join(buildDir, "app", "src", "main", "AndroidManifest.xml"), generateAndroidManifest(pkgName));
   fs.writeFileSync(path.join(assetsDir, "config.json"), generateConfigJson(config));
 
