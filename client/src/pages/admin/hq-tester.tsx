@@ -168,7 +168,8 @@ export default function HqTester() {
       updateResult(idx, { status: "running" });
       const examRes = await apiCall("POST", "/api/exams", {
         name: `Test Exam ${ts}`,
-        date: new Date().toISOString().split("T")[0],
+        code: `TST${ts.toString().slice(-6)}`,
+        client: "Test Client",
         status: "Active",
       });
       if (examRes.ok && examRes.data?.id) {
@@ -218,6 +219,7 @@ export default function HqTester() {
         code: testCentreCode,
         address: "Test Address",
         city: "Test City",
+        state: "Test State",
         examId: testExamId,
       });
       if (centreRes.ok && centreRes.data?.id) {
@@ -256,7 +258,7 @@ export default function HqTester() {
         examId: testExamId,
         slot: "Morning",
       }));
-      const bulkRes = await apiCall("POST", "/api/candidates/bulk", { candidates: testCandidates, examId: testExamId });
+      const bulkRes = await apiCall("POST", "/api/candidates/bulk", testCandidates);
       if (bulkRes.ok) {
         const count = bulkRes.data?.count || bulkRes.data?.inserted || testCandidates.length;
         updateResult(idx, { status: "pass", message: `${count} candidates uploaded`, details: testCandidates.map(c => `${c.rollNo} - ${c.name}`), duration: bulkRes.duration });
@@ -570,12 +572,12 @@ export default function HqTester() {
         if (check.ok && check.data) {
           const c = check.data;
           const issues: string[] = [];
-          if (c.attendanceStatus !== "present" && c.attendance_status !== "present") issues.push("Attendance not saved as 'present'");
-          if (!c.verificationStatus && !c.verification_status) issues.push("Verification status not updated");
+          if (c.presentMark !== "Present" && c.presentMark !== "present") issues.push("Attendance not saved as 'Present'");
+          if (c.status !== "Verified" && c.status !== "verified") issues.push("Verification status not updated");
           updateResult(idx, {
             status: issues.length === 0 ? "pass" : "warn",
             message: issues.length === 0 ? "Synced data verified on HQ side" : `Issues: ${issues.join(", ")}`,
-            details: [`Attendance: ${c.attendanceStatus || c.attendance_status}`, `Verification: ${c.verificationStatus || c.verification_status}`, `Face match: ${c.faceMatchPercent || c.face_match_percent}`],
+            details: [`Attendance (presentMark): ${c.presentMark}`, `Status: ${c.status}`, `Face match: ${c.matchPercent}`],
             duration: check.duration
           });
         } else {
