@@ -13,7 +13,7 @@ function ensureDirs() {
 }
 
 
-  function copySDKFiles(buildDir: string, log: (msg: string) => void) {
+function copySDKFiles(buildDir: string, log: (msg: string) => void) {
     const sdkDir = SDK_DIR;
     if (!fs.existsSync(sdkDir)) {
       log("  SDK directory not found at " + sdkDir);
@@ -28,54 +28,134 @@ function ensureDirs() {
 
     [libsDir, modelsDir, jniV7Dir, jniV8Dir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
-    const findAndCopy = (patterns: string[], destDir: string, destName?: string) => {
-      for (const pattern of patterns) {
-        const files = findFilesRecursive(sdkDir, pattern);
-        for (const file of files) {
-          const dest = path.join(destDir, destName || path.basename(file));
-          fs.copyFileSync(file, dest);
-          log("  Copied: " + path.basename(file) + " -> " + path.relative(buildDir, dest));
-          copied++;
+    log("  SDK directory: " + sdkDir);
+    log("  Scanning for SDK files...");
+
+    // 1. Copy Face AI model: sdk/ai/facenet.tflite -> assets/models/facenet.tflite
+    const tflitePaths = [
+      path.join(sdkDir, "ai", "facenet.tflite"),
+      path.join(sdkDir, "facenet.tflite"),
+      path.join(sdkDir, "ai", "mobile_face_net.tflite"),
+    ];
+    let tfliteFound = false;
+    for (const src of tflitePaths) {
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(modelsDir, "facenet.tflite"));
+        log("  ✓ Face AI: " + path.relative(sdkDir, src) + " -> app/src/main/assets/models/facenet.tflite");
+        copied++;
+        tfliteFound = true;
+        break;
+      }
+    }
+    if (!tfliteFound) {
+      const found = findFilesRecursive(sdkDir, ".tflite");
+      if (found.length > 0) {
+        fs.copyFileSync(found[0], path.join(modelsDir, "facenet.tflite"));
+        log("  ✓ Face AI: " + path.relative(sdkDir, found[0]) + " -> app/src/main/assets/models/facenet.tflite");
+        copied++;
+      } else {
+        log("  ✗ Face AI model NOT FOUND (expected at sdk/ai/facenet.tflite)");
+      }
+    }
+
+    // 2. Copy Mantra JAR: sdk/mfs100/jar/mantra.mfs100.jar -> app/libs/mantra.mfs100.jar
+    const jarPaths = [
+      path.join(sdkDir, "mfs100", "jar", "mantra.mfs100.jar"),
+      path.join(sdkDir, "mfs100", "mantra.mfs100.jar"),
+      path.join(sdkDir, "mantra.mfs100.jar"),
+      path.join(sdkDir, "MFS100.jar"),
+      path.join(sdkDir, "mfs100", "jar", "MFS100.jar"),
+    ];
+    let jarFound = false;
+    for (const src of jarPaths) {
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, path.join(libsDir, path.basename(src)));
+        log("  ✓ Mantra JAR: " + path.relative(sdkDir, src) + " -> app/libs/" + path.basename(src));
+        copied++;
+        jarFound = true;
+        break;
+      }
+    }
+    if (!jarFound) {
+      const found = findFilesRecursive(sdkDir, ".jar");
+      if (found.length > 0) {
+        fs.copyFileSync(found[0], path.join(libsDir, path.basename(found[0])));
+        log("  ✓ Mantra JAR: " + path.relative(sdkDir, found[0]) + " -> app/libs/" + path.basename(found[0]));
+        copied++;
+      } else {
+        log("  ✗ Mantra JAR NOT FOUND (expected at sdk/mfs100/jar/mantra.mfs100.jar)");
+      }
+    }
+
+    // 3. Copy native .so libraries with version stripping
+    //    sdk/mfs100/so/arm64-v8a/libMFS100V9032.so -> app/jniLibs/arm64-v8a/libMFS100.so
+    //    sdk/mfs100/so/armeabi-v7a/libMFS100V9032.so -> app/jniLibs/armeabi-v7a/libMFS100.so
+    const archDirs = [
+      { arch: "arm64-v8a", dest: jniV8Dir },
+      { arch: "armeabi-v7a", dest: jniV7Dir },
+    ];
+    for (const { arch, dest } of archDirs) {
+      const soPaths = [
+        path.join(sdkDir, "mfs100", "so", arch),
+        path.join(sdkDir, "mfs100", arch),
+        path.join(sdkDir, arch),
+      ];
+      let soFound = false;
+      for (const soDir of soPaths) {
+        if (fs.existsSync(soDir)) {
+          const soFiles = fs.readdirSync(soDir).filter(f => f.endsWith(".so"));
+          for (const soFile of soFiles) {
+            const srcPath = path.join(soDir, soFile);
+            const destName = soFile.replace(/V\d+/i, "").replace(/v\d+/i, "");
+            fs.copyFileSync(srcPath, path.join(dest, destName));
+            log("  ✓ Native SO: " + path.relative(sdkDir, srcPath) + " -> app/src/main/jniLibs/" + arch + "/" + destName + (destName !== soFile ? " (renamed from " + soFile + ")" : ""));
+            copied++;
+            soFound = true;
+          }
         }
       }
-    };
-
-    findAndCopy([".jar"], libsDir);
-    findAndCopy([".tflite"], modelsDir);
-
-    const soFiles = findFilesRecursive(sdkDir, ".so");
-    for (const soFile of soFiles) {
-      const parentDir = path.basename(path.dirname(soFile));
-      if (parentDir === "arm64-v8a" || soFile.includes("arm64")) {
-        fs.copyFileSync(soFile, path.join(jniV8Dir, path.basename(soFile)));
-        log("  Copied: " + path.basename(soFile) + " -> jniLibs/arm64-v8a/");
-      } else {
-        fs.copyFileSync(soFile, path.join(jniV7Dir, path.basename(soFile)));
-        log("  Copied: " + path.basename(soFile) + " -> jniLibs/armeabi-v7a/");
+      if (!soFound) {
+        const allSo = findFilesRecursive(sdkDir, ".so").filter(f => f.includes(arch));
+        if (allSo.length > 0) {
+          for (const soFile of allSo) {
+            const baseName = path.basename(soFile);
+            const destName = baseName.replace(/V\d+/i, "").replace(/v\d+/i, "");
+            fs.copyFileSync(soFile, path.join(dest, destName));
+            log("  ✓ Native SO: " + path.relative(sdkDir, soFile) + " -> app/src/main/jniLibs/" + arch + "/" + destName);
+            copied++;
+          }
+        } else {
+          log("  ✗ Native SO for " + arch + " NOT FOUND (expected at sdk/mfs100/so/" + arch + "/)");
+        }
       }
-      if (parentDir !== "arm64-v8a" && parentDir !== "armeabi-v7a") {
-        fs.copyFileSync(soFile, path.join(jniV8Dir, path.basename(soFile)));
-        log("  Copied: " + path.basename(soFile) + " -> jniLibs/arm64-v8a/ (both archs)");
-      }
+    }
+
+    // Also copy any .aar files to libs
+    const aarFiles = findFilesRecursive(sdkDir, ".aar");
+    for (const aarFile of aarFiles) {
+      fs.copyFileSync(aarFile, path.join(libsDir, path.basename(aarFile)));
+      log("  ✓ AAR: " + path.relative(sdkDir, aarFile) + " -> app/libs/" + path.basename(aarFile));
       copied++;
     }
 
-    log("  SDK files copied: " + copied);
+    log("  Total SDK files copied: " + copied);
     return copied > 0;
   }
 
   function findFilesRecursive(dir: string, ext: string): string[] {
     const results: string[] = [];
     if (!fs.existsSync(dir)) return results;
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        results.push(...findFilesRecursive(fullPath, ext));
-      } else if (entry.name.endsWith(ext)) {
-        results.push(fullPath);
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          results.push(...findFilesRecursive(fullPath, ext));
+        } else if (entry.name.endsWith(ext)) {
+          results.push(fullPath);
+        }
       }
-    }
+    } catch (_) {}
     return results;
   }
   
