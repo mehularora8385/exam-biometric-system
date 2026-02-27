@@ -152,7 +152,7 @@ export function registerApkRoutes(app: Express) {
       }).returning();
       res.json({
         success: true,
-        operator: { id: newOp.id, name: newOp.name, phone: newOp.phone, aadhaar: newOp.aadhaar },
+        operator: { id: newOp.id, name: newOp.name, phone: newOp.phone, aadhaar: newOp.aadhaar, centreCode: newOp.centreCode || null, examId: newOp.examId || null, examName: newOp.examName || null },
         message: "Operator registered successfully",
         alreadyRegistered: false
       });
