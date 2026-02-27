@@ -8,7 +8,7 @@ import { storage } from "./storage";
   import { eq, desc } from "drizzle-orm";
   import {
     devices, deviceWhitelist, deviceSyncLogs, crashLogs,
-    centreLoginLocks, appVersions, apkBuilds,
+    centreLoginLocks, appVersions, apkBuilds, operators,
   } from "@shared/schema";
 import {
   insertExamSchema, insertCenterSchema, insertOperatorSchema,
@@ -3374,6 +3374,26 @@ class CandidateListActivity : AppCompatActivity() {
           loginStatus: "Force Logged Out", mdmStatus: reason || "Admin force logout",
         }).where(eq(devices.examId, examId));
         res.json({ success: true, message: "All devices for exam " + examId + " force logged out" });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/operators/:id/force-logout", async (req: Request, res: Response) => {
+      try {
+        const operatorId = Number(req.params.id);
+        await db.update(operators).set({ forceLogout: true, sessionActive: false }).where(eq(operators.id, operatorId));
+        res.json({ success: true, message: "Operator force logged out" });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/operators/force-logout-all", async (req: Request, res: Response) => {
+      try {
+        const { examId } = req.body;
+        if (examId) {
+          await db.update(operators).set({ forceLogout: true, sessionActive: false }).where(eq(operators.examId, Number(examId)));
+        } else {
+          await db.update(operators).set({ forceLogout: true, sessionActive: false });
+        }
+        res.json({ success: true, message: "All operators force logged out" });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 

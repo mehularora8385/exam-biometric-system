@@ -1,5 +1,8 @@
 import type { Express } from "express";
 import { storage } from "./storage";
+import { db } from "./db";
+import { operators } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 export function registerApkRoutes(app: Express) {
   app.get("/api/apk/candidates/:examId", async (req, res) => {
@@ -68,8 +71,20 @@ export function registerApkRoutes(app: Express) {
     }
   });
 
-  app.post("/api/apk/verification/heartbeat", async (_req, res) => {
-    res.json({ success: true, message: "Heartbeat received" });
+  app.post("/api/apk/verification/heartbeat", async (req, res) => {
+    try {
+      const { operatorId, deviceId, centreCode, examId } = req.body;
+      if (operatorId) {
+        const [op] = await db.select().from(operators).where(eq(operators.id, Number(operatorId)));
+        if (op && op.forceLogout) {
+          return res.json({ success: true, forceLogout: true, message: "Force logout triggered by HQ" });
+        }
+        await db.update(operators).set({ lastActive: new Date().toISOString() }).where(eq(operators.id, Number(operatorId)));
+      }
+      res.json({ success: true, forceLogout: false, message: "Heartbeat received" });
+    } catch (e: any) {
+      res.json({ success: true, forceLogout: false, message: "Heartbeat received" });
+    }
   });
 
   app.post("/api/apk/verification/sync", async (req, res) => {
@@ -98,6 +113,123 @@ export function registerApkRoutes(app: Express) {
     }
   });
 
+  app.post("/api/apk/operator/register", async (req, res) => {
+    try {
+      const { name, phone, aadhaar, selfie, deviceId } = req.body;
+      if (!name || !phone || !aadhaar) {
+        return res.status(400).json({ success: false, message: "Name, phone and Aadhaar are required" });
+      }
+      if (!selfie) {
+        return res.status(400).json({ success: false, message: "Selfie is required" });
+      }
+      const existing = await db.select().from(operators).where(eq(operators.aadhaar, aadhaar));
+      if (existing.length > 0) {
+        const op = existing[0];
+        if (op.sessionActive && !op.forceLogout) {
+          return res.json({
+            success: true,
+            operator: { id: op.id, name: op.name, phone: op.phone, aadhaar: op.aadhaar, centreCode: op.centreCode, examId: op.examId, examName: op.examName },
+            message: "Operator already registered",
+            alreadyRegistered: true
+          });
+        }
+        await db.update(operators).set({
+          name, phone, selfieUrl: selfie, deviceId,
+          sessionActive: true, forceLogout: false,
+          lastActive: new Date().toISOString(), registeredAt: new Date().toISOString()
+        }).where(eq(operators.id, op.id));
+        return res.json({
+          success: true,
+          operator: { id: op.id, name, phone, aadhaar, centreCode: op.centreCode, examId: op.examId, examName: op.examName },
+          message: "Operator re-registered"
+        });
+      }
+      const [newOp] = await db.insert(operators).values({
+        name, phone, aadhaar, selfieUrl: selfie, deviceId,
+        status: "Active", sessionActive: true, forceLogout: false,
+        registeredAt: new Date().toISOString(), lastActive: new Date().toISOString()
+      }).returning();
+      res.json({
+        success: true,
+        operator: { id: newOp.id, name: newOp.name, phone: newOp.phone, aadhaar: newOp.aadhaar },
+        message: "Operator registered successfully"
+      });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  app.post("/api/apk/operator/select-centre", async (req, res) => {
+    try {
+      const { operatorId, examId, centreCode } = req.body;
+      if (!operatorId || !examId || !centreCode) {
+        return res.status(400).json({ success: false, message: "operatorId, examId and centreCode required" });
+      }
+      const centres = await storage.listCenters();
+      const centre = centres.find((c: any) => c.code === centreCode);
+      const exams = await storage.listExams();
+      const exam = exams.find((e: any) => e.id === Number(examId));
+      await db.update(operators).set({
+        centreCode, examId: Number(examId),
+        examName: exam?.name || null,
+        centerName: centre?.name || centreCode,
+        centerId: centre?.id || null,
+        lastActive: new Date().toISOString()
+      }).where(eq(operators.id, Number(operatorId)));
+      let candidates: any[] = [];
+      try {
+        candidates = await storage.listCandidatesByCentre(centreCode, Number(examId));
+      } catch (_) {
+        candidates = await storage.listCandidates(Number(examId));
+      }
+      const mapped = candidates.map((c: any) => ({
+        id: c.id, exam_id: c.examId, roll_no: c.rollNo, name: c.name,
+        father_name: c.fatherName, dob: c.dob, slot: c.slot,
+        centre_code: c.centreCode, centre_name: c.centreName,
+        photo_url: c.photoUrl,
+        attendance_status: c.presentMark === "Present" ? "present" : "absent",
+        verification_status: c.status === "Verified" ? "verified" : "pending",
+        face_match_percent: c.matchPercent ? parseFloat(c.matchPercent) : null,
+        omr_number: c.omrNo, verified_photo: c.capturedPhotoUrl
+      }));
+      res.json({
+        success: true,
+        centreName: centre?.name || centreCode,
+        candidateCount: mapped.length,
+        candidates: mapped,
+        message: `Locked to centre ${centreCode} with ${mapped.length} candidates`
+      });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  app.post("/api/apk/operator/check-session", async (req, res) => {
+    try {
+      const { operatorId } = req.body;
+      if (!operatorId) return res.status(400).json({ success: false });
+      const [op] = await db.select().from(operators).where(eq(operators.id, Number(operatorId)));
+      if (!op) return res.json({ success: false, message: "Operator not found" });
+      if (op.forceLogout) {
+        return res.json({ success: true, sessionActive: false, forceLogout: true, message: "Session terminated by HQ" });
+      }
+      return res.json({ success: true, sessionActive: op.sessionActive !== false, forceLogout: false });
+    } catch (e: any) {
+      res.json({ success: true, sessionActive: true, forceLogout: false });
+    }
+  });
+
+  app.post("/api/apk/operator/force-logout", async (req, res) => {
+    try {
+      const { operatorId } = req.body;
+      if (!operatorId) return res.status(400).json({ success: false, message: "operatorId required" });
+      await db.update(operators).set({ forceLogout: true, sessionActive: false }).where(eq(operators.id, Number(operatorId)));
+      res.json({ success: true, message: "Force logout triggered" });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
   app.post("/api/apk/login", async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -115,6 +247,25 @@ export function registerApkRoutes(app: Express) {
       });
     } catch (e: any) {
       res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  app.get("/api/apk/centres/:examId", async (req, res) => {
+    try {
+      const examId = Number(req.params.examId);
+      const centres = await storage.listCenters();
+      const examCentres = await storage.listExamCentres(examId);
+      const centreList = examCentres.map((ec: any) => {
+        const c = centres.find((centre: any) => centre.id === ec.centreId);
+        return { id: ec.centreId, code: c?.code || ec.centreCode || "", name: c?.name || "" };
+      });
+      if (centreList.length === 0) {
+        const allCentres = centres.map((c: any) => ({ id: c.id, code: c.code, name: c.name }));
+        return res.json(allCentres);
+      }
+      res.json(centreList);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
     }
   });
 }

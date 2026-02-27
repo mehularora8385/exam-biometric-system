@@ -50,11 +50,20 @@ export const operators = pgTable("operators", {
   name: text("name").notNull(),
   phone: text("phone").notNull(),
   email: text("email"),
+  aadhaar: text("aadhaar"),
+  selfieUrl: text("selfie_url"),
   centerId: integer("center_id"),
   centerName: text("center_name"),
+  centreCode: text("centre_code"),
+  examId: integer("exam_id"),
+  examName: text("exam_name"),
+  deviceId: text("device_id"),
   device: text("device").default("Not bound"),
   lastActive: text("last_active").default("Never"),
   status: text("status").notNull().default("Active"),
+  forceLogout: boolean("force_logout").default(false),
+  sessionActive: boolean("session_active").default(true),
+  registeredAt: text("registered_at"),
 });
 
 export const candidates = pgTable("candidates", {
