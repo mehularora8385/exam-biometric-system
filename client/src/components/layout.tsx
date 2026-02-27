@@ -76,6 +76,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="sm" onClick={() => setLocation("/sync")} className="text-xs h-9">
               Sync
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/apk-tester")} className="text-xs h-9">
+              APK Tester
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -103,6 +106,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLocation("/sync")}>
                   Data Sync Status
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLocation("/apk-tester")}>
+                  APK Flow Tester
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => { logout(); setLocation("/login"); }} className="text-destructive focus:text-destructive">
@@ -138,6 +144,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             )}
             <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/sync"); setMobileMenuOpen(false); }}>
               Sync Status
+            </Button>
+            <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => { setLocation("/apk-tester"); setMobileMenuOpen(false); }}>
+              APK Tester
             </Button>
             <Button variant="ghost" className="w-full justify-start gap-2 text-destructive" onClick={() => { logout(); setLocation("/login"); setMobileMenuOpen(false); }}>
               <LogOut className="w-4 h-4" /> Logout
