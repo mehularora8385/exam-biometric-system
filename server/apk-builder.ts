@@ -360,6 +360,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   import android.net.NetworkRequest
   import android.os.Build
   import android.util.Log
+  import kotlinx.coroutines.*
   import ${pkgName}.sync.OfflineSyncManager
   import ${pkgName}.db.AppDatabase
   import ${pkgName}.model.AttendanceRequest
