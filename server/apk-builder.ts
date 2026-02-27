@@ -635,11 +635,11 @@ class RegistrationActivity : AppCompatActivity() {
         super.onActivityResult(rc, resultCode, data)
         if (rc == 101 && resultCode == RESULT_OK) {
             val bmp = data?.extras?.get("data") as? Bitmap ?: return
-            val scaled = Bitmap.createScaledBitmap(bmp, 200, 200, true)
+            val scaled = Bitmap.createScaledBitmap(bmp, 120, 120, true)
             binding.ivSelfie.setImageBitmap(scaled)
             binding.tvSelfieStatus.text = "Selfie captured"
             val baos = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, 50, baos)
+            scaled.compress(Bitmap.CompressFormat.JPEG, 30, baos)
             selfieBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
             Log.d(TAG, "Selfie base64 size: ${"$"}{selfieBase64?.length} chars")
         }
