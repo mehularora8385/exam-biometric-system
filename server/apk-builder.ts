@@ -405,6 +405,50 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
 
   fs.writeFileSync(path.join(srcDir, "ui", "VerificationActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityVerificationBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.PendingVerification\nimport ${pkgName}.model.VerificationRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass VerificationActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityVerificationBinding\n    private var candidateId = 0; private var faceMatch = 0f\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityVerificationBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        candidateId = intent.getIntExtra("candidateId", 0)\n        val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@VerificationActivity).candidateDao().getByExam(examId).find { it.id == candidateId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}" } }\n        binding.btnCaptureFace.setOnClickListener { faceMatch = 85f; binding.tvFaceResult.text = "Face Match: ${"$"}{faceMatch}%" }\n        binding.btnCaptureFingerprint.setOnClickListener { binding.tvFingerprintResult.text = "Fingerprint: Captured" }\n        binding.btnSubmit.setOnClickListener { val omr = binding.etOmrNumber.text.toString().trim(); lifecycleScope.launch { try { val r = RetrofitClient.getApi().submitVerification(candidateId, VerificationRequest("verified", null, faceMatch, omr, opId)); if (r.isSuccessful) { Toast.makeText(this@VerificationActivity, "Submitted", Toast.LENGTH_SHORT).show(); finish() } } catch (_: Exception) { AppDatabase.getInstance(this@VerificationActivity).pendingVerificationDao().insert(PendingVerification(candidateId = candidateId, rollNo = "", verifiedPhoto = null, faceMatchPercent = faceMatch, omrNumber = omr, fingerprint = null)); Toast.makeText(this@VerificationActivity, "Saved offline", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
 
+    fs.writeFileSync(path.join(srcDir, "ui", "SyncActivity.kt"), `package ${pkgName}.ui
+  import android.os.Bundle
+  import android.widget.Toast
+  import androidx.appcompat.app.AppCompatActivity
+  import androidx.lifecycle.lifecycleScope
+  import ${pkgName}.databinding.ActivitySyncBinding
+  import ${pkgName}.db.AppDatabase
+  import ${pkgName}.model.VerificationRequest
+  import ${pkgName}.network.RetrofitClient
+  import kotlinx.coroutines.launch
+  class SyncActivity : AppCompatActivity() {
+      private lateinit var binding: ActivitySyncBinding
+      override fun onCreate(savedInstanceState: Bundle?) {
+          super.onCreate(savedInstanceState)
+          binding = ActivitySyncBinding.inflate(layoutInflater)
+          setContentView(binding.root)
+          val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)
+          binding.btnSync.setOnClickListener {
+              lifecycleScope.launch {
+                  try {
+                      val db = AppDatabase.getInstance(this@SyncActivity)
+                      val pending = db.pendingVerificationDao().getUnuploaded()
+                      binding.tvSyncStatus.text = "Syncing \${pending.size} records..."
+                      var synced = 0
+                      for (v in pending) {
+                          try {
+                              val r = RetrofitClient.getApi().submitVerification(v.candidateId, VerificationRequest("verified", v.verifiedPhoto, v.faceMatchPercent, v.omrNumber, opId))
+                              if (r.isSuccessful) { v.uploaded = true; db.pendingVerificationDao().update(v); synced++ }
+                          } catch (_: Exception) {}
+                      }
+                      binding.tvSyncStatus.text = "Synced \${synced}/\${pending.size} records"
+                      Toast.makeText(this@SyncActivity, "Sync complete", Toast.LENGTH_SHORT).show()
+                  } catch (e: Exception) {
+                      binding.tvSyncStatus.text = "Sync failed: \${e.message}"
+                  }
+              }
+          }
+          lifecycleScope.launch {
+              val count = AppDatabase.getInstance(this@SyncActivity).pendingVerificationDao().getUnuploaded().size
+              binding.tvPendingCount.text = "\${count} pending verifications"
+          }
+      }
+  }`);
+
   fs.mkdirSync(path.join(srcDir, "service"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "service", "HeartbeatService.kt"), `package ${pkgName}.service\nimport android.app.*\nimport android.content.Intent\nimport android.os.Build\nimport android.os.IBinder\nimport androidx.core.app.NotificationCompat\nimport ${pkgName}.R\nimport ${pkgName}.model.HeartbeatRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.*\nclass HeartbeatService : Service() {\n    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())\n    override fun onBind(intent: Intent?): IBinder? = null\n    override fun onCreate() {\n        super.onCreate()\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { val ch = NotificationChannel("heartbeat", "Heartbeat", NotificationManager.IMPORTANCE_LOW); getSystemService(NotificationManager::class.java).createNotificationChannel(ch) }\n        startForeground(1, NotificationCompat.Builder(this, "heartbeat").setContentTitle("MPA Verify Active").setSmallIcon(R.drawable.ic_fingerprint).build())\n        scope.launch { while (isActive) { try { val p = getSharedPreferences("mpa_prefs", MODE_PRIVATE); RetrofitClient.getApi().sendHeartbeat(HeartbeatRequest(p.getString("device_id","")!!, p.getInt("user_id",0), 100, null)) } catch (_: Exception) {}; delay(30000) } }\n    }\n    override fun onDestroy() { scope.cancel(); super.onDestroy() }\n}`);
 
@@ -1699,6 +1743,13 @@ function writeLayoutFiles(resDir: string) {
   fs.writeFileSync(path.join(ld, "item_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" app:cardElevation="2dp" app:cardCornerRadius="8dp"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:orientation="vertical"><TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" /><TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" /><TextView android:id="@+id/tvStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="@color/primary" android:layout_marginTop="4dp" /></LinearLayout></com.google.android.material.card.MaterialCardView>`);
 
   fs.writeFileSync(path.join(ld, "activity_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp" android:gravity="center">\n    <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="22sp" android:textStyle="bold" />\n    <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="8dp" />\n    <TextView android:id="@+id/tvCurrentStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginTop="16dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnMarkPresent" android:layout_width="match_parent" android:layout_height="56dp" android:text="Mark Present" android:layout_marginTop="32dp" />\n</LinearLayout>`);
+    fs.writeFileSync(path.join(ld, "activity_sync.xml"), `<?xml version="1.0" encoding="utf-8"?>
+  <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp" android:gravity="center">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Offline Sync" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
+      <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:layout_marginBottom="8dp" />
+      <TextView android:id="@+id/tvSyncStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="32dp" />
+      <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="56dp" android:text="Sync Now" />
+  </LinearLayout>`);
 
   fs.writeFileSync(path.join(ld, "activity_verification.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">\n    <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="22sp" android:textStyle="bold" />\n    <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFace" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Face" style="@style/Widget.Material3.Button.TonalButton" />\n    <TextView android:id="@+id/tvFaceResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginTop="8dp" android:layout_marginBottom="16dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Fingerprint" style="@style/Widget.Material3.Button.TonalButton" />\n    <TextView android:id="@+id/tvFingerprintResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginTop="8dp" android:layout_marginBottom="16dp" />\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="24dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etOmrNumber" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="OMR Number" android:inputType="number" /></com.google.android.material.textfield.TextInputLayout>\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnSubmit" android:layout_width="match_parent" android:layout_height="56dp" android:text="Submit Verification" />\n</LinearLayout></ScrollView>`);
 }
@@ -1709,7 +1760,7 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
   const resDir = path.join(buildDir, "app", "src", "main", "res");
   const assetsDir = path.join(buildDir, "app", "src", "main", "assets");
 
-  [srcDir, path.join(resDir, "layout"), path.join(resDir, "values"), path.join(resDir, "drawable"), assetsDir, path.join(assetsDir, "models"), path.join(buildDir, "app", "libs"), path.join(buildDir, "app", "src", "main", "jniLibs", "armeabi-v7a"), path.join(buildDir, "app", "src", "main", "jniLibs", "arm64-v8a"), path.join(buildDir, "keystore"), path.join(buildDir, "gradle", "wrapper")].forEach(d => fs.mkdirSync(d, { recursive: true }));
+  [srcDir, path.join(resDir, "layout"), path.join(resDir, "values"), path.join(resDir, "drawable"), path.join(resDir, "mipmap-hdpi"), path.join(resDir, "mipmap-mdpi"), path.join(resDir, "mipmap-xhdpi"), path.join(resDir, "mipmap-xxhdpi"), path.join(resDir, "mipmap-xxxhdpi"), assetsDir, path.join(assetsDir, "models"), path.join(buildDir, "app", "libs"), path.join(buildDir, "app", "src", "main", "jniLibs", "armeabi-v7a"), path.join(buildDir, "app", "src", "main", "jniLibs", "arm64-v8a"), path.join(buildDir, "keystore"), path.join(buildDir, "gradle", "wrapper")].forEach(d => fs.mkdirSync(d, { recursive: true }));
 
   fs.writeFileSync(path.join(buildDir, "build.gradle"), generateProjectBuildGradle());
   fs.writeFileSync(path.join(buildDir, "settings.gradle"), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\nrootProject.name = "${appName}"\ninclude ':app'`);
@@ -1729,6 +1780,33 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
   fs.writeFileSync(path.join(resDir, "values", "strings.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">${appName}</string><string name="exam_name">${config.examName}</string></resources>`);
   fs.writeFileSync(path.join(resDir, "values", "themes.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="Theme.MpaVerify" parent="Theme.Material3.DayNight.NoActionBar"><item name="colorPrimary">@color/primary</item><item name="colorOnPrimary">@color/white</item></style>\n    <style name="Theme.MpaVerify.Splash" parent="Theme.Material3.DayNight.NoActionBar"><item name="android:windowBackground">@color/primary</item></style>\n</resources>`);
   fs.writeFileSync(path.join(resDir, "values", "colors.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="primary">#1565C0</color><color name="primary_dark">#0D47A1</color><color name="secondary">#26A69A</color><color name="white">#FFFFFF</color><color name="black">#000000</color><color name="success">#4CAF50</color><color name="error">#F44336</color><color name="warning">#FF9800</color></resources>`);
+
+    // Generate ic_launcher as an adaptive icon with foreground vector drawable
+    const launcherForeground = `<?xml version="1.0" encoding="utf-8"?>
+  <vector xmlns:android="http://schemas.android.com/apk/res/android"
+      android:width="108dp" android:height="108dp"
+      android:viewportWidth="108" android:viewportHeight="108">
+      <path android:fillColor="#1565C0" android:pathData="M0,0h108v108H0z"/>
+      <path android:fillColor="#FFFFFF" android:pathData="M54,30 C40.745,30 30,40.745 30,54 C30,67.255 40.745,78 54,78 C67.255,78 78,67.255 78,54 C78,40.745 67.255,30 54,30z M54,36 C63.941,36 72,44.059 72,54 C72,63.941 63.941,72 54,72 C44.059,72 36,63.941 36,54 C36,44.059 44.059,36 54,36z M54,42 C47.373,42 42,47.373 42,54 C42,56.5 42.8,58.8 44.1,60.7 L48,54 C48,50.686 50.686,48 54,48 C57.314,48 60,50.686 60,54 C60,57.314 57.314,60 54,60 L47.3,63.9 C49.2,65.2 51.5,66 54,66 C60.627,66 66,60.627 66,54 C66,47.373 60.627,42 54,42z"/>
+  </vector>`;
+    const launcherBackground = `<?xml version="1.0" encoding="utf-8"?>
+  <vector xmlns:android="http://schemas.android.com/apk/res/android"
+      android:width="108dp" android:height="108dp"
+      android:viewportWidth="108" android:viewportHeight="108">
+      <path android:fillColor="#FFFFFF" android:pathData="M0,0h108v108H0z"/>
+  </vector>`;
+    const adaptiveIcon = `<?xml version="1.0" encoding="utf-8"?>
+  <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+      <background android:drawable="@drawable/ic_launcher_background"/>
+      <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+  </adaptive-icon>`;
+    fs.writeFileSync(path.join(resDir, "drawable", "ic_launcher_foreground.xml"), launcherForeground);
+    fs.writeFileSync(path.join(resDir, "drawable", "ic_launcher_background.xml"), launcherBackground);
+    // Write adaptive icon XML to each mipmap dir
+    for (const density of ["mipmap-hdpi", "mipmap-mdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi"]) {
+      fs.writeFileSync(path.join(resDir, density, "ic_launcher.xml"), adaptiveIcon);
+      fs.writeFileSync(path.join(resDir, density, "ic_launcher_round.xml"), adaptiveIcon);
+    }
 
   writeKotlinSources(srcDir, pkgName, config);
   writeLayoutFiles(resDir);
