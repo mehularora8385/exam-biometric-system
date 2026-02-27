@@ -141,7 +141,8 @@ export function registerApkRoutes(app: Express) {
         return res.json({
           success: true,
           operator: { id: op.id, name, phone, aadhaar, centreCode: op.centreCode, examId: op.examId, examName: op.examName },
-          message: "Operator re-registered"
+          message: "Operator re-registered",
+          alreadyRegistered: true
         });
       }
       const [newOp] = await db.insert(operators).values({
@@ -152,7 +153,8 @@ export function registerApkRoutes(app: Express) {
       res.json({
         success: true,
         operator: { id: newOp.id, name: newOp.name, phone: newOp.phone, aadhaar: newOp.aadhaar },
-        message: "Operator registered successfully"
+        message: "Operator registered successfully",
+        alreadyRegistered: false
       });
     } catch (e: any) {
       res.status(500).json({ success: false, message: e.message });
