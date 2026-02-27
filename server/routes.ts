@@ -368,7 +368,7 @@ export async function registerRoutes(
       }
     });
 
-      app.post("/api/candidates/upload", upload.single("file"), async (req, res) => {
+  app.post("/api/candidates/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       
