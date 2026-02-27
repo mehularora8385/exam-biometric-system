@@ -268,4 +268,25 @@ export function registerApkRoutes(app: Express) {
       res.status(500).json({ message: e.message });
     }
   });
+
+  app.get("/api/operators/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [op] = await db.select().from(operators).where(eq(operators.id, id));
+      if (!op) return res.status(404).json({ message: "Operator not found" });
+      res.json(op);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/operators/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(operators).where(eq(operators.id, id));
+      res.json({ success: true, message: "Operator deleted" });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
 }
