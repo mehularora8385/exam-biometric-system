@@ -255,17 +255,13 @@ export function registerApkRoutes(app: Express) {
   app.get("/api/apk/centres/:examId", async (req, res) => {
     try {
       const examId = Number(req.params.examId);
-      const centres = await storage.listCenters();
-      const examCentres = await storage.listExamCentres(examId);
-      const centreList = examCentres.map((ec: any) => {
-        const c = centres.find((centre: any) => centre.id === ec.centreId);
-        return { id: ec.centreId, code: c?.code || ec.centreCode || "", name: c?.name || "" };
-      });
-      if (centreList.length === 0) {
-        const allCentres = centres.map((c: any) => ({ id: c.id, code: c.code, name: c.name }));
-        return res.json(allCentres);
+      const examCentres = await storage.listCenters(examId);
+      if (examCentres.length > 0) {
+        const centreList = examCentres.map((c: any) => ({ id: c.id, code: c.code, name: c.name }));
+        return res.json(centreList);
       }
-      res.json(centreList);
+      const allCentres = await storage.listCenters();
+      res.json(allCentres.map((c: any) => ({ id: c.id, code: c.code, name: c.name })));
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
