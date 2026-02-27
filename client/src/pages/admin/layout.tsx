@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, Smartphone, FileText, 
   ChevronLeft, ChevronDown, Menu, Shield, Users2, FileArchive, 
   Activity, ShieldAlert, Radar, Monitor, LogOut, Wifi, BarChart3, Eye,
-  BookOpen } from "lucide-react";
+  BookOpen, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -99,6 +99,11 @@ export default function AdminLayout({ children, activePage, setActivePage, selec
           <div className={navItemClass(activePage === "device-management")} onClick={() => setActivePage("device-management")} data-testid="nav-devices">
             <Monitor className="w-4 h-4" />
             <span>Device Management</span>
+          </div>
+
+          <div className={navItemClass(activePage === "hq-tester")} onClick={() => setActivePage("hq-tester")} data-testid="nav-hq-tester">
+            <FlaskConical className="w-4 h-4" />
+            <span>System Tester</span>
           </div>
 
           <div className={navItemClass(activePage === "reports")} onClick={() => setActivePage("reports")} data-testid="nav-audit-logs">

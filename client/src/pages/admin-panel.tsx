@@ -21,6 +21,7 @@ import FraudAnalytics from "@/pages/admin/fraud-analytics";
 import BiometricIntegrity from "@/pages/admin/biometric-integrity";
 import GlobalSurveillance from "@/pages/admin/global-surveillance";
 import ApiDocs from "@/pages/admin/api-docs";
+import HqTester from "@/pages/admin/hq-tester";
 
 export default function AdminPanel() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -49,6 +50,7 @@ export default function AdminPanel() {
       case "omr-setup": return <OmrSetup />;
       case "device-mapping": return <DeviceMapping />;
       case "device-management": return <DeviceManagement />;
+      case "hq-tester": return <HqTester />;
       default: return <Dashboard selectedExamId={selectedExamId} setActivePage={setActivePage} />;
     }
   };
