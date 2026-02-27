@@ -313,7 +313,6 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:${"$"}{camerax_version}"
     implementation "androidx.camera:camera-view:${"$"}{camerax_version}"
     implementation 'com.google.mlkit:face-detection:16.1.6'
-    implementation 'com.google.mediapipe:tasks-vision:0.10.9'
       implementation 'com.google.mlkit:barcode-scanning:17.2.0'
       implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
       implementation 'com.google.zxing:core:3.5.2'
