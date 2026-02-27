@@ -2,8 +2,7 @@ import type { Express } from "express";
 import { storage } from "./storage";
 
 export function registerApkRoutes(app: Express) {
-  // APK endpoint: GET /api/candidates/:examId?centreCode=XXX
-  app.get("/api/candidates/:examId(\\d+)", async (req, res) => {
+  app.get("/api/apk/candidates/:examId", async (req, res) => {
     try {
       const examId = Number(req.params.examId);
       const centreCode = req.query.centreCode as string | undefined;
@@ -36,8 +35,7 @@ export function registerApkRoutes(app: Express) {
     }
   });
 
-  // APK endpoint: mark attendance
-  app.patch("/api/candidates/:id/attendance", async (req, res) => {
+  app.patch("/api/apk/candidates/:id/attendance", async (req, res) => {
     try {
       const id = Number(req.params.id);
       const { attendanceStatus } = req.body;
@@ -51,8 +49,7 @@ export function registerApkRoutes(app: Express) {
     }
   });
 
-  // APK endpoint: submit verification
-  app.patch("/api/candidates/:id/verify", async (req, res) => {
+  app.patch("/api/apk/candidates/:id/verify", async (req, res) => {
     try {
       const id = Number(req.params.id);
       const { verifiedPhoto, faceMatchPercent, omrNumber } = req.body;
@@ -71,12 +68,36 @@ export function registerApkRoutes(app: Express) {
     }
   });
 
-  // APK endpoint: heartbeat
-  app.post("/api/verification/heartbeat", async (_req, res) => {
+  app.post("/api/apk/verification/heartbeat", async (_req, res) => {
     res.json({ success: true, message: "Heartbeat received" });
   });
 
-  // APK login endpoint (separate from HQ login, wraps the same auth)
+  app.post("/api/apk/verification/sync", async (req, res) => {
+    try {
+      const { verifications } = req.body;
+      if (!verifications || !Array.isArray(verifications)) {
+        return res.status(400).json({ success: false, message: "verifications array required" });
+      }
+      let synced = 0;
+      for (const v of verifications) {
+        try {
+          await storage.updateCandidate(v.candidateId, {
+            status: "Verified",
+            capturedPhotoUrl: v.verifiedPhoto || null,
+            matchPercent: v.faceMatchPercent ? String(v.faceMatchPercent) : null,
+            omrNo: v.omrNumber || null,
+            verifiedAt: new Date().toISOString(),
+            fingerprintVerified: true
+          });
+          synced++;
+        } catch (_) {}
+      }
+      res.json({ success: true, synced, total: verifications.length });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
   app.post("/api/apk/login", async (req, res) => {
     try {
       const { username, password } = req.body;

@@ -452,19 +452,19 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   data class CentreLoginResponse(val allowed: Boolean, val message: String)\n`);
 
   fs.mkdirSync(path.join(srcDir, "network"), { recursive: true });
-  fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/auth/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>
-      @POST("api/face/verify") suspend fun verifyFace(@Body request: FaceVerifyRequest): Response<FaceVerifyResponse>
-      @POST("api/fingerprint/verify") suspend fun verifyFingerprint(@Body request: FingerprintVerifyRequest): Response<FingerprintVerifyResponse>
-      @POST("api/verification/sync") suspend fun syncVerifications(@Body request: SyncRequest): Response<SyncResponse>
-      @POST("api/attendance/mark") suspend fun markAttendanceByBarcode(@Body request: BarcodeAttendanceRequest): Response<BarcodeAttendanceResponse>
-      @POST("api/omr/upload") suspend fun uploadOmrSheet(@Body request: OmrUploadRequest): Response<OmrUploadResponse>
-      @GET("api/app/version") suspend fun checkAppVersion(): Response<VersionInfo>
-      @POST("api/devices/register") suspend fun registerDevice(@Body request: DeviceRegistrationRequest): Response<ApiResponse>
-      @POST("api/devices/sync-status") suspend fun sendSyncStatus(@Body request: SyncStatusRequest): Response<ApiResponse>
-      @GET("api/devices/check-logout") suspend fun checkForceLogout(@Query("examId") examId: Int, @Query("deviceId") deviceId: String): Response<ForceLogoutResponse>
-      @GET("api/devices/mdm-command") suspend fun checkMDMCommand(@Query("deviceId") deviceId: String): Response<MDMCommandResponse>
+  fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/apk/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/apk/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/apk/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/apk/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/apk/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/apk/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/apk/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>
+      @POST("api/apk/face/verify") suspend fun verifyFace(@Body request: FaceVerifyRequest): Response<FaceVerifyResponse>
+      @POST("api/apk/fingerprint/verify") suspend fun verifyFingerprint(@Body request: FingerprintVerifyRequest): Response<FingerprintVerifyResponse>
+      @POST("api/apk/verification/sync") suspend fun syncVerifications(@Body request: SyncRequest): Response<SyncResponse>
+      @POST("api/apk/attendance/mark") suspend fun markAttendanceByBarcode(@Body request: BarcodeAttendanceRequest): Response<BarcodeAttendanceResponse>
+      @POST("api/apk/omr/upload") suspend fun uploadOmrSheet(@Body request: OmrUploadRequest): Response<OmrUploadResponse>
+      @GET("api/apk/app/version") suspend fun checkAppVersion(): Response<VersionInfo>
+      @POST("api/apk/devices/register") suspend fun registerDevice(@Body request: DeviceRegistrationRequest): Response<ApiResponse>
+      @POST("api/apk/devices/sync-status") suspend fun sendSyncStatus(@Body request: SyncStatusRequest): Response<ApiResponse>
+      @GET("api/apk/devices/check-logout") suspend fun checkForceLogout(@Query("examId") examId: Int, @Query("deviceId") deviceId: String): Response<ForceLogoutResponse>
+      @GET("api/apk/devices/mdm-command") suspend fun checkMDMCommand(@Query("deviceId") deviceId: String): Response<MDMCommandResponse>
       @POST("api/crash-logs") suspend fun uploadCrashLog(@Body request: CrashLogRequest): Response<ApiResponse>
-      @POST("api/centre-login/validate") suspend fun validateCentreLogin(@Body request: CentreLoginRequest): Response<CentreLoginResponse>\n}`);
+      @POST("api/apk/centre-login/validate") suspend fun validateCentreLogin(@Body request: CentreLoginRequest): Response<CentreLoginResponse>\n}`);
 
   fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create()).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
 
@@ -649,7 +649,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
           }
       }
   }`);
-  fs.writeFileSync(path.join(srcDir, "ui", "VerificationActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.MpaApplication\nimport ${pkgName}.databinding.ActivityVerificationBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.PendingVerification\nimport ${pkgName}.model.VerificationRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass VerificationActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityVerificationBinding\n    private var candidateId = 0; private var faceMatch = 0f\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityVerificationBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        candidateId = intent.getIntExtra("candidateId", 0)\n        val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@VerificationActivity).candidateDao().getByExam(examId).find { it.id == candidateId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}" } }\n        binding.btnCaptureFace.setOnClickListener { faceMatch = 85f; binding.tvFaceResult.text = "Face Match: ${"$"}{faceMatch}%" }\n        binding.btnCaptureFingerprint.setOnClickListener { binding.tvFingerprintResult.text = "Fingerprint: Captured" }\n        binding.btnSubmit.setOnClickListener { val omr = binding.etOmrNumber.text.toString().trim(); lifecycleScope.launch { try { val r = RetrofitClient.getApi().submitVerification(candidateId, VerificationRequest("verified", null, faceMatch, omr, opId)); if (r.isSuccessful) { Toast.makeText(this@VerificationActivity, "Submitted", Toast.LENGTH_SHORT).show(); finish() } } catch (_: Exception) { AppDatabase.getInstance(this@VerificationActivity).pendingVerificationDao().insert(PendingVerification(candidateId = candidateId, rollNo = "", verifiedPhoto = null, faceMatchPercent = faceMatch, omrNumber = omr, fingerprint = null)); val syncMgr = (application as MpaApplication).syncManager; val payload = org.json.JSONObject().put("candidateId", candidateId).put("verificationStatus", "verified").put("faceMatchPercent", faceMatch).put("omrNumber", omr).put("verificationOperatorId", opId).toString(); syncMgr.enqueue("verification", "api/candidates/$candidateId/verification", payload); Toast.makeText(this@VerificationActivity, "Saved offline - will auto-sync when online", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
+  fs.writeFileSync(path.join(srcDir, "ui", "VerificationActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.MpaApplication\nimport ${pkgName}.databinding.ActivityVerificationBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.PendingVerification\nimport ${pkgName}.model.VerificationRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass VerificationActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityVerificationBinding\n    private var candidateId = 0; private var faceMatch = 0f\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityVerificationBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        candidateId = intent.getIntExtra("candidateId", 0)\n        val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@VerificationActivity).candidateDao().getByExam(examId).find { it.id == candidateId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}" } }\n        binding.btnCaptureFace.setOnClickListener { faceMatch = 85f; binding.tvFaceResult.text = "Face Match: ${"$"}{faceMatch}%" }\n        binding.btnCaptureFingerprint.setOnClickListener { binding.tvFingerprintResult.text = "Fingerprint: Captured" }\n        binding.btnSubmit.setOnClickListener { val omr = binding.etOmrNumber.text.toString().trim(); lifecycleScope.launch { try { val r = RetrofitClient.getApi().submitVerification(candidateId, VerificationRequest("verified", null, faceMatch, omr, opId)); if (r.isSuccessful) { Toast.makeText(this@VerificationActivity, "Submitted", Toast.LENGTH_SHORT).show(); finish() } } catch (_: Exception) { AppDatabase.getInstance(this@VerificationActivity).pendingVerificationDao().insert(PendingVerification(candidateId = candidateId, rollNo = "", verifiedPhoto = null, faceMatchPercent = faceMatch, omrNumber = omr, fingerprint = null)); val syncMgr = (application as MpaApplication).syncManager; val payload = org.json.JSONObject().put("candidateId", candidateId).put("verificationStatus", "verified").put("faceMatchPercent", faceMatch).put("omrNumber", omr).put("verificationOperatorId", opId).toString(); syncMgr.enqueue("verification", "api/apk/candidates/$candidateId/verification", payload); Toast.makeText(this@VerificationActivity, "Saved offline - will auto-sync when online", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
 
     fs.writeFileSync(path.join(srcDir, "ui", "SyncActivity.kt"), `package ${pkgName}.ui
   import android.os.Bundle
@@ -728,7 +728,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
 
   fs.writeFileSync(path.join(srcDir, "ui", "CandidateListActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.LayoutInflater\nimport android.view.ViewGroup\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport androidx.recyclerview.widget.LinearLayoutManager\nimport androidx.recyclerview.widget.RecyclerView\nimport ${pkgName}.databinding.ActivityCandidateListBinding\nimport ${pkgName}.databinding.ItemCandidateBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.Candidate\nimport kotlinx.coroutines.launch\nclass CandidateListActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCandidateListBinding\n    private var mode = "attendance"; private var examId = 0\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCandidateListBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        mode = intent.getStringExtra("mode") ?: "attendance"; examId = intent.getIntExtra("examId", 0)\n        binding.tvTitle.text = if (mode == "attendance") "Mark Attendance" else "Biometric Verification"\n        loadCandidates()\n    }\n    private fun loadCandidates() { lifecycleScope.launch { val candidates = AppDatabase.getInstance(this@CandidateListActivity).candidateDao().getByExam(examId); binding.rvCandidates.layoutManager = LinearLayoutManager(this@CandidateListActivity); binding.rvCandidates.adapter = CandidateAdapter(candidates) { c -> startActivity(Intent(this@CandidateListActivity, if (mode == "attendance") AttendanceActivity::class.java else VerificationActivity::class.java).putExtra("candidateId", c.id).putExtra("examId", examId)) }; binding.tvCount.text = "${"$"}{candidates.size} candidates" } }\n    override fun onResume() { super.onResume(); loadCandidates() }\n}\nclass CandidateAdapter(private val items: List<Candidate>, private val onClick: (Candidate) -> Unit) : RecyclerView.Adapter<CandidateAdapter.VH>() {\n    inner class VH(val b: ItemCandidateBinding) : RecyclerView.ViewHolder(b.root)\n    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(ItemCandidateBinding.inflate(LayoutInflater.from(parent.context), parent, false))\n    override fun getItemCount() = items.size\n    override fun onBindViewHolder(h: VH, pos: Int) { val c = items[pos]; h.b.tvName.text = c.name; h.b.tvRollNo.text = "Roll: ${"$"}{c.rollNo}"; h.b.tvStatus.text = "${"$"}{c.attendanceStatus} | ${"$"}{c.verificationStatus}"; h.itemView.setOnClickListener { onClick(c) } }\n}`);
 
-  fs.writeFileSync(path.join(srcDir, "ui", "AttendanceActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.MpaApplication\nimport ${pkgName}.databinding.ActivityAttendanceBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.AttendanceRequest\nimport ${pkgName}.model.PendingAttendance\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass AttendanceActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityAttendanceBinding\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityAttendanceBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        val cId = intent.getIntExtra("candidateId", 0); val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@AttendanceActivity).candidateDao().getByExam(examId).find { it.id == cId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}"; binding.tvCurrentStatus.text = "Status: ${"$"}{it.attendanceStatus}" } }\n        binding.btnMarkPresent.setOnClickListener { lifecycleScope.launch { val db = AppDatabase.getInstance(this@AttendanceActivity); try { val r = RetrofitClient.getApi().markAttendance(cId, AttendanceRequest("present", opId)); if (r.isSuccessful) { db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; db.candidateDao().update(it) }; Toast.makeText(this@AttendanceActivity, "Marked Present", Toast.LENGTH_SHORT).show(); finish() } } catch (e: Exception) { db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; it.synced = false; db.candidateDao().update(it) }; db.pendingAttendanceDao().insert(PendingAttendance(candidateId = cId, examId = examId, attendanceStatus = "present", operatorId = opId)); val syncMgr = (application as MpaApplication).syncManager; val payload = org.json.JSONObject().put("candidateId", cId).put("attendanceStatus", "present").put("attendanceOperatorId", opId).toString(); syncMgr.enqueue("attendance", "api/candidates/$cId/attendance", payload); Toast.makeText(this@AttendanceActivity, "Saved offline - will sync when online", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
+  fs.writeFileSync(path.join(srcDir, "ui", "AttendanceActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.MpaApplication\nimport ${pkgName}.databinding.ActivityAttendanceBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.AttendanceRequest\nimport ${pkgName}.model.PendingAttendance\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass AttendanceActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityAttendanceBinding\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityAttendanceBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        val cId = intent.getIntExtra("candidateId", 0); val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@AttendanceActivity).candidateDao().getByExam(examId).find { it.id == cId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}"; binding.tvCurrentStatus.text = "Status: ${"$"}{it.attendanceStatus}" } }\n        binding.btnMarkPresent.setOnClickListener { lifecycleScope.launch { val db = AppDatabase.getInstance(this@AttendanceActivity); try { val r = RetrofitClient.getApi().markAttendance(cId, AttendanceRequest("present", opId)); if (r.isSuccessful) { db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; db.candidateDao().update(it) }; Toast.makeText(this@AttendanceActivity, "Marked Present", Toast.LENGTH_SHORT).show(); finish() } } catch (e: Exception) { db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; it.synced = false; db.candidateDao().update(it) }; db.pendingAttendanceDao().insert(PendingAttendance(candidateId = cId, examId = examId, attendanceStatus = "present", operatorId = opId)); val syncMgr = (application as MpaApplication).syncManager; val payload = org.json.JSONObject().put("candidateId", cId).put("attendanceStatus", "present").put("attendanceOperatorId", opId).toString(); syncMgr.enqueue("attendance", "api/apk/candidates/$cId/attendance", payload); Toast.makeText(this@AttendanceActivity, "Saved offline - will sync when online", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
 
     fs.mkdirSync(path.join(srcDir, "biometric"), { recursive: true });
 
@@ -1535,10 +1535,38 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
 
       fun stopAutoSync() { syncJob?.cancel(); Log.d(tag, "Auto-sync stopped") }
 
-      private suspend fun sendToServer(record: SyncRecord): Boolean {
-          delay(100)
-          return true
-      }
+      private fun getServerUrl(): String {
+            return try {
+                val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }
+                val parsed = com.google.gson.Gson().fromJson(cfg, Map::class.java)
+                val server = parsed["server"] as? Map<*, *>
+                (server?.get("baseUrl") as? String) ?: ""
+            } catch (_: Exception) { "" }
+        }
+
+        private suspend fun sendToServer(record: SyncRecord): Boolean {
+            return withContext(Dispatchers.IO) {
+                try {
+                    val baseUrl = getServerUrl()
+                    if (baseUrl.isEmpty()) return@withContext false
+                    val url = java.net.URL("\$baseUrl/\${record.endpoint}")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = if (record.endpoint.contains("attendance") || record.endpoint.contains("verify")) "PATCH" else "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.doOutput = true
+                    conn.connectTimeout = 10000
+                    conn.readTimeout = 10000
+                    conn.outputStream.use { it.write(record.payload.toByteArray()) }
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    Log.d(tag, "Sync \${record.type}: HTTP \$code for \${record.endpoint}")
+                    code in 200..299
+                } catch (e: Exception) {
+                    Log.e(tag, "sendToServer failed: \${e.message}")
+                    false
+                }
+            }
+        }
 
       private fun saveQueueToDisk() {
           val arr = JSONArray()
@@ -1606,7 +1634,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       fun checkForUpdate(currentVersionCode: Int, callback: (needsUpdate: Boolean, forced: Boolean, info: VersionInfo?) -> Unit) {
           scope.launch {
               try {
-                  val url = URL("\$serverUrl/api/app/version")
+                  val url = URL("\$serverUrl/api/apk/app/version")
                   val conn = url.openConnection() as HttpURLConnection
                   conn.requestMethod = "GET"
                   conn.connectTimeout = 10000
@@ -1834,7 +1862,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       fun validateLogin(examId: Int, centreCode: String, deviceId: String, callback: (allowed: Boolean, message: String) -> Unit) {
           scope.launch {
               try {
-                  val url = URL("\$serverUrl/api/centre-login/validate")
+                  val url = URL("\$serverUrl/api/apk/centre-login/validate")
                   val conn = url.openConnection() as HttpURLConnection
                   conn.requestMethod = "POST"
                   conn.setRequestProperty("Content-Type", "application/json")
@@ -1861,7 +1889,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       fun checkForForceLogout(examId: Int, deviceId: String, callback: (shouldLogout: Boolean, reason: String?) -> Unit) {
           scope.launch {
               try {
-                  val url = URL("\$serverUrl/api/devices/check-logout?examId=\$examId&deviceId=\$deviceId")
+                  val url = URL("\$serverUrl/api/apk/devices/check-logout?examId=\$examId&deviceId=\$deviceId")
                   val conn = url.openConnection() as HttpURLConnection
                   conn.requestMethod = "GET"
                   conn.connectTimeout = 5000
@@ -1906,7 +1934,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
           scope.launch {
               try {
                   val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-                  val url = URL("\$serverUrl/api/devices/register")
+                  val url = URL("\$serverUrl/api/apk/devices/register")
                   val conn = url.openConnection() as HttpURLConnection
                   conn.requestMethod = "POST"
                   conn.setRequestProperty("Content-Type", "application/json")
@@ -1937,7 +1965,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
           scope.launch {
               try {
                   val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-                  val url = URL("\$serverUrl/api/devices/sync-status")
+                  val url = URL("\$serverUrl/api/apk/devices/sync-status")
                   val conn = url.openConnection() as HttpURLConnection
                   conn.requestMethod = "POST"
                   conn.setRequestProperty("Content-Type", "application/json")
@@ -1962,7 +1990,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       fun checkMDMCommands(deviceId: String, callback: (command: String?, payload: JSONObject?) -> Unit) {
           scope.launch {
               try {
-                  val url = URL("\$serverUrl/api/devices/mdm-command?deviceId=\$deviceId")
+                  val url = URL("\$serverUrl/api/apk/devices/mdm-command?deviceId=\$deviceId")
                   val conn = url.openConnection() as HttpURLConnection
                   conn.requestMethod = "GET"
                   conn.connectTimeout = 5000
