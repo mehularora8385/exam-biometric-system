@@ -2337,8 +2337,23 @@ export async function buildApk(
             const gradleHome = path.dirname(path.dirname(gradleBin));
             const buildEnv = { ...process.env, GRADLE_HOME: gradleHome, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome, PATH: `${path.dirname(gradleBin)}:${androidHome}/cmdline-tools/latest/bin:${androidHome}/platform-tools:${process.env.PATH}`, JAVA_HOME: javaHome || "/usr/lib/jvm/java-17-openjdk-amd64" };
 
-            // Step 1: Generate Gradle wrapper inside the build directory
-            log("  Generating Gradle wrapper in build directory...");
+            // Step 0: Generate release keystore if missing
+              const keystoreDir = path.join(buildDir, "keystore");
+              const keystorePath = path.join(keystoreDir, "mpa-release.jks");
+              if (!fs.existsSync(keystorePath)) {
+                log("  Generating release keystore...");
+                try {
+                  execSync(`keytool -genkeypair -v -keystore "${keystorePath}" -alias mpa-verify -keyalg RSA -keysize 2048 -validity 10000 -storepass "mpa@2024secure" -keypass "mpa@2024secure" -dname "CN=MPA Verify, OU=Biometric, O=MPA, L=Delhi, ST=Delhi, C=IN" 2>&1`, { timeout: 30000 });
+                  log("  ✓ Release keystore generated");
+                } catch (ksErr: any) {
+                  log("  ✗ Keystore generation failed: " + (ksErr.message || "unknown error"));
+                }
+              } else {
+                log("  ✓ Release keystore exists");
+              }
+
+              // Step 1: Generate Gradle wrapper inside the build directory
+              log("  Generating Gradle wrapper in build directory...");
             await onProgress(86, logs.join("\n"));
             execSync(`cd "${buildDir}" && "${gradleBin}" wrapper --gradle-version 8.4 2>&1`, { timeout: 120000, maxBuffer: 10 * 1024 * 1024, env: buildEnv });
             execSync(`chmod +x "${buildDir}/gradlew"`, { timeout: 5000 });
@@ -2380,16 +2395,34 @@ export async function buildApk(
               log("  Providing project archive for manual build in Android Studio");
             }
           } catch (buildErr: any) {
-            log("  ✗ Gradle build failed:");
+            log("  ✗ Release build failed, trying debug build...");
+              try {
+                const debugOutput = execSync(`cd "${buildDir}" && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1`, { timeout: 900000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+                const debugApk = path.join(buildDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
+                if (fs.existsSync(debugApk)) {
+                  const examName = config.examName.replace(/[^a-zA-Z0-9]/g, "");
+                  const apkFinal = path.join(APK_OUTPUT_DIR, `MPA_Verify_${examName}_v${versionName}_debug.apk`);
+                  fs.copyFileSync(debugApk, apkFinal);
+                  const apkSize = (fs.statSync(apkFinal).size / (1024 * 1024)).toFixed(1);
+                  log("");
+                  log("  ===== DEBUG APK BUILD SUCCESSFUL =====");
+                  log(`  APK: MPA_Verify_${examName}_v${versionName}_debug.apk (${apkSize} MB)`);
+                  await onProgress(100, logs.join("\n"));
+                  return { success: true, apkPath: apkFinal, logs: logs.join("\n") };
+                }
+              } catch (debugErr: any) {
+                log("  ✗ Debug build also failed");
+              }
+              log("  ✗ Gradle build failed:");
             const errOutput = buildErr.stdout ? buildErr.stdout.toString() : buildErr.message || "";
             const errLines = errOutput.split("\n");
-            const kotlinErrors = errLines.filter((l: string) => l.trim().startsWith("e:") || l.includes("error:") || l.includes("Unresolved"));
+            const kotlinErrors = errLines.filter((l: string) => l.trim().startsWith("e:") || l.includes("error:") || l.includes("Unresolved") || l.includes("AAPT") || l.includes("FAILURE:") || l.includes("What went wrong") || l.includes("Execution failed") || l.includes("resource") && l.includes("not found"));
               if (kotlinErrors.length > 0) {
-                log("  Kotlin compilation errors:");
+                log("  Build errors:");
                 kotlinErrors.slice(0, 30).forEach((l: string) => log("    " + l.trim()));
                 log("");
               }
-              errLines.slice(-40).forEach((l: string) => { if (l.trim()) log("    " + l); });
+              errLines.slice(-80).forEach((l: string) => { if (l.trim()) log("    " + l); });
             if (buildErr.stderr) {
               buildErr.stderr.toString().split("\n").slice(-15).forEach((l: string) => { if (l.trim()) log("    ERR: " + l); });
             }
