@@ -1761,7 +1761,7 @@ export async function registerRoutes(
         const builds = await storage.listApkBuilds();
         let deleted = 0;
         for (const build of builds) {
-          if (['failed', 'Failed', 'building', 'Building'].includes(build.status)) {
+          { // Delete all builds regardless of status
             if (build.apkPath && fs.existsSync(build.apkPath)) {
               try { fs.unlinkSync(build.apkPath); } catch (_) {}
             }

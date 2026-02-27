@@ -1058,6 +1058,22 @@ export default function GenerateAPK() {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell className="text-center py-4">
+                            <button
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded transition-colors border border-red-200"
+                              onClick={async () => {
+                                if (!confirm("Delete this build?")) return;
+                                try {
+                                  await api.apkBuilds.deleteBuild(apk.id);
+                                  toast({ title: "Build Deleted" });
+                                  queryClient.invalidateQueries({ queryKey: ['/api/apk-builds'] });
+                                } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                              }}
+                              data-testid={`button-delete-build-${apk.id || idx}`}
+                            >
+                              <Trash2 className="w-3 h-3" /> Delete
+                            </button>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -1072,7 +1088,7 @@ export default function GenerateAPK() {
                   <button
                     className="inline-flex items-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium rounded-lg border border-red-200 transition-colors"
                     onClick={async () => {
-                      if (!confirm('Delete all failed and stuck builds?')) return;
+                      if (!confirm('Delete ALL builds? This cannot be undone.')) return;
                       try {
                         const result = await api.apkBuilds.deleteAllFailed();
                         toast({ title: "Cleanup Done", description: result.message || (result.deleted + ' builds removed') });
@@ -1081,7 +1097,7 @@ export default function GenerateAPK() {
                     }}
                     data-testid="button-cleanup-builds"
                   >
-                    <Trash2 className="w-4 h-4" /> Clean Up Failed
+                    <Trash2 className="w-4 h-4" /> Delete All Builds
                   </button>
                   </div>
               </div>
