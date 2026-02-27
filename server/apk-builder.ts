@@ -452,7 +452,16 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   data class MDMCommandResponse(val command: String?, val payload: Map<String, Any>?)
   data class CrashLogRequest(val deviceId: String, val deviceModel: String?, val appVersion: String?, val errorMessage: String?, val stackTrace: String?, val crashedAt: String?, val threadName: String?, val androidVersion: String?)
   data class CentreLoginRequest(val examId: Int, val centreCode: String, val deviceId: String, val timestamp: Long)
-  data class CentreLoginResponse(val allowed: Boolean, val message: String)\n`);
+  data class CentreLoginResponse(val allowed: Boolean, val message: String)
+    data class OperatorRegRequest(val name: String, val phone: String, val aadhaar: String, val selfie: String?, val deviceId: String)
+    data class OperatorRegResponse(val success: Boolean, val operator: OperatorData?, val message: String?, val alreadyRegistered: Boolean = false)
+    data class OperatorData(val id: Int, val name: String, val phone: String, val aadhaar: String, val centreCode: String? = null, val examId: Int? = null, val examName: String? = null)
+    data class CentreSelectRequest(val operatorId: Int, val examId: Int, val centreCode: String)
+    data class CentreSelectResponse(val success: Boolean, val centreName: String?, val candidateCount: Int?, val candidates: List<Candidate>?, val message: String?)
+    data class SessionCheckRequest(val operatorId: Int)
+    data class SessionCheckResponse(val success: Boolean, val sessionActive: Boolean, val forceLogout: Boolean, val message: String?)
+    data class HeartbeatResponse(val success: Boolean, val forceLogout: Boolean, val message: String?)
+    data class CentreItem(val id: Int, val code: String, val name: String)\n`);
 
   fs.mkdirSync(path.join(srcDir, "network"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "network", "ApiService.kt"), `package ${pkgName}.network\nimport ${pkgName}.model.*\nimport retrofit2.Response\nimport retrofit2.http.*\n\ninterface ApiService {\n    @POST("api/apk/login") suspend fun login(@Body request: LoginRequest): Response<LoginResponse>\n    @GET("api/apk/candidates/{examId}") suspend fun getCandidates(@Path("examId") examId: Int, @Query("centreCode") centreCode: String? = null): Response<List<Candidate>>\n    @GET("api/apk/exams/{id}") suspend fun getExamConfig(@Path("id") examId: Int): Response<ExamConfig>\n    @PATCH("api/apk/candidates/{id}/attendance") suspend fun markAttendance(@Path("id") candidateId: Int, @Body request: AttendanceRequest): Response<ApiResponse>\n    @PATCH("api/apk/candidates/{id}/verify") suspend fun submitVerification(@Path("id") candidateId: Int, @Body request: VerificationRequest): Response<ApiResponse>\n    @POST("api/apk/verification/heartbeat") suspend fun sendHeartbeat(@Body request: HeartbeatRequest): Response<ApiResponse>\n    @GET("api/apk/candidates/{examId}/search") suspend fun searchCandidate(@Path("examId") examId: Int, @Query("rollNo") rollNo: String): Response<Candidate>
