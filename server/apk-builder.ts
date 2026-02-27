@@ -640,7 +640,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
                   val lastDownload = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getLong("last_download_time", 0)
                   if (lastDownload > 0) {
                       val ago = (System.currentTimeMillis() - lastDownload) / 60000
-                      binding.tvLastSync.text = "Last download: \${"$"}{if (ago < 1) "just now" else if (ago < 60) "\${"$"}{ago}m ago" else "\${"$"}{ago / 60}h ago"} (\${"$"}{total} candidates)"
+                      val agoText = if (ago < 1) "just now" else if (ago < 60) "\${"$"}{ago}m ago" else "\${"$"}{ago / 60}h ago"\n                      binding.tvLastSync.text = "Last download: \${"$"}{agoText} (\${"$"}{total} candidates)"
                   } else if (total > 0) {
                       binding.tvLastSync.text = "\${"$"}{total} candidates in local database"
                   } else {
@@ -687,7 +687,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
                           } catch (_: Exception) {}
                       }
                       syncManager.emergencySync { s, f, r ->
-                          binding.tvSyncStatus.text = "DB: \${synced}/\${pending.size} synced\nQueue: \${s} synced, \${f} failed, \${r} remaining"
+                          binding.tvSyncStatus.text = "DB: \${synced}/\${pending.size} synced | Queue: \${s} synced, \${f} failed, \${r} remaining"
                           binding.btnSync.isEnabled = true
                           refreshStatus()
                       }
