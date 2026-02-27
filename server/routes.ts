@@ -638,9 +638,9 @@ export async function registerRoutes(
       const filtered = examId ? allDevices.filter((d: any) => d.examId === examId) : allDevices;
       const now = new Date().toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
       for (const device of filtered) {
-        await storage.updateDevice(device.id, { lastSyncAt: now });
+        await storage.updateDevice(device.id, { lastSyncAt: now, mdmStatus: "force_sync" });
       }
-      res.json({ message: `Sync triggered for ${filtered.length} devices`, count: filtered.length });
+      res.json({ success: true, message: `Force sync triggered for ${filtered.length} devices — APK will sync on next heartbeat`, count: filtered.length });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -650,9 +650,12 @@ export async function registerRoutes(
       const allDevices = await storage.listDevices();
       const filtered = examId ? allDevices.filter((d: any) => d.examId === examId) : allDevices;
       for (const device of filtered) {
-        await storage.updateDevice(device.id, { loginStatus: "Logged Out" });
+        await storage.updateDevice(device.id, { loginStatus: "Logged Out", mdmStatus: "wipe_data" });
       }
-      res.json({ message: `Logged out ${filtered.length} devices`, count: filtered.length });
+      if (examId) {
+        await db.update(operators).set({ forceLogout: true, sessionActive: false }).where(eq(operators.examId, Number(examId)));
+      }
+      res.json({ success: true, message: `Logged out ${filtered.length} devices + all operators force-logged out — APK will logout on next heartbeat`, count: filtered.length });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -676,14 +679,14 @@ export async function registerRoutes(
   app.post("/api/devices/:id/sync", async (req, res) => {
     try {
       const now = new Date().toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
-      const result = await storage.updateDevice(Number(req.params.id), { lastSyncAt: now });
+      const result = await storage.updateDevice(Number(req.params.id), { lastSyncAt: now, mdmStatus: "force_sync" });
       res.json(result);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.post("/api/devices/:id/logout", async (req, res) => {
     try {
-      const result = await storage.updateDevice(Number(req.params.id), { loginStatus: "Logged Out" });
+      const result = await storage.updateDevice(Number(req.params.id), { loginStatus: "Logged Out", mdmStatus: "wipe_data" });
       res.json(result);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
