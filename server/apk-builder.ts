@@ -483,7 +483,8 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       @POST("api/apk/verification/heartbeat") suspend fun sendHeartbeatV2(@Body request: HeartbeatRequest): Response<HeartbeatResponse>
       @GET("api/apk/centres/{examId}") suspend fun getCentres(@Path("examId") examId: Int): Response<List<CentreItem>>\n}`);
 
-  fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            val gson = com.google.gson.GsonBuilder().setLenient().create(); retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create(gson)).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
+  fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getBaseUrl(): String = baseUrl
+    fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            val gson = com.google.gson.GsonBuilder().setLenient().create(); retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create(gson)).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
 
   fs.mkdirSync(path.join(srcDir, "db"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "db", "AppDatabase.kt"), `package ${pkgName}.db\nimport android.content.Context\nimport androidx.room.*\nimport ${pkgName}.model.Candidate\nimport ${pkgName}.model.PendingVerification\nimport ${pkgName}.model.PendingAttendance\n\n@Dao interface CandidateDao {\n    @Query("SELECT * FROM candidates WHERE examId = :examId") suspend fun getByExam(examId: Int): List<Candidate>\n    @Query("SELECT * FROM candidates WHERE rollNo = :rollNo AND examId = :examId LIMIT 1") suspend fun findByRollNo(rollNo: String, examId: Int): Candidate?\n    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(candidates: List<Candidate>)\n    @Update suspend fun update(candidate: Candidate)\n    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId AND attendanceStatus = 'present'") suspend fun getPresentCount(examId: Int): Int\n    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId AND verificationStatus = 'verified'") suspend fun getVerifiedCount(examId: Int): Int\n    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId") suspend fun getTotalCount(examId: Int): Int\n}\n\n@Dao interface PendingVerificationDao {\n    @Insert suspend fun insert(v: PendingVerification)\n    @Query("SELECT * FROM pending_verifications WHERE uploaded = 0") suspend fun getUnuploaded(): List<PendingVerification>\n    @Update suspend fun update(v: PendingVerification)\n}\n\n@Dao interface PendingAttendanceDao {\n    @Insert suspend fun insert(a: PendingAttendance)\n    @Query("SELECT * FROM pending_attendance WHERE uploaded = 0") suspend fun getUnuploaded(): List<PendingAttendance>\n    @Update suspend fun update(a: PendingAttendance)\n}\n\n@Database(entities = [Candidate::class, PendingVerification::class, PendingAttendance::class], version = 1, exportSchema = false)\nabstract class AppDatabase : RoomDatabase() {\n    abstract fun candidateDao(): CandidateDao\n    abstract fun pendingVerificationDao(): PendingVerificationDao\n    abstract fun pendingAttendanceDao(): PendingAttendanceDao\n    companion object {\n        @Volatile private var instance: AppDatabase? = null\n        fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {\n            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "mpa_verify.db").fallbackToDestructiveMigration().build().also { instance = it }\n        }\n    }\n}`);
@@ -491,7 +492,160 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   fs.mkdirSync(path.join(srcDir, "ui"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "ui", "SplashActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.os.Handler\nimport android.os.Looper\nimport androidx.appcompat.app.AppCompatActivity\nimport ${pkgName}.R\nimport ${pkgName}.network.RetrofitClient\nclass SplashActivity : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(R.layout.activity_splash)\n        RetrofitClient.init(this)\n        Handler(Looper.getMainLooper()).postDelayed({\n            val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)\n            val registered = prefs.getBoolean("registered", false)\n            val centreSelected = prefs.getBoolean("centre_selected", false)\n            val dest = when {\n                !registered -> RegistrationActivity::class.java\n                !centreSelected -> CentreSelectActivity::class.java\n                else -> DashboardActivity::class.java\n            }\n            startActivity(Intent(this, dest))\n            finish()\n        }, 2000)\n    }\n}`);
 
-  fs.writeFileSync(path.join(srcDir, "ui", "RegistrationActivity.kt"), `package ${pkgName}.ui\nimport android.Manifest\nimport android.annotation.SuppressLint\nimport android.content.Intent\nimport android.content.pm.PackageManager\nimport android.graphics.Bitmap\nimport android.os.Bundle\nimport android.provider.MediaStore\nimport android.provider.Settings\nimport android.util.Base64\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.core.app.ActivityCompat\nimport androidx.core.content.ContextCompat\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityRegistrationBinding\nimport ${pkgName}.model.OperatorRegRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nimport java.io.ByteArrayOutputStream\nclass RegistrationActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityRegistrationBinding\n    private var selfieBase64: String? = null\n    @SuppressLint("HardwareIds")\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityRegistrationBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        binding.btnCaptureSelfie.setOnClickListener {\n            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {\n                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 100)\n            } else { openCamera() }\n        }\n        binding.btnRegister.setOnClickListener {\n            val name = binding.etName.text.toString().trim()\n            val phone = binding.etPhone.text.toString().trim()\n            val aadhaar = binding.etAadhaar.text.toString().trim()\n            if (name.isEmpty()) { Toast.makeText(this, "Enter your name", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            if (phone.isEmpty() || phone.length < 10) { Toast.makeText(this, "Enter valid phone number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            if (aadhaar.isEmpty() || aadhaar.length != 12) { Toast.makeText(this, "Enter valid 12-digit Aadhaar number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            if (selfieBase64 == null) { Toast.makeText(this, "Please capture your selfie", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)\n            binding.btnRegister.isEnabled = false\n            binding.btnRegister.text = "Registering..."\n            lifecycleScope.launch {\n                try {\n                    val resp = RetrofitClient.getApi().registerOperator(OperatorRegRequest(name, phone, aadhaar, selfieBase64, deviceId))\n                    if (resp.isSuccessful && resp.body()?.success == true) {\n                        val op = resp.body()!!.operator!!\n                        getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().putBoolean("registered", true).putInt("operator_id", op.id).putString("operator_name", op.name).putString("operator_phone", op.phone).putString("operator_aadhaar", op.aadhaar).putString("device_id", deviceId).apply()\n                        Toast.makeText(this@RegistrationActivity, "Registration successful!", Toast.LENGTH_SHORT).show()\n                        if (resp.body()!!.alreadyRegistered && op.centreCode != null) {\n                            getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().putBoolean("centre_selected", true).putString("centre_code", op.centreCode).putInt("exam_id", op.examId ?: 0).apply()\n                            startActivity(Intent(this@RegistrationActivity, DashboardActivity::class.java))\n                        } else {\n                            startActivity(Intent(this@RegistrationActivity, CentreSelectActivity::class.java))\n                        }\n                        finish()\n                    } else { Toast.makeText(this@RegistrationActivity, resp.body()?.message ?: "Registration failed", Toast.LENGTH_SHORT).show() }\n                } catch (e: Exception) { Toast.makeText(this@RegistrationActivity, "Network error: " + e.message, Toast.LENGTH_SHORT).show() }\n                binding.btnRegister.isEnabled = true\n                binding.btnRegister.text = "Register"\n            }\n        }\n    }\n    private fun openCamera() { val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE); i.putExtra("android.intent.extras.CAMERA_FACING", 1); i.putExtra("android.intent.extras.LENS_FACING_FRONT", 1); i.putExtra("android.intent.extra.USE_FRONT_CAMERA", true); startActivityForResult(i, 101) }\n    override fun onRequestPermissionsResult(rc: Int, p: Array<String>, gr: IntArray) {\n        super.onRequestPermissionsResult(rc, p, gr)\n        if (rc == 100 && gr.isNotEmpty() && gr[0] == PackageManager.PERMISSION_GRANTED) openCamera()\n    }\n    @Deprecated("Use Activity Result API")\n    override fun onActivityResult(rc: Int, resultCode: Int, data: Intent?) {\n        super.onActivityResult(rc, resultCode, data)\n        if (rc == 101 && resultCode == RESULT_OK) {\n            val bmp = data?.extras?.get("data") as? Bitmap ?: return\n            binding.ivSelfie.setImageBitmap(bmp)\n            binding.tvSelfieStatus.text = "Selfie captured"\n            val baos = ByteArrayOutputStream()\n            bmp.compress(Bitmap.CompressFormat.JPEG, 80, baos)\n            selfieBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)\n        }\n    }\n    override fun onBackPressed() { }\n}`);
+  fs.writeFileSync(path.join(srcDir, "ui", "RegistrationActivity.kt"), `package ${pkgName}.ui
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.os.Bundle
+import android.provider.MediaStore
+import android.provider.Settings
+import android.util.Base64
+import android.util.Log
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.databinding.ActivityRegistrationBinding
+import ${pkgName}.network.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.TimeUnit
+
+class RegistrationActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityRegistrationBinding
+    private var selfieBase64: String? = null
+    private val TAG = "Registration"
+
+    @SuppressLint("HardwareIds")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityRegistrationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.btnCaptureSelfie.setOnClickListener {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 100)
+            } else { openCamera() }
+        }
+        binding.btnRegister.setOnClickListener {
+            val name = binding.etName.text.toString().trim()
+            val phone = binding.etPhone.text.toString().trim()
+            val aadhaar = binding.etAadhaar.text.toString().trim()
+            if (name.isEmpty()) { Toast.makeText(this, "Enter your name", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (phone.isEmpty() || phone.length < 10) { Toast.makeText(this, "Enter valid phone number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (aadhaar.isEmpty() || aadhaar.length != 12) { Toast.makeText(this, "Enter valid 12-digit Aadhaar number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (selfieBase64 == null) { Toast.makeText(this, "Please capture your selfie", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            val deviceId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+            binding.btnRegister.isEnabled = false
+            binding.btnRegister.text = "Registering..."
+            lifecycleScope.launch {
+                try {
+                    val result = withContext(Dispatchers.IO) { doRegister(name, phone, aadhaar, selfieBase64!!, deviceId) }
+                    val json = JSONObject(result)
+                    if (json.optBoolean("success", false)) {
+                        val op = json.getJSONObject("operator")
+                        val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit()
+                        prefs.putBoolean("registered", true)
+                        prefs.putInt("operator_id", op.getInt("id"))
+                        prefs.putString("operator_name", op.optString("name", ""))
+                        prefs.putString("operator_phone", op.optString("phone", ""))
+                        prefs.putString("operator_aadhaar", op.optString("aadhaar", ""))
+                        prefs.putString("device_id", deviceId)
+                        prefs.apply()
+                        Toast.makeText(this@RegistrationActivity, "Registration successful!", Toast.LENGTH_SHORT).show()
+                        val alreadyReg = json.optBoolean("alreadyRegistered", false)
+                        val centreCode = op.optString("centreCode", "")
+                        if (alreadyReg && centreCode.isNotEmpty() && centreCode != "null") {
+                            getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit()
+                                .putBoolean("centre_selected", true)
+                                .putString("centre_code", centreCode)
+                                .putInt("exam_id", op.optInt("examId", 0))
+                                .apply()
+                            startActivity(Intent(this@RegistrationActivity, DashboardActivity::class.java))
+                        } else {
+                            startActivity(Intent(this@RegistrationActivity, CentreSelectActivity::class.java))
+                        }
+                        finish()
+                    } else {
+                        Toast.makeText(this@RegistrationActivity, json.optString("message", "Registration failed"), Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Registration failed", e)
+                    Toast.makeText(this@RegistrationActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                binding.btnRegister.isEnabled = true
+                binding.btnRegister.text = "Register"
+            }
+        }
+    }
+
+    private fun doRegister(name: String, phone: String, aadhaar: String, selfie: String, deviceId: String): String {
+        val baseUrl = RetrofitClient.getBaseUrl()
+        val url = "${baseUrl}api/apk/operator/register"
+        Log.d(TAG, "Registering to: $url")
+        val json = JSONObject()
+        json.put("name", name)
+        json.put("phone", phone)
+        json.put("aadhaar", aadhaar)
+        json.put("selfie", selfie)
+        json.put("deviceId", deviceId)
+        val body = json.toString().toRequestBody("application/json".toMediaType())
+        Log.d(TAG, "Request body size: ${json.toString().length} bytes")
+        val client = OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder().url(url).post(body).build()
+        val response = client.newCall(request).execute()
+        val responseBody = response.body?.string() ?: "{}"
+        Log.d(TAG, "Response code: ${response.code}, body: ${responseBody.take(500)}")
+        if (!response.isSuccessful) {
+            throw Exception("Server error ${response.code}: ${responseBody.take(200)}")
+        }
+        return responseBody
+    }
+
+    private fun openCamera() {
+        val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        i.putExtra("android.intent.extras.CAMERA_FACING", 1)
+        i.putExtra("android.intent.extras.LENS_FACING_FRONT", 1)
+        i.putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
+        startActivityForResult(i, 101)
+    }
+
+    override fun onRequestPermissionsResult(rc: Int, p: Array<String>, gr: IntArray) {
+        super.onRequestPermissionsResult(rc, p, gr)
+        if (rc == 100 && gr.isNotEmpty() && gr[0] == PackageManager.PERMISSION_GRANTED) openCamera()
+    }
+
+    @Deprecated("Use Activity Result API")
+    override fun onActivityResult(rc: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(rc, resultCode, data)
+        if (rc == 101 && resultCode == RESULT_OK) {
+            val bmp = data?.extras?.get("data") as? Bitmap ?: return
+            val scaled = Bitmap.createScaledBitmap(bmp, 200, 200, true)
+            binding.ivSelfie.setImageBitmap(scaled)
+            binding.tvSelfieStatus.text = "Selfie captured"
+            val baos = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 50, baos)
+            selfieBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+            Log.d(TAG, "Selfie base64 size: ${selfieBase64?.length} chars")
+        }
+    }
+
+    override fun onBackPressed() { }
+}`)
 
   fs.writeFileSync(path.join(srcDir, "ui", "CentreSelectActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.View\nimport android.widget.AdapterView\nimport android.widget.ArrayAdapter\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityCentreSelectBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.CentreSelectRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass CentreSelectActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCentreSelectBinding\n    private var selectedCentreCode = ""\n    private var examId = 0\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCentreSelectBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        try {\n            val configStr = assets.open("config.json").bufferedReader().readText()\n            val config = org.json.JSONObject(configStr)\n            examId = config.optInt("examId", 1)\n            binding.tvExamName.text = config.optString("examName", "Exam")\n        } catch (_: Exception) { examId = 1 }\n        loadCentres()\n        binding.btnConfirmCentre.setOnClickListener {\n            if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("operator_id", 0)\n            binding.btnConfirmCentre.isEnabled = false\n            binding.btnConfirmCentre.text = "Downloading data..."\n            lifecycleScope.launch {\n                try {\n                    val resp = RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode))\n                    if (resp.isSuccessful && resp.body()?.success == true) {\n                        val body = resp.body()!!\n                        body.candidates?.let { candidates ->\n                            AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(candidates)\n                        }\n                        getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().putBoolean("centre_selected", true).putString("centre_code", selectedCentreCode).putString("centre_name", body.centreName ?: selectedCentreCode).putInt("exam_id", examId).putInt("downloaded_count", body.candidateCount ?: 0).putLong("last_download_time", System.currentTimeMillis()).apply()\n                        Toast.makeText(this@CentreSelectActivity, body.message ?: "Centre selected", Toast.LENGTH_SHORT).show()\n                        startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))\n                        finish()\n                    } else { Toast.makeText(this@CentreSelectActivity, resp.body()?.message ?: "Failed to select centre", Toast.LENGTH_SHORT).show() }\n                } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error: " + e.message, Toast.LENGTH_SHORT).show() }\n                binding.btnConfirmCentre.isEnabled = true\n                binding.btnConfirmCentre.text = "Confirm & Download Data"\n            }\n        }\n    }\n    private fun loadCentres() {\n        lifecycleScope.launch {\n            try {\n                val resp = RetrofitClient.getApi().getCentres(examId)\n                if (resp.isSuccessful && resp.body() != null) {\n                    val centres = resp.body()!!\n                    val names = centres.map { "${"$"}{it.code} - ${"$"}{it.name}" }\n                    binding.spinnerCentre.adapter = ArrayAdapter(this@CentreSelectActivity, android.R.layout.simple_spinner_dropdown_item, names)\n                    binding.spinnerCentre.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {\n                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { selectedCentreCode = centres[pos].code }\n                        override fun onNothingSelected(p: AdapterView<*>?) {}\n                    }\n                } else { Toast.makeText(this@CentreSelectActivity, "Failed to load centres", Toast.LENGTH_SHORT).show() }\n            } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error loading centres", Toast.LENGTH_SHORT).show() }\n        }\n    }\n    override fun onBackPressed() { }\n}`);
 
