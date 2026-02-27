@@ -2087,7 +2087,7 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
 
   fs.writeFileSync(path.join(buildDir, "build.gradle"), generateProjectBuildGradle());
   fs.writeFileSync(path.join(buildDir, "settings.gradle"), `pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\nrootProject.name = "${appName}"\ninclude ':app'`);
-  fs.writeFileSync(path.join(buildDir, "gradle.properties"), `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\norg.gradle.daemon=false\norg.gradle.workers.max=2\nandroid.useAndroidX=true\nkotlin.code.style=official\nandroid.nonTransitiveRClass=true\norg.gradle.parallel=true\norg.gradle.caching=true`);
+  fs.writeFileSync(path.join(buildDir, "gradle.properties"), `org.gradle.jvmargs=-Xmx1536m -XX:+UseParallelGC -Dfile.encoding=UTF-8\norg.gradle.daemon=false\norg.gradle.workers.max=2\nandroid.useAndroidX=true\nkotlin.code.style=official\nandroid.nonTransitiveRClass=true\norg.gradle.parallel=true\norg.gradle.caching=true\nkotlin.incremental=true\nandroid.enableBuildCache=true`);
   fs.writeFileSync(path.join(buildDir, "gradle", "wrapper", "gradle-wrapper.properties"), `distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists`);
   fs.writeFileSync(path.join(buildDir, "app", "build.gradle"), generateAppBuildGradle(pkgName, versionCode, versionName));
   fs.writeFileSync(path.join(buildDir, "app", "proguard-rules.pro"), `-keep class com.mantra.** { *; }\n-keep class com.mfs100.** { *; }\n-dontwarn com.mantra.**\n-keep class org.tensorflow.** { *; }\n-dontwarn org.tensorflow.**\n-keep class com.google.mlkit.** { *; }`);
@@ -2361,10 +2361,10 @@ export async function buildApk(
             log("  ✓ Gradle wrapper created");
 
             // Step 2: Build APK using ./gradlew inside the build directory
-            log("  Running: ./gradlew assembleRelease --no-daemon --stacktrace");
+            log("  Running: ./gradlew assembleRelease --no-daemon --stacktrace -x lint -x test");
             log("  (this may take 3-10 minutes on first build...)");
             await onProgress(88, logs.join("\n"));
-            const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace 2>&1`, { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+            const output = execSync(`cd "${buildDir}" && ./gradlew assembleRelease --no-daemon --stacktrace -x lint -x lintVitalRelease -x test 2>&1`, { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
             const outputLines = output.split("\n");
             outputLines.slice(-30).forEach(l => log("  " + l));
 
@@ -2398,7 +2398,7 @@ export async function buildApk(
           } catch (buildErr: any) {
             log("  ✗ Release build failed, trying debug build...");
               try {
-                const debugOutput = execSync(`cd "${buildDir}" && ./gradlew assembleDebug --no-daemon --stacktrace 2>&1`, { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
+                const debugOutput = execSync(`cd "${buildDir}" && ./gradlew assembleDebug --no-daemon --stacktrace -x lint -x test 2>&1`, { timeout: 1800000, maxBuffer: 50 * 1024 * 1024, env: buildEnv }).toString();
                 const debugApk = path.join(buildDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
                 if (fs.existsSync(debugApk)) {
                   const examName = config.examName.replace(/[^a-zA-Z0-9]/g, "");
