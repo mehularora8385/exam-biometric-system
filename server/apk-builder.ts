@@ -1789,7 +1789,8 @@ export async function buildApk(
     try {
       const zipFileName = `MPA_Verify_${examName}_v${versionName}.tar.gz`;
       const zipPath = path.join(APK_OUTPUT_DIR, zipFileName);
-      execSync(`cd "${buildDir}" && tar -czf "${zipPath}" --exclude=".gradle" --exclude="build" . 2>&1`, { timeout: 60000 });
+      const projectFolderName = `MPA_Verify_${examName}_v${versionName}`;
+      execSync(`cd "${buildDir}" && cd .. && tar -czf "${zipPath}" --exclude=".gradle" --exclude="build" --transform "s|^${path.basename(buildDir)}|${projectFolderName}|" "${path.basename(buildDir)}" 2>&1`, { timeout: 60000 });
       const zipSize = (fs.statSync(zipPath).size / (1024 * 1024)).toFixed(1);
       log(`  Project archive: ${zipFileName} (${zipSize} MB)`);
       await onProgress(70, logs.join("\n"));
