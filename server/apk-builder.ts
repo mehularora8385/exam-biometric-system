@@ -1768,19 +1768,11 @@ class RegistrationActivity : AppCompatActivity() {
   import android.content.Intent
   import android.net.Uri
   import android.util.Log
+  import ${pkgName}.model.VersionInfo
   import kotlinx.coroutines.*
   import org.json.JSONObject
   import java.net.HttpURLConnection
   import java.net.URL
-
-  data class VersionInfo(
-      val latestVersionCode: Int,
-      val latestVersionName: String,
-      val minVersionCode: Int,
-      val forceUpdate: Boolean,
-      val downloadUrl: String?,
-      val releaseNotes: String?
-  )
 
   class AppUpdateChecker(private val context: Context, private val serverUrl: String) {
       private val tag = "AppUpdateChecker"

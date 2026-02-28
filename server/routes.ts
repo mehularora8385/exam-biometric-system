@@ -4,23 +4,23 @@ import * as fs from "fs";
 import { buildApk, generateApkConfig, type BuildConfig , SDK_DIR } from "./apk-builder";
 import { type Server } from "http";
 import { storage } from "./storage";
-  import { db } from "./db";
-  import { eq, desc } from "drizzle-orm";
-  import {
-    devices, deviceWhitelist, deviceSyncLogs, crashLogs,
-    centreLoginLocks, appVersions, apkBuilds, operators,
-  } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
+import {
+  devices, deviceWhitelist, deviceSyncLogs, crashLogs,
+  centreLoginLocks, appVersions, apkBuilds, operators,
+  biometricPlugins, examBiometricConfig, candidateBiometrics,
+} from "@shared/schema";
 import {
   insertExamSchema, insertCenterSchema, insertOperatorSchema,
   insertCandidateSchema, insertDepartmentSchema, insertDesignationSchema,
   insertSlotSchema, insertCenterOperatorMapSchema, insertDeviceSchema,
   insertApkBuildSchema, insertAuditLogSchema, insertAlertSchema,
   insertGlobalTechSettingsSchema,
+  insertBiometricPluginSchema, insertExamBiometricConfigSchema, insertCandidateBiometricSchema,
 } from "@shared/schema";
 import multer from "multer";
 import * as XLSX from "xlsx";
-import * as fs from "fs";
-import * as path from "path";
 
 const upload = multer({ dest: "uploads/temp/" });
 const logoUpload = multer({
@@ -1856,12 +1856,23 @@ export async function registerRoutes(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
-    // POST /api/sdk/upload - Upload SDK files
+    // POST /api/sdk/upload - Upload SDK files (supports per-plugin uploads)
     const sdkUpload = multer({
       storage: multer.diskStorage({
         destination: (req, _file, cb) => {
-          const subDir = req.query.dir as string || '';
-          const dest = path.join(SDK_DIR, subDir);
+          const pluginCode = req.query.plugin as string;
+          const fileType = req.query.type as string;
+          let dest: string;
+          if (pluginCode && fileType) {
+            const typeMap: Record<string, string> = {
+              "jar": "jar", "so-v8a": "so/arm64-v8a", "so-v7a": "so/armeabi-v7a", "model": "model", "other": "other",
+            };
+            const subFolder = typeMap[fileType] || fileType;
+            dest = path.join(SDK_DIR, pluginCode, subFolder);
+          } else {
+            const subDir = req.query.dir as string || '';
+            dest = path.join(SDK_DIR, subDir);
+          }
           fs.mkdirSync(dest, { recursive: true });
           cb(null, dest);
         },
@@ -1869,21 +1880,67 @@ export async function registerRoutes(
       }),
       limits: { fileSize: 100 * 1024 * 1024 }
     });
-    app.post('/api/sdk/upload', sdkUpload.array('files', 10), async (req, res) => {
+    app.post('/api/sdk/upload', sdkUpload.array('files', 20), async (req, res) => {
       try {
         const files = (req as any).files as any[];
+        const pluginCode = req.query.plugin as string;
+        const fileType = req.query.type as string;
         const uploaded = files.map(f => ({ name: f.originalname, size: f.size, path: f.path }));
-        res.json({ success: true, uploaded, message: uploaded.length + ' files uploaded' });
+        const message = pluginCode
+          ? `${uploaded.length} file(s) uploaded to ${pluginCode}/${fileType}`
+          : `${uploaded.length} files uploaded`;
+        res.json({ success: true, uploaded, files: uploaded.map(f => f.path), count: uploaded.length, message });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
-    // DELETE /api/sdk/files/:filename - Delete SDK file
+    // GET /api/sdk/plugins/:pluginCode/files - List SDK files for a specific plugin
+    app.get('/api/sdk/plugins/:pluginCode/files', async (req, res) => {
+      try {
+        const pluginCode = req.params.pluginCode;
+        const baseDir = path.join(SDK_DIR, pluginCode);
+        if (!fs.existsSync(baseDir)) return res.json({ files: [], hasJar: false, hasNative: false, hasModel: false, totalSizeStr: "0 B" });
+
+        const files: any[] = [];
+        let totalSize = 0;
+        const walk = (dir: string) => {
+          if (!fs.existsSync(dir)) return;
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) { walk(fullPath); continue; }
+            const stat = fs.statSync(fullPath);
+            const relPath = path.relative(baseDir, fullPath);
+            const ext = path.extname(entry.name).toLowerCase();
+            let type = "Other";
+            if (ext === ".jar") type = "JAR Library";
+            else if (ext === ".aar") type = "AAR Library";
+            else if (ext === ".so") type = "Native Library";
+            else if (ext === ".tflite") type = "AI Model";
+            totalSize += stat.size;
+            const sizeStr = stat.size > 1048576 ? (stat.size / 1048576).toFixed(1) + " MB" : (stat.size / 1024).toFixed(1) + " KB";
+            files.push({ path: relPath, fullPath: `sdk/${pluginCode}/${relPath}`, type, size: stat.size, sizeStr });
+          }
+        };
+        walk(baseDir);
+        const hasJar = files.some(f => f.type === "JAR Library" || f.type === "AAR Library");
+        const hasNative = files.some(f => f.type === "Native Library");
+        const hasModel = files.some(f => f.type === "AI Model");
+        const totalSizeStr = totalSize > 1048576 ? (totalSize / 1048576).toFixed(1) + " MB" : (totalSize / 1024).toFixed(1) + " KB";
+        res.json({ files, hasJar, hasNative, hasModel, totalSizeStr });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // DELETE /api/sdk/files/:filename - Delete SDK file (supports nested paths)
     app.delete('/api/sdk/files/:filename', async (req, res) => {
       try {
         const filename = decodeURIComponent(req.params.filename);
-        const filePath = path.join(SDK_DIR, filename);
-        if (!filePath.startsWith(SDK_DIR)) return res.status(400).json({ message: 'Invalid path' });
-        if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });
+        if (filename.includes('..')) return res.status(400).json({ message: 'Invalid path' });
+        const filePath = path.join(process.cwd(), filename);
+        if (!fs.existsSync(filePath)) {
+          const altPath = path.join(SDK_DIR, filename);
+          if (!fs.existsSync(altPath)) return res.status(404).json({ message: 'File not found' });
+          fs.unlinkSync(altPath);
+          return res.json({ success: true, message: 'File deleted' });
+        }
         fs.unlinkSync(filePath);
         res.json({ success: true, message: 'File deleted' });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -3701,6 +3758,170 @@ class CandidateListActivity : AppCompatActivity() {
           failed: builds.filter((b: any) => b.status === "Failed").length,
           builds,
         });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/biometric-plugins", async (_req, res) => {
+      try {
+        const plugins = await db.select().from(biometricPlugins).orderBy(desc(biometricPlugins.id));
+        res.json(plugins);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/biometric-plugins/categories/list", async (_req, res) => {
+      res.json([
+        { code: "face", name: "Face Recognition", icon: "scan-face" },
+        { code: "fingerprint", name: "Fingerprint Scanner", icon: "fingerprint" },
+        { code: "iris", name: "Iris Scanner", icon: "eye" },
+        { code: "palm", name: "Palm Print Scanner", icon: "hand" },
+        { code: "voice", name: "Voice Biometrics", icon: "mic" },
+        { code: "signature", name: "Digital Signature", icon: "pen-tool" },
+        { code: "vein", name: "Vein Pattern Scanner", icon: "activity" },
+      ]);
+    });
+
+    app.get("/api/biometric-plugins/:id", async (req, res) => {
+      try {
+        const [plugin] = await db.select().from(biometricPlugins).where(eq(biometricPlugins.id, Number(req.params.id)));
+        if (!plugin) return res.status(404).json({ message: "Plugin not found" });
+        res.json(plugin);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/biometric-plugins", async (req, res) => {
+      try {
+        const data = insertBiometricPluginSchema.parse(req.body);
+        const [plugin] = await db.insert(biometricPlugins).values(data).returning();
+        res.json(plugin);
+      } catch (e: any) { res.status(400).json({ message: e.message }); }
+    });
+
+    app.patch("/api/biometric-plugins/:id", async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        const [updated] = await db.update(biometricPlugins).set(req.body).where(eq(biometricPlugins.id, id)).returning();
+        if (!updated) return res.status(404).json({ message: "Plugin not found" });
+        res.json(updated);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.delete("/api/biometric-plugins/:id", async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        await db.delete(examBiometricConfig).where(eq(examBiometricConfig.pluginId, id));
+        await db.delete(biometricPlugins).where(eq(biometricPlugins.id, id));
+        res.json({ success: true });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/exams/:examId/biometric-config", async (req, res) => {
+      try {
+        const examId = Number(req.params.examId);
+        const configs = await db.select().from(examBiometricConfig).where(eq(examBiometricConfig.examId, examId)).orderBy(examBiometricConfig.stepOrder);
+        const allPlugins = await db.select().from(biometricPlugins);
+        const enriched = configs.map((c: any) => {
+          const plugin = allPlugins.find((p: any) => p.id === c.pluginId);
+          return { ...c, plugin };
+        });
+        res.json(enriched);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/exams/:examId/biometric-config", async (req, res) => {
+      try {
+        const examId = Number(req.params.examId);
+        const data = insertExamBiometricConfigSchema.parse({ ...req.body, examId });
+        const [config] = await db.insert(examBiometricConfig).values(data).returning();
+        res.json(config);
+      } catch (e: any) { res.status(400).json({ message: e.message }); }
+    });
+
+    app.put("/api/exams/:examId/biometric-config", async (req, res) => {
+      try {
+        const examId = Number(req.params.examId);
+        const { steps } = req.body;
+        if (!Array.isArray(steps)) return res.status(400).json({ message: "steps array required" });
+        await db.delete(examBiometricConfig).where(eq(examBiometricConfig.examId, examId));
+        const inserted = [];
+        for (const step of steps) {
+          const [row] = await db.insert(examBiometricConfig).values({
+            examId, pluginId: step.pluginId,
+            stepOrder: step.stepOrder || inserted.length + 1,
+            required: step.required !== false, threshold: step.threshold || 70,
+            retryLimit: step.retryLimit || 3, captureTimeout: step.captureTimeout || 30,
+            qualityCheck: step.qualityCheck !== false, templateField: step.templateField || null,
+            status: "Active",
+          }).returning();
+          inserted.push(row);
+        }
+        res.json(inserted);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.delete("/api/exams/:examId/biometric-config/:configId", async (req, res) => {
+      try {
+        await db.delete(examBiometricConfig).where(eq(examBiometricConfig.id, Number(req.params.configId)));
+        res.json({ success: true });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/candidates/:candidateId/biometrics", async (req, res) => {
+      try {
+        const candidateId = Number(req.params.candidateId);
+        const records = await db.select().from(candidateBiometrics).where(eq(candidateBiometrics.candidateId, candidateId));
+        res.json(records);
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/apk/biometric-config/:examId", async (req, res) => {
+      try {
+        const examId = Number(req.params.examId);
+        const configs = await db.select().from(examBiometricConfig).where(eq(examBiometricConfig.examId, examId)).orderBy(examBiometricConfig.stepOrder);
+        const allPlugins = await db.select().from(biometricPlugins);
+        const pipeline = configs.map((c: any) => {
+          const plugin = allPlugins.find((p: any) => p.id === c.pluginId);
+          return {
+            step: c.stepOrder, pluginCode: plugin?.code, pluginName: plugin?.name,
+            category: plugin?.category, required: c.required, threshold: c.threshold,
+            retryLimit: c.retryLimit, captureTimeout: c.captureTimeout,
+            qualityCheck: c.qualityCheck, sdkVersion: plugin?.sdkVersion,
+            connectionType: plugin?.connectionType,
+          };
+        });
+        res.json({ examId, steps: pipeline, totalSteps: pipeline.length });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/apk/biometric-result", async (req, res) => {
+      try {
+        const { candidateId, examId, pluginCode, score, template, deviceId, operatorId, capturedAt } = req.body;
+        const [record] = await db.insert(candidateBiometrics).values({
+          candidateId, examId, pluginCode,
+          matchPercent: score || 0, templateData: template || null,
+          verified: (score || 0) >= 70, deviceId: deviceId || null,
+          operatorId: operatorId || null, capturedAt: capturedAt || new Date().toISOString(),
+        }).returning();
+        res.json({ success: true, record });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.post("/api/apk/biometric-result/sync", async (req, res) => {
+      try {
+        const results = req.body;
+        if (!Array.isArray(results)) return res.status(400).json({ message: "Array of results required" });
+        let synced = 0;
+        for (const r of results) {
+          try {
+            await db.insert(candidateBiometrics).values({
+              candidateId: r.candidateId, examId: r.examId, pluginCode: r.pluginCode,
+              matchPercent: r.score || 0, templateData: r.template || null,
+              verified: (r.score || 0) >= 70, deviceId: r.deviceId || null,
+              operatorId: r.operatorId || null, capturedAt: r.capturedAt || new Date().toISOString(),
+            });
+            synced++;
+          } catch (_) {}
+        }
+        res.json({ success: true, synced, total: results.length });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 

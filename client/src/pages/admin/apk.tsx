@@ -804,7 +804,7 @@ export default function GenerateAPK() {
                     <div className="p-2 bg-purple-50 rounded-lg"><Key className="w-5 h-5 text-purple-600" /></div>
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">SDK Files</h3>
-                      <p className="text-sm text-gray-500 mt-0.5">Upload MFS100.jar, libMFS100.so, facenet.tflite for APK builds</p>
+                      <p className="text-sm text-gray-500 mt-0.5">Upload SDK files for APK builds — or use per-plugin SDK upload in Biometric Plugins page</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

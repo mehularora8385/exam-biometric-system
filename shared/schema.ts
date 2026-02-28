@@ -253,11 +253,62 @@ export const globalTechSettings = pgTable("global_tech_settings", {
     publishedAt: text("published_at"),
   });
 
+export const biometricPlugins = pgTable("biometric_plugins", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  category: text("category").notNull(),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  sdkPackage: text("sdk_package"),
+  sdkVersion: text("sdk_version"),
+  connectionType: text("connection_type").default("USB"),
+  captureType: text("capture_type").notNull(),
+  templateFormat: text("template_format"),
+  minAndroidVersion: text("min_android_version").default("8.0"),
+  configJson: jsonb("config_json"),
+  status: text("status").notNull().default("Active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const examBiometricConfig = pgTable("exam_biometric_config", {
+  id: serial("id").primaryKey(),
+  examId: integer("exam_id").notNull(),
+  pluginId: integer("plugin_id").notNull(),
+  stepOrder: integer("step_order").notNull().default(1),
+  required: boolean("required").default(true),
+  threshold: integer("threshold").default(70),
+  retryLimit: integer("retry_limit").default(3),
+  captureTimeout: integer("capture_timeout").default(30),
+  qualityCheck: boolean("quality_check").default(true),
+  templateField: text("template_field"),
+  status: text("status").notNull().default("Active"),
+});
+
+export const candidateBiometrics = pgTable("candidate_biometrics", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").notNull(),
+  examId: integer("exam_id"),
+  pluginCode: text("plugin_code").notNull(),
+  templateData: text("template_data"),
+  capturedData: text("captured_data"),
+  matchPercent: real("match_percent"),
+  verified: boolean("verified").default(false),
+  capturedAt: text("captured_at"),
+  deviceId: text("device_id"),
+  operatorId: integer("operator_id"),
+  metadata: jsonb("metadata"),
+});
+
   export const insertDeviceWhitelistSchema = createInsertSchema(deviceWhitelist).omit({ id: true });
   export const insertDeviceSyncLogSchema = createInsertSchema(deviceSyncLogs).omit({ id: true });
   export const insertCrashLogSchema = createInsertSchema(crashLogs).omit({ id: true });
   export const insertCentreLoginLockSchema = createInsertSchema(centreLoginLocks).omit({ id: true });
   export const insertAppVersionSchema = createInsertSchema(appVersions).omit({ id: true });
+
+  export const insertBiometricPluginSchema = createInsertSchema(biometricPlugins).omit({ id: true, createdAt: true });
+  export const insertExamBiometricConfigSchema = createInsertSchema(examBiometricConfig).omit({ id: true });
+  export const insertCandidateBiometricSchema = createInsertSchema(candidateBiometrics).omit({ id: true });
 
   export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertExamSchema = createInsertSchema(exams).omit({ id: true, createdAt: true });
@@ -312,4 +363,9 @@ export type GlobalTechSettings = typeof globalTechSettings.$inferSelect;
   export type CentreLoginLock = typeof centreLoginLocks.$inferSelect;
   export type InsertAppVersion = z.infer<typeof insertAppVersionSchema>;
   export type AppVersion = typeof appVersions.$inferSelect;
-  
+  export type InsertBiometricPlugin = z.infer<typeof insertBiometricPluginSchema>;
+  export type BiometricPlugin = typeof biometricPlugins.$inferSelect;
+  export type InsertExamBiometricConfig = z.infer<typeof insertExamBiometricConfigSchema>;
+  export type ExamBiometricConfig = typeof examBiometricConfig.$inferSelect;
+  export type InsertCandidateBiometric = z.infer<typeof insertCandidateBiometricSchema>;
+  export type CandidateBiometric = typeof candidateBiometrics.$inferSelect;

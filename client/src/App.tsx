@@ -18,6 +18,7 @@ import ClientDashboard from "@/pages/client-dashboard";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 import ApkTester from "@/pages/apk-tester";
+import BiometricPlugins from "@/pages/admin/biometric-plugins";
 
 // Protected Route Wrapper
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -93,6 +94,12 @@ function Router() {
       <Route path="/apk-tester">
         <Layout>
           <ProtectedRoute component={ApkTester} />
+        </Layout>
+      </Route>
+
+      <Route path="/biometric-plugins">
+        <Layout>
+          <ProtectedRoute component={BiometricPlugins} />
         </Layout>
       </Route>
 
