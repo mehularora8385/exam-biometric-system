@@ -186,7 +186,7 @@ function generateConfigJson(config: BuildConfig): string {
   return JSON.stringify({
     exam: { id: config.examId, name: config.examName, code: config.examCode || `EXAM${config.examId}`, centres: config.centres || [] },
     server: {
-      baseUrl: config.serverUrl,
+      baseUrl: config.serverUrl.startsWith('http://') ? config.serverUrl.replace('http://', 'https://') : config.serverUrl,
       endpoints: config.apiEndpoints,
       syncIntervalMs: (config.autoSyncMinutes || 5) * 60000,
       heartbeatIntervalMs: 30000,
@@ -483,7 +483,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       @POST("api/apk/verification/heartbeat") suspend fun sendHeartbeatV2(@Body request: HeartbeatRequest): Response<HeartbeatResponse>
       @GET("api/apk/centres/{examId}") suspend fun getCentres(@Path("examId") examId: Int): Response<List<CentreItem>>\n}`);
 
-  fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let { if (it.endsWith("/")) it else "${"$"}it/" } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getBaseUrl(): String = baseUrl
+  fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl.replace('http://', 'https://')}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let {\n                var u = if (it.endsWith("/")) it else "${"$"}it/"\n                if (u.startsWith("http://")) u = u.replace("http://", "https://")\n                u\n            } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getBaseUrl(): String = baseUrl
     fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            val gson = com.google.gson.GsonBuilder().setLenient().create(); retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create(gson)).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
 
   fs.mkdirSync(path.join(srcDir, "db"), { recursive: true });
@@ -591,7 +591,8 @@ class RegistrationActivity : AppCompatActivity() {
     }
 
     private fun doRegister(name: String, phone: String, aadhaar: String, selfie: String, deviceId: String): String {
-        val baseUrl = RetrofitClient.getBaseUrl()
+        var baseUrl = RetrofitClient.getBaseUrl()
+        if (baseUrl.startsWith("http://")) { baseUrl = baseUrl.replace("http://", "https://") }
         val url = "${"$"}{baseUrl}api/apk/operator/register"
         Log.d(TAG, "Registering to: ${"$"}url")
         val json = JSONObject()
@@ -600,19 +601,29 @@ class RegistrationActivity : AppCompatActivity() {
         json.put("aadhaar", aadhaar)
         json.put("selfie", selfie)
         json.put("deviceId", deviceId)
-        val body = json.toString().toRequestBody("application/json".toMediaType())
-        Log.d(TAG, "Request body size: ${"$"}{json.toString().length} bytes")
+        val bodyStr = json.toString()
+        val body = bodyStr.toRequestBody("application/json".toMediaType())
+        Log.d(TAG, "Request body size: ${"$"}{bodyStr.length} bytes")
         val client = OkHttpClient.Builder()
             .connectTimeout(90, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(90, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
             .build()
         val request = Request.Builder().url(url).post(body).addHeader("Content-Type", "application/json").addHeader("Accept", "application/json").build()
-        val response = client.newCall(request).execute()
+        var response = client.newCall(request).execute()
+        if (response.code in 301..308) {
+            val redirectUrl = response.header("Location") ?: url
+            Log.d(TAG, "Redirected (${"$"}{response.code}) to: ${"$"}redirectUrl")
+            val newBody = bodyStr.toRequestBody("application/json".toMediaType())
+            val newRequest = Request.Builder().url(redirectUrl).post(newBody).addHeader("Content-Type", "application/json").addHeader("Accept", "application/json").build()
+            response = client.newCall(newRequest).execute()
+        }
         val responseBody = response.body?.string() ?: "{}"
         Log.d(TAG, "Response code: ${"$"}{response.code}, body: ${"$"}{responseBody.take(500)}")
         if (responseBody.trimStart().startsWith("<!DOCTYPE") || responseBody.trimStart().startsWith("<html")) {
-            throw Exception("Server returned HTML instead of JSON. The API endpoint may not be available. Check server URL: ${"$"}url")
+            throw Exception("Server returned HTML instead of JSON. Check server URL: ${"$"}url (code: ${"$"}{response.code})")
         }
         if (!response.isSuccessful) {
             throw Exception("Server error ${"$"}{response.code}: ${"$"}{responseBody.take(200)}")
