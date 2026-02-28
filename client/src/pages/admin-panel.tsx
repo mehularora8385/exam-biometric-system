@@ -19,6 +19,7 @@ import GenerateAPK from "@/pages/admin/apk";
 import AICommandCenter from "@/pages/admin/ai-command-center";
 import FraudAnalytics from "@/pages/admin/fraud-analytics";
 import BiometricIntegrity from "@/pages/admin/biometric-integrity";
+import BiometricPlugins from "@/pages/admin/biometric-plugins";
 import GlobalSurveillance from "@/pages/admin/global-surveillance";
 import ApiDocs from "@/pages/admin/api-docs";
 import HqTester from "@/pages/admin/hq-tester";
@@ -40,6 +41,7 @@ export default function AdminPanel() {
       case "center-operator-map": return <CenterOperatorMap />;
       case "upload-candidate": return <UploadCandidate />;
       case "apk": return <GenerateAPK />;
+      case "biometric-plugins": return <BiometricPlugins />;
       case "reports": return <Reports />;
       case "ai-command": return <AICommandCenter />;
       case "fraud-analytics": return <FraudAnalytics />;
