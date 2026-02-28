@@ -462,6 +462,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
     data class CentreSelectRequest(val operatorId: Int, val examId: Int, val centreCode: String)
     data class CentreSelectResponse(val success: Boolean, val centreName: String?, val candidateCount: Int?, val candidates: List<Candidate>?, val message: String?)
     data class SessionCheckRequest(val operatorId: Int)
+    data class AvailableExam(val id: Int, val name: String, val code: String?, val status: String?, val type: String?)
     data class SessionCheckResponse(val success: Boolean, val sessionActive: Boolean = true, val forceLogout: Boolean = false, val message: String? = null)
     data class HeartbeatResponse(val success: Boolean, val forceLogout: Boolean, val message: String?)
     data class CentreItem(val id: Int, val code: String, val name: String)\n`);
@@ -484,7 +485,8 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       @POST("api/apk/operator/select-centre") suspend fun selectCentre(@Body request: CentreSelectRequest): Response<CentreSelectResponse>
       @POST("api/apk/operator/check-session") suspend fun checkSession(@Body request: SessionCheckRequest): Response<SessionCheckResponse>
       @POST("api/apk/verification/heartbeat") suspend fun sendHeartbeatV2(@Body request: HeartbeatRequest): Response<HeartbeatResponse>
-      @GET("api/apk/centres/{examId}") suspend fun getCentres(@Path("examId") examId: Int): Response<List<CentreItem>>\n}`);
+      @GET("api/apk/centres/{examId}") suspend fun getCentres(@Path("examId") examId: Int): Response<List<CentreItem>>
+      @GET("api/apk/available-exams") suspend fun getAvailableExams(@Query("examId") examId: Int): Response<List<AvailableExam>>\n}`);
 
   fs.writeFileSync(path.join(srcDir, "network", "RetrofitClient.kt"), `package ${pkgName}.network\nimport android.content.Context\nimport com.google.gson.Gson\nimport okhttp3.OkHttpClient\nimport okhttp3.logging.HttpLoggingInterceptor\nimport retrofit2.Retrofit\nimport retrofit2.converter.gson.GsonConverterFactory\nimport java.util.concurrent.TimeUnit\n\nobject RetrofitClient {\n    private var retrofit: Retrofit? = null\n    private var baseUrl: String = "${config.serverUrl.replace('http://', 'https://')}/"\n    fun init(context: Context) {\n        try {\n            val cfg = context.assets.open("config.json").bufferedReader().use { it.readText() }\n            val parsed = Gson().fromJson(cfg, Map::class.java)\n            val server = parsed["server"] as? Map<*, *>\n            baseUrl = (server?.get("baseUrl") as? String)?.let {\n                var u = if (it.endsWith("/")) it else "${"$"}it/"\n                if (u.startsWith("http://")) u = u.replace("http://", "https://")\n                u\n            } ?: baseUrl\n        } catch (_: Exception) {}\n    }\n    fun getBaseUrl(): String = baseUrl
     fun getApi(): ApiService {\n        if (retrofit == null) {\n            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }\n            val client = OkHttpClient.Builder().addInterceptor(logging).connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()\n            val gson = com.google.gson.GsonBuilder().setLenient().create(); retrofit = Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create(gson)).build()\n        }\n        return retrofit!!.create(ApiService::class.java)\n    }\n}`);
@@ -654,17 +656,24 @@ class RegistrationActivity : AppCompatActivity() {
     override fun onBackPressed() { }
 }`)
 
-  // ExamSelectActivity - shows linked exams, hides completed ones, navigates to CentreSelect
+  // ExamSelectActivity - fetches linked exams from server (live), falls back to config.json if offline
   fs.writeFileSync(path.join(srcDir, "ui", "ExamSelectActivity.kt"), `package ${pkgName}.ui
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import ${pkgName}.databinding.ActivityExamSelectBinding
+import ${pkgName}.network.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -672,6 +681,7 @@ class ExamSelectActivity : AppCompatActivity() {
     private lateinit var binding: ActivityExamSelectBinding
     private val examList = mutableListOf<JSONObject>()
     private var selectedIndex = -1
+    private var primaryExamId = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -681,7 +691,13 @@ class ExamSelectActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
         binding.tvOperatorGreeting.text = "Welcome, ${"$"}{prefs.getString("operator_name", "Operator")}"
 
-        loadExams()
+        try {
+            val cfg = assets.open("config.json").bufferedReader().readText()
+            val config = JSONObject(cfg)
+            primaryExamId = config.optJSONObject("exam")?.optInt("id", 0) ?: 0
+        } catch (_: Exception) {}
+
+        loadExamsFromServer()
 
         binding.btnSelectExam.setOnClickListener {
             if (selectedIndex < 0 || selectedIndex >= examList.size) {
@@ -700,10 +716,6 @@ class ExamSelectActivity : AppCompatActivity() {
                 .putString("exam_code", examCode)
                 .apply()
 
-            // Add to completed exams list
-            val completed = prefs.getString("completed_exams", "") ?: ""
-            // Don't add yet - will be added after exam work is done
-
             val intent = Intent(this, CentreSelectActivity::class.java)
             intent.putExtra("examId", examId)
             intent.putExtra("examName", examName)
@@ -712,65 +724,99 @@ class ExamSelectActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadExams() {
+    private fun loadExamsFromServer() {
+        if (primaryExamId == 0) { loadExamsFromConfig(); return }
+        binding.btnSelectExam.isEnabled = false
+        binding.btnSelectExam.text = "Loading exams..."
+        lifecycleScope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) {
+                    RetrofitClient.getApi().getAvailableExams(primaryExamId)
+                }
+                if (resp.isSuccessful && resp.body() != null && resp.body()!!.isNotEmpty()) {
+                    val serverExams = resp.body()!!
+                    Log.d("ExamSelect", "Fetched ${"$"}{serverExams.size} exams from server")
+                    examList.clear()
+                    val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+                    val completedStr = prefs.getString("completed_exams", "") ?: ""
+                    val completedIds = if (completedStr.isEmpty()) emptySet() else completedStr.split(",").map { it.trim().toIntOrNull() }.filterNotNull().toSet()
+                    for (exam in serverExams) {
+                        if (!completedIds.contains(exam.id)) {
+                            val j = JSONObject()
+                            j.put("id", exam.id)
+                            j.put("name", exam.name)
+                            j.put("code", exam.code ?: "")
+                            examList.add(j)
+                        }
+                    }
+                    displayExams()
+                } else {
+                    Log.d("ExamSelect", "Server returned empty, falling back to config.json")
+                    loadExamsFromConfig()
+                }
+            } catch (e: Exception) {
+                Log.e("ExamSelect", "Server fetch failed, using config.json: ${"$"}{e.message}")
+                loadExamsFromConfig()
+            }
+            binding.btnSelectExam.isEnabled = true
+            binding.btnSelectExam.text = "Select Exam & Continue"
+        }
+    }
+
+    private fun loadExamsFromConfig() {
         try {
             val configStr = assets.open("config.json").bufferedReader().readText()
             val config = JSONObject(configStr)
             val linkedExams = config.optJSONArray("linkedExams") ?: JSONArray()
-
-            // Get completed exams to hide them
             val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
             val completedStr = prefs.getString("completed_exams", "") ?: ""
             val completedIds = if (completedStr.isEmpty()) emptySet() else completedStr.split(",").map { it.trim().toIntOrNull() }.filterNotNull().toSet()
-
             examList.clear()
             for (i in 0 until linkedExams.length()) {
                 val exam = linkedExams.getJSONObject(i)
-                val examId = exam.getInt("id")
-                if (!completedIds.contains(examId)) {
+                if (!completedIds.contains(exam.getInt("id"))) {
                     examList.add(exam)
                 }
-            }
-
-            if (examList.isEmpty()) {
-                binding.tvNoExams.visibility = View.VISIBLE
-                binding.lvExams.visibility = View.GONE
-                binding.btnSelectExam.isEnabled = false
-                binding.tvNoExams.text = "All exams have been completed. Please contact HQ."
-                return
-            }
-
-            if (examList.size == 1) {
-                // Auto-select if only one exam available
-                selectedIndex = 0
-            }
-
-            binding.lvExams.adapter = object : BaseAdapter() {
-                override fun getCount() = examList.size
-                override fun getItem(pos: Int) = examList[pos]
-                override fun getItemId(pos: Int) = pos.toLong()
-                override fun getView(pos: Int, convertView: View?, parent: ViewGroup?): View {
-                    val v = convertView ?: layoutInflater.inflate(android.R.layout.simple_list_item_activated_1, parent, false)
-                    val tv = v.findViewById<TextView>(android.R.id.text1)
-                    val exam = examList[pos]
-                    tv.text = "${"$"}{exam.optString("code", "")} - ${"$"}{exam.getString("name")}"
-                    tv.textSize = 16f
-                    tv.setPadding(32, 24, 32, 24)
-                    return v
-                }
-            }
-            binding.lvExams.choiceMode = android.widget.ListView.CHOICE_MODE_SINGLE
-            binding.lvExams.setOnItemClickListener { _, _, pos, _ ->
-                selectedIndex = pos
-                binding.lvExams.setItemChecked(pos, true)
-            }
-
-            if (examList.size == 1) {
-                binding.lvExams.setItemChecked(0, true)
             }
         } catch (e: Exception) {
             Toast.makeText(this, "Error loading exams: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
         }
+        displayExams()
+        binding.btnSelectExam.isEnabled = true
+        binding.btnSelectExam.text = "Select Exam & Continue"
+    }
+
+    private fun displayExams() {
+        if (examList.isEmpty()) {
+            binding.tvNoExams.visibility = View.VISIBLE
+            binding.lvExams.visibility = View.GONE
+            binding.btnSelectExam.isEnabled = false
+            binding.tvNoExams.text = "All exams have been completed. Please contact HQ."
+            return
+        }
+        binding.tvNoExams.visibility = View.GONE
+        binding.lvExams.visibility = View.VISIBLE
+        if (examList.size == 1) selectedIndex = 0
+        binding.lvExams.adapter = object : BaseAdapter() {
+            override fun getCount() = examList.size
+            override fun getItem(pos: Int) = examList[pos]
+            override fun getItemId(pos: Int) = pos.toLong()
+            override fun getView(pos: Int, convertView: View?, parent: ViewGroup?): View {
+                val v = convertView ?: layoutInflater.inflate(android.R.layout.simple_list_item_activated_1, parent, false)
+                val tv = v.findViewById<TextView>(android.R.id.text1)
+                val exam = examList[pos]
+                tv.text = "${"$"}{exam.optString("code", "")} - ${"$"}{exam.getString("name")}"
+                tv.textSize = 16f
+                tv.setPadding(32, 24, 32, 24)
+                return v
+            }
+        }
+        binding.lvExams.choiceMode = android.widget.ListView.CHOICE_MODE_SINGLE
+        binding.lvExams.setOnItemClickListener { _, _, pos, _ ->
+            selectedIndex = pos
+            binding.lvExams.setItemChecked(pos, true)
+        }
+        if (examList.size == 1) binding.lvExams.setItemChecked(0, true)
     }
 
     override fun onBackPressed() { }
