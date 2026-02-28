@@ -30,6 +30,7 @@ export const exams = pgTable("exams", {
   irisEnabled: boolean("iris_enabled").default(false),
   retryLimit: integer("retry_limit").default(3),
   clientLogo: text("client_logo"),
+  examType: text("exam_type").default("real"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -369,3 +370,4 @@ export type GlobalTechSettings = typeof globalTechSettings.$inferSelect;
   export type ExamBiometricConfig = typeof examBiometricConfig.$inferSelect;
   export type InsertCandidateBiometric = z.infer<typeof insertCandidateBiometricSchema>;
   export type CandidateBiometric = typeof candidateBiometrics.$inferSelect;
+  

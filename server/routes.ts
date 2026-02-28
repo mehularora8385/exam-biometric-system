@@ -2,7 +2,7 @@ import type { Express } from "express";
 import * as path from "path";
 import * as fs from "fs";
 import { buildApk, generateApkConfig, type BuildConfig , SDK_DIR } from "./apk-builder";
-import { type Server } from "http";
+import { type Server, createServer } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { eq, desc, sql as rawSql } from "drizzle-orm";
@@ -55,9 +55,9 @@ const photoUpload = multer({
 });
 
 export async function registerRoutes(
-  httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const httpServer = createServer(app);
   const uploadDirs = ["uploads/temp", "uploads/logos", "uploads/photos"];
   for (const dir of uploadDirs) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -81,6 +81,7 @@ export async function registerRoutes(
       "ALTER TABLE exams ADD COLUMN IF NOT EXISTS client_logo TEXT",
       "ALTER TABLE exams ADD COLUMN IF NOT EXISTS candidates_count INTEGER DEFAULT 0",
       "ALTER TABLE exams ADD COLUMN IF NOT EXISTS verified_count INTEGER DEFAULT 0",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS exam_type TEXT DEFAULT 'real'",
       "UPDATE exams SET code = 'EXAM' || id WHERE code IS NULL",
       "UPDATE exams SET client = '' WHERE client IS NULL",
       "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS linked_exam_ids TEXT",
@@ -735,7 +736,7 @@ export async function registerRoutes(
       const primaryExam = await storage.getExam(primaryExamId);
       const result: any[] = [];
       if (primaryExam) {
-        result.push({ id: primaryExam.id, name: primaryExam.name, code: primaryExam.code, status: primaryExam.status, type: "primary" });
+        result.push({ id: primaryExam.id, name: primaryExam.name, code: primaryExam.code, status: primaryExam.status, type: "primary", examType: (primaryExam as any).examType || "real" });
       }
       
       const allBuilds = await storage.listApkBuilds(primaryExamId);
@@ -745,7 +746,7 @@ export async function registerRoutes(
         for (const lid of linkedIds) {
           const exam = await storage.getExam(lid);
           if (exam) {
-            result.push({ id: exam.id, name: exam.name, code: exam.code, status: exam.status, type: "linked" });
+            result.push({ id: exam.id, name: exam.name, code: exam.code, status: exam.status, type: "linked", examType: (exam as any).examType || "real" });
           }
         }
       }

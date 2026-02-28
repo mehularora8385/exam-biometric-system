@@ -540,7 +540,7 @@ class CrashActivity : AppCompatActivity() {
     data class CentreSelectRequest(val operatorId: Int, val examId: Int, val centreCode: String, val password: String? = null)
     data class CentreSelectResponse(val success: Boolean, val centreName: String?, val candidateCount: Int?, val candidates: List<Candidate>?, val message: String?)
     data class SessionCheckRequest(val operatorId: Int)
-    data class AvailableExam(val id: Int, val name: String, val code: String?, val status: String?, val type: String?)
+    data class AvailableExam(val id: Int, val name: String, val code: String?, val status: String?, val type: String?, val examType: String?)
     data class SessionCheckResponse(val success: Boolean, val sessionActive: Boolean = true, val forceLogout: Boolean = false, val message: String? = null)
     data class HeartbeatResponse(val success: Boolean, val forceLogout: Boolean, val message: String?)
     data class CentreItem(val id: Int, val code: String, val name: String)\n`);
@@ -824,6 +824,8 @@ class ExamSelectActivity : AppCompatActivity() {
                             j.put("id", exam.id)
                             j.put("name", exam.name)
                             j.put("code", exam.code ?: "")
+                            j.put("type", exam.type ?: "")
+                            j.put("examType", exam.examType ?: "real")
                             examList.add(j)
                         }
                     }
@@ -883,9 +885,12 @@ class ExamSelectActivity : AppCompatActivity() {
                 val v = convertView ?: layoutInflater.inflate(android.R.layout.simple_list_item_activated_1, parent, false)
                 val tv = v.findViewById<TextView>(android.R.id.text1)
                 val exam = examList[pos]
-                tv.text = "${"$"}{exam.optString("code", "")} - ${"$"}{exam.getString("name")}"
+                val examTypeStr = exam.optString("examType", "real").uppercase()
+                val typeTag = if (examTypeStr == "MOCK") " [MOCK]" else ""
+                tv.text = "${"$"}{exam.optString("code", "")} - ${"$"}{exam.getString("name")}${"$"}{typeTag}"
                 tv.textSize = 16f
                 tv.setPadding(32, 24, 32, 24)
+                if (examTypeStr == "MOCK") tv.setTextColor(0xFFFF9800.toInt()) else tv.setTextColor(0xFF333333.toInt())
                 return v
             }
         }
@@ -1437,16 +1442,23 @@ class VerificationActivity : AppCompatActivity() {
     }
 }`);
 
-    // SyncActivity - shows pending counts, sync progress, zero when complete
+    // SyncActivity - pending counts, candidate list with present/verified status, sync progress
     fs.writeFileSync(path.join(srcDir, "ui", "SyncActivity.kt"), `package ${pkgName}.ui
+import android.graphics.Color
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import ${pkgName}.MpaApplication
 import ${pkgName}.databinding.ActivitySyncBinding
+import ${pkgName}.databinding.ItemSyncCandidateBinding
 import ${pkgName}.db.AppDatabase
 import ${pkgName}.model.AttendanceRequest
+import ${pkgName}.model.Candidate
 import ${pkgName}.model.VerificationRequest
 import ${pkgName}.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
@@ -1454,10 +1466,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 class SyncActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySyncBinding
+    private var examId = 0
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySyncBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        examId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("exam_id", 0)
+        binding.rvCandidates.layoutManager = LinearLayoutManager(this)
         refreshStatus()
         binding.btnSync.setOnClickListener { performSync() }
     }
@@ -1521,9 +1536,31 @@ class SyncActivity : AppCompatActivity() {
                 binding.tvSyncStatus.setTextColor(0xFFFF9800.toInt())
                 binding.tvPendingCount.setTextColor(0xFFFF5722.toInt())
             }
+            val candidates = withContext(Dispatchers.IO) { db.candidateDao().getByExam(examId) }
+            val present = candidates.count { it.attendanceStatus == "present" }
+            val verified = candidates.count { it.verificationStatus == "verified" }
+            binding.tvSummary.text = "Total: ${"$"}{candidates.size} | Present: ${"$"}present | Verified: ${"$"}verified"
+            binding.rvCandidates.adapter = SyncCandidateAdapter(candidates)
         }
     }
     override fun onResume() { super.onResume(); refreshStatus() }
+}
+class SyncCandidateAdapter(private val items: List<Candidate>) : RecyclerView.Adapter<SyncCandidateAdapter.VH>() {
+    inner class VH(val b: ItemSyncCandidateBinding) : RecyclerView.ViewHolder(b.root)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(ItemSyncCandidateBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    override fun getItemCount() = items.size
+    override fun onBindViewHolder(h: VH, pos: Int) {
+        val c = items[pos]
+        h.b.tvName.text = c.name
+        h.b.tvRollNo.text = c.rollNo
+        if (c.attendanceStatus == "present") { h.b.tvPresent.text = "Present: Yes"; h.b.tvPresent.setTextColor(0xFF4CAF50.toInt()) }
+        else { h.b.tvPresent.text = "Present: No"; h.b.tvPresent.setTextColor(0xFFFF5722.toInt()) }
+        if (c.verificationStatus == "verified") { h.b.tvVerified.text = "Verified: Yes"; h.b.tvVerified.setTextColor(0xFF4CAF50.toInt()) }
+        else { h.b.tvVerified.text = "Verified: No"; h.b.tvVerified.setTextColor(0xFFFF5722.toInt()) }
+        val synced = c.synced
+        h.b.tvSyncStatus.text = if (synced) "Synced" else "Pending"
+        h.b.tvSyncStatus.setTextColor(if (synced) 0xFF4CAF50.toInt() else 0xFFFF9800.toInt())
+    }
 }`);
 
   fs.mkdirSync(path.join(srcDir, "service"), { recursive: true });
@@ -3012,17 +3049,34 @@ function writeLayoutFiles(resDir: string) {
 </LinearLayout>
 </ScrollView>`);
     fs.writeFileSync(path.join(ld, "activity_sync.xml"), `<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Offline Sync" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="24dp" android:gravity="center" android:layout_marginBottom="16dp">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Offline Sync" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="12dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="16dp" android:gravity="center" android:layout_marginBottom="8dp">
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pending Records" android:textSize="14sp" android:textColor="#666" />
-        <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="48sp" android:textStyle="bold" android:textColor="@color/warning" android:layout_marginTop="4dp" android:layout_marginBottom="4dp" />
+        <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="40sp" android:textStyle="bold" android:textColor="@color/warning" />
         <TextView android:id="@+id/tvPendingBreakdown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#888" />
     </LinearLayout>
-    <TextView android:id="@+id/tvSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="8dp" android:gravity="center" />
-    <TextView android:id="@+id/tvSyncProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="24dp" android:gravity="center" />
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="56dp" android:text="Sync Now" />
+    <TextView android:id="@+id/tvSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="4dp" android:gravity="center" />
+    <TextView android:id="@+id/tvSyncProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="8dp" android:gravity="center" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="48dp" android:text="Sync Now" android:layout_marginBottom="8dp" />
+    <TextView android:id="@+id/tvSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#333" android:layout_marginBottom="8dp" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rvCandidates" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
 </LinearLayout>`);
+
+    fs.writeFileSync(path.join(ld, "item_sync_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="6dp" app:cardElevation="1dp" app:cardCornerRadius="8dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="12dp" android:orientation="horizontal">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#666" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="end">
+        <TextView android:id="@+id/tvPresent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tvVerified" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tvSyncStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>
+</com.google.android.material.card.MaterialCardView>`);
 
   fs.writeFileSync(path.join(ld, "activity_verification.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent">
