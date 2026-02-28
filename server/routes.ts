@@ -55,9 +55,9 @@ const photoUpload = multer({
 });
 
 export async function registerRoutes(
+  httpServer: Server,
   app: Express
 ): Promise<Server> {
-  const httpServer = createServer(app);
   const uploadDirs = ["uploads/temp", "uploads/logos", "uploads/photos"];
   for (const dir of uploadDirs) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
