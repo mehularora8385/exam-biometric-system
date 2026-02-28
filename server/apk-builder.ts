@@ -1083,6 +1083,7 @@ class CentreSelectActivity : AppCompatActivity() {
               }
           }
           binding.btnOfflineSync.setOnClickListener { startActivity(Intent(this, SyncActivity::class.java)) }
+          binding.tvPendingSync.visibility = android.view.View.GONE
           binding.btnFinishExam.setOnClickListener {
               AlertDialog.Builder(this)
                   .setTitle("Finish Exam")
@@ -1154,9 +1155,12 @@ class CentreSelectActivity : AppCompatActivity() {
               } catch (_: Exception) {}
           }
       }
+      private var isDownloading = false
       private fun downloadCandidates() {
-          binding.btnSyncData.isEnabled = false
-          binding.btnSyncData.text = "Downloading..."
+          if (isDownloading) return
+          isDownloading = true
+          binding.btnSyncData.alpha = 0.5f
+          Toast.makeText(this, "Downloading candidates...", Toast.LENGTH_SHORT).show()
           lifecycleScope.launch {
               try {
                   val r = RetrofitClient.getApi().getCandidates(examId, if (centreCode.isNotEmpty()) centreCode else null)
@@ -1174,8 +1178,8 @@ class CentreSelectActivity : AppCompatActivity() {
               } catch (e: Exception) {
                   Toast.makeText(this@DashboardActivity, "Network error - working offline with local data", Toast.LENGTH_LONG).show()
               }
-              binding.btnSyncData.isEnabled = true
-              binding.btnSyncData.text = "Download Data"
+              isDownloading = false
+              binding.btnSyncData.alpha = 1.0f
           }
       }
       override fun onResume() { super.onResume(); updateStats(); checkForceLogout() }
@@ -1195,7 +1199,12 @@ class CentreSelectActivity : AppCompatActivity() {
                   val pendingAttCount = db.pendingAttendanceDao().getUnuploaded().size
                   val pendingCount = pendingVerifCount + pendingAttCount
                   val queueCount = (application as MpaApplication).syncManager.getQueueSize()
-                  binding.tvPendingSync.text = if (pendingCount + queueCount > 0) "${"$"}{pendingCount + queueCount} pending sync" else "All synced"
+                  if (pendingCount + queueCount > 0) {
+                      binding.tvPendingSync.visibility = android.view.View.VISIBLE
+                      binding.tvPendingSync.text = "${"$"}{pendingCount + queueCount} records pending sync"
+                  } else {
+                      binding.tvPendingSync.visibility = android.view.View.GONE
+                  }
                   val lastDownload = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getLong("last_download_time", 0)
                   if (lastDownload > 0) {
                       val ago = (System.currentTimeMillis() - lastDownload) / 60000
@@ -3006,131 +3015,306 @@ function writeLayoutFiles(resDir: string) {
   fs.mkdirSync(ld, { recursive: true });
   fs.mkdirSync(path.join(resDir, "drawable"), { recursive: true });
 
-  fs.writeFileSync(path.join(ld, "activity_splash.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical" android:background="@color/primary">\n    <ImageView android:layout_width="120dp" android:layout_height="120dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" />\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MPA Verify" android:textColor="@color/white" android:textSize="28sp" android:textStyle="bold" android:layout_marginTop="24dp" />\n    <ProgressBar android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="32dp" android:indeterminateTint="@color/white" />\n</LinearLayout>`);
+  fs.writeFileSync(path.join(ld, "activity_splash.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical" android:background="@drawable/splash_bg">
+    <LinearLayout android:layout_width="88dp" android:layout_height="88dp" android:gravity="center" android:background="@drawable/splash_icon_bg">
+        <ImageView android:layout_width="52dp" android:layout_height="52dp" android:src="@drawable/ic_biometric" android:contentDescription="logo" />
+    </LinearLayout>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MPA VERIFY" android:textColor="#FFFFFF" android:textSize="24sp" android:textStyle="bold" android:letterSpacing="0.12" android:layout_marginTop="20dp" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Biometric Exam System" android:textColor="#80FFFFFF" android:textSize="13sp" android:layout_marginTop="4dp" />
+    <ProgressBar android:layout_width="32dp" android:layout_height="32dp" android:layout_marginTop="36dp" android:indeterminateTint="#80FFFFFF" style="?android:attr/progressBarStyle" />
+</LinearLayout>`);
 
-  fs.writeFileSync(path.join(ld, "activity_registration.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">\n<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:orientation="vertical" android:padding="32dp">\n    <ImageView android:layout_width="80dp" android:layout_height="80dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" />\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Operator Registration" android:textSize="24sp" android:textStyle="bold" android:layout_marginTop="16dp" android:layout_marginBottom="24dp" />\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Full Name" android:inputType="textPersonName" /></com.google.android.material.textfield.TextInputLayout>\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etPhone" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mobile Number" android:inputType="phone" android:maxLength="10" /></com.google.android.material.textfield.TextInputLayout>\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="16dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etAadhaar" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Aadhaar Number (12 digits)" android:inputType="number" android:maxLength="12" /></com.google.android.material.textfield.TextInputLayout>\n    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:layout_marginBottom="16dp" android:padding="16dp" android:background="@drawable/rounded_bg">\n        <ImageView android:id="@+id/ivSelfie" android:layout_width="120dp" android:layout_height="120dp" android:src="@drawable/ic_fingerprint" android:contentDescription="selfie" android:scaleType="centerCrop" />\n        <TextView android:id="@+id/tvSelfieStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="No selfie captured" android:layout_marginTop="8dp" android:textColor="#888" />\n        <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureSelfie" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Capture Selfie" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />\n    </LinearLayout>\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnRegister" android:layout_width="match_parent" android:layout_height="56dp" android:text="Register" android:textSize="16sp" />\n</LinearLayout>\n</ScrollView>`);
+  fs.writeFileSync(path.join(ld, "activity_registration.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/header_gradient" android:gravity="center" android:paddingTop="28dp" android:paddingBottom="24dp">
+        <LinearLayout android:layout_width="60dp" android:layout_height="60dp" android:gravity="center" android:background="@drawable/splash_icon_bg">
+            <ImageView android:layout_width="32dp" android:layout_height="32dp" android:src="@drawable/ic_biometric" android:contentDescription="logo" />
+        </LinearLayout>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OPERATOR REGISTRATION" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" android:layout_marginTop="10dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MPA Biometric System" android:textSize="16sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="2dp" />
+    </LinearLayout>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="10dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" app:boxCornerRadiusTopStart="12dp" app:boxCornerRadiusTopEnd="12dp" app:boxCornerRadiusBottomStart="12dp" app:boxCornerRadiusBottomEnd="12dp"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Full Name" android:inputType="textPersonName" /></com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="10dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" app:boxCornerRadiusTopStart="12dp" app:boxCornerRadiusTopEnd="12dp" app:boxCornerRadiusBottomStart="12dp" app:boxCornerRadiusBottomEnd="12dp"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etPhone" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mobile Number" android:inputType="phone" android:maxLength="10" /></com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="14dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" app:boxCornerRadiusTopStart="12dp" app:boxCornerRadiusTopEnd="12dp" app:boxCornerRadiusBottomStart="12dp" app:boxCornerRadiusBottomEnd="12dp"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etAadhaar" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Aadhaar Number (12 digits)" android:inputType="number" android:maxLength="12" /></com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content" app:cardCornerRadius="16dp" app:cardElevation="2dp" app:strokeWidth="0dp" android:layout_marginBottom="16dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:padding="18dp">
+                <ImageView android:id="@+id/ivSelfie" android:layout_width="100dp" android:layout_height="100dp" android:src="@drawable/ic_biometric" android:contentDescription="selfie" android:scaleType="centerCrop" android:background="@drawable/stat_card_blue" />
+                <TextView android:id="@+id/tvSelfieStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="No selfie captured" android:layout_marginTop="8dp" android:textColor="#78909C" android:textSize="12sp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureSelfie" android:layout_width="wrap_content" android:layout_height="40dp" android:text="Capture Selfie" android:textSize="12sp" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="10dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnRegister" android:layout_width="match_parent" android:layout_height="52dp" android:text="Register" android:textSize="15sp" app:cornerRadius="14dp" />
+    </LinearLayout>
+    </ScrollView>
+</LinearLayout>`);
 
   fs.writeFileSync(path.join(ld, "activity_exam_select.xml"), `<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="32dp">
-    <ImageView android:layout_width="80dp" android:layout_height="80dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" android:layout_gravity="center" />
-    <TextView android:id="@+id/tvOperatorGreeting" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Welcome" android:textSize="18sp" android:textColor="#666" android:layout_gravity="center" android:layout_marginTop="12dp" />
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Select Exam" android:textSize="24sp" android:textStyle="bold" android:layout_gravity="center" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" />
-    <TextView android:id="@+id/tvNoExams" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No exams available" android:textSize="16sp" android:textColor="#999" android:gravity="center" android:visibility="gone" android:layout_marginTop="32dp" />
-    <ListView android:id="@+id/lvExams" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="#E0E0E0" android:dividerHeight="1dp" android:background="@drawable/rounded_bg" android:layout_marginBottom="24dp" />
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnSelectExam" android:layout_width="match_parent" android:layout_height="56dp" android:text="Select Exam &amp; Continue" android:textSize="16sp" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/header_gradient" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="28dp" android:paddingBottom="22dp">
+        <TextView android:id="@+id/tvOperatorGreeting" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Welcome" android:textSize="14sp" android:textColor="#B3FFFFFF" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SELECT EXAMINATION" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" android:layout_marginTop="6dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Choose an exam to begin" android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="2dp" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical" android:padding="16dp">
+        <TextView android:id="@+id/tvNoExams" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No exams available" android:textSize="15sp" android:textColor="#90A4AE" android:gravity="center" android:visibility="gone" android:layout_marginTop="40dp" />
+        <ListView android:id="@+id/lvExams" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:layout_marginBottom="16dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnSelectExam" android:layout_width="match_parent" android:layout_height="52dp" android:text="Select Exam &amp; Continue" android:textSize="14sp" app:cornerRadius="14dp" />
+    </LinearLayout>
 </LinearLayout>`);
 
-  fs.writeFileSync(path.join(ld, "activity_centre_select.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical" android:padding="32dp">\n    <ImageView android:layout_width="80dp" android:layout_height="80dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" />\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Select Centre" android:textSize="24sp" android:textStyle="bold" android:layout_marginTop="16dp" />\n    <TextView android:id="@+id/tvExamName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Exam" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" />\n    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Centre Code" android:textSize="14sp" android:layout_marginBottom="8dp" />\n    <Spinner android:id="@+id/spinnerCentre" android:layout_width="match_parent" android:layout_height="56dp" android:background="@drawable/spinner_bg" android:layout_marginBottom="24dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnConfirmCentre" android:layout_width="match_parent" android:layout_height="56dp" android:text="Confirm and Download Data" android:textSize="16sp" />\n</LinearLayout>`);
+  fs.writeFileSync(path.join(ld, "activity_centre_select.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/header_gradient" android:gravity="center" android:paddingTop="36dp" android:paddingBottom="28dp">
+        <ImageView android:layout_width="56dp" android:layout_height="56dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="SELECT CENTRE" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" android:layout_marginTop="12dp" />
+        <TextView android:id="@+id/tvExamName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="4dp" android:gravity="center" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Examination Centre" android:textSize="13sp" android:textStyle="bold" android:textColor="#5C6BC0" android:layout_marginBottom="8dp" android:letterSpacing="0.05" />
+        <Spinner android:id="@+id/spinnerCentre" android:layout_width="match_parent" android:layout_height="56dp" android:background="@drawable/spinner_bg" android:layout_marginBottom="28dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnConfirmCentre" android:layout_width="match_parent" android:layout_height="52dp" android:text="Confirm and Download Data" android:textSize="14sp" app:cornerRadius="14dp" />
+    </LinearLayout>
+</LinearLayout>`);
 
   fs.writeFileSync(path.join(ld, "activity_dashboard.xml"), `<?xml version="1.0" encoding="utf-8"?>
-  <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
-  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
-      <TextView android:id="@+id/tvExamName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="22sp" android:textStyle="bold" />
-      <TextView android:id="@+id/tvOperatorName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="8dp" />
-      <TextView android:id="@+id/tvCentreName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textColor="@color/primary" android:textStyle="bold" android:layout_marginBottom="4dp" />
-      <TextView android:id="@+id/tvLastSync" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#999" android:layout_marginBottom="16dp" />
-      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center" android:padding="16dp" android:background="@drawable/card_bg"><TextView android:id="@+id/tvTotalCandidates" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="28sp" android:textStyle="bold" android:textColor="@color/primary" /><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Total" android:textSize="12sp" /></LinearLayout>
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center" android:padding="16dp" android:background="@drawable/card_bg" android:layout_marginStart="8dp"><TextView android:id="@+id/tvPresentCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="28sp" android:textStyle="bold" android:textColor="@color/success" /><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Present" android:textSize="12sp" /></LinearLayout>
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center" android:padding="16dp" android:background="@drawable/card_bg" android:layout_marginStart="8dp"><TextView android:id="@+id/tvVerifiedCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="28sp" android:textStyle="bold" android:textColor="@color/secondary" /><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Verified" android:textSize="12sp" /></LinearLayout>
-      </LinearLayout>
-      <com.google.android.material.button.MaterialButton android:id="@+id/btnSyncData" android:layout_width="match_parent" android:layout_height="56dp" android:text="Download Data" android:layout_marginTop="24dp" />
-      <com.google.android.material.button.MaterialButton android:id="@+id/btnAttendance" android:layout_width="match_parent" android:layout_height="56dp" android:text="Mark Attendance" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />
-      <com.google.android.material.button.MaterialButton android:id="@+id/btnVerification" android:layout_width="match_parent" android:layout_height="56dp" android:text="Biometric Verification" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />
-      <com.google.android.material.button.MaterialButton android:id="@+id/btnOfflineSync" android:layout_width="match_parent" android:layout_height="56dp" android:text="Offline Sync" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />
-      <com.google.android.material.button.MaterialButton android:id="@+id/btnFinishExam" android:layout_width="match_parent" android:layout_height="56dp" android:text="Finish Exam &amp; Select Next" android:layout_marginTop="16dp" style="@style/Widget.Material3.Button.OutlinedButton" />
-      <TextView android:id="@+id/tvPendingSync" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="@color/warning" android:layout_marginTop="4dp" android:layout_gravity="center" />
-  </LinearLayout>
-  </ScrollView>`);
-
-  fs.writeFileSync(path.join(resDir, "drawable", "card_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#F5F5F5" /><corners android:radius="12dp" /><stroke android:width="1dp" android:color="#E0E0E0" /></shape>`);
-    fs.writeFileSync(path.join(resDir, "drawable", "spinner_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#FFFFFF" /><corners android:radius="8dp" /><stroke android:width="1dp" android:color="#CCCCCC" /><padding android:left="12dp" android:top="8dp" android:right="12dp" android:bottom="8dp" /></shape>`);
-    fs.writeFileSync(path.join(resDir, "drawable", "rounded_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#F8F8F8" /><corners android:radius="12dp" /><stroke android:width="1dp" android:color="#E0E0E0" /></shape>`);
-  fs.writeFileSync(path.join(resDir, "drawable", "ic_fingerprint.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFF" android:pathData="M17.81,4.47c-0.08,0 -0.16,-0.02 -0.23,-0.06C15.66,3.42 14,3 12.01,3c-1.98,0 -3.86,0.47 -5.57,1.41 -0.24,0.13 -0.54,0.04 -0.68,-0.2 -0.13,-0.24 -0.04,-0.55 0.2,-0.68C7.82,2.52 9.86,2 12.01,2c2.13,0 3.99,0.47 6.03,1.52 0.25,0.13 0.34,0.43 0.21,0.67 -0.09,0.18 -0.26,0.28 -0.44,0.28z" /></vector>`);
-
-  fs.writeFileSync(path.join(ld, "activity_candidate_list.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp">\n    <TextView android:id="@+id/tvTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" />\n    <TextView android:id="@+id/tvCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="16dp" />\n    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rvCandidates" android:layout_width="match_parent" android:layout_height="match_parent" />\n</LinearLayout>`);
-
-  fs.writeFileSync(path.join(ld, "item_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" app:cardElevation="2dp" app:cardCornerRadius="8dp"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:orientation="vertical"><TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" /><TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" /><TextView android:id="@+id/tvStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="@color/primary" android:layout_marginTop="4dp" /></LinearLayout></com.google.android.material.card.MaterialCardView>`);
-
-  fs.writeFileSync(path.join(ld, "activity_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
-<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mark Attendance" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBarcode" android:layout_width="match_parent" android:layout_height="56dp" android:text="Scan Admit Card Barcode" android:layout_marginBottom="12dp" app:icon="@android:drawable/ic_menu_camera" xmlns:app="http://schemas.android.com/apk/res-auto" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
-        <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etRollNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Roll Number" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnSearchRollNo" android:layout_width="wrap_content" android:layout_height="56dp" android:text="Search" android:layout_marginStart="8dp" style="@style/Widget.Material3.Button.TonalButton" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/header_gradient" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="24dp" android:paddingBottom="20dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/tvExamName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF" android:maxLines="2" android:ellipsize="end" />
+                <TextView android:id="@+id/tvOperatorName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#B3FFFFFF" android:layout_marginTop="2dp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:background="@drawable/badge_live" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="LIVE" android:textSize="10sp" android:textStyle="bold" android:textColor="#FFFFFF" android:letterSpacing="0.1" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView android:id="@+id/tvCentreName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#D4E6FF" android:layout_marginTop="6dp" android:drawablePadding="6dp" />
+        <TextView android:id="@+id/tvLastSync" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#99FFFFFF" android:layout_marginTop="2dp" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/layoutCandidateDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginBottom="16dp" android:visibility="gone">
-        <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" />
-        <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="4dp" />
-        <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#888" android:layout_marginTop="4dp" />
-        <TextView android:id="@+id/tvAttendanceStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:layout_marginTop="8dp" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="-12dp" android:layout_marginBottom="16dp" android:baselineAligned="false">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center" android:padding="14dp" android:background="@drawable/stat_card_blue" android:elevation="3dp">
+                <TextView android:id="@+id/tvTotalCandidates" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="26sp" android:textStyle="bold" android:textColor="#1A237E" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TOTAL" android:textSize="10sp" android:textStyle="bold" android:textColor="#5C6BC0" android:letterSpacing="0.08" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center" android:padding="14dp" android:background="@drawable/stat_card_green" android:elevation="3dp" android:layout_marginStart="10dp">
+                <TextView android:id="@+id/tvPresentCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="26sp" android:textStyle="bold" android:textColor="#1B5E20" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PRESENT" android:textSize="10sp" android:textStyle="bold" android:textColor="#66BB6A" android:letterSpacing="0.08" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center" android:padding="14dp" android:background="@drawable/stat_card_teal" android:elevation="3dp" android:layout_marginStart="10dp">
+                <TextView android:id="@+id/tvVerifiedCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="26sp" android:textStyle="bold" android:textColor="#004D40" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="VERIFIED" android:textSize="10sp" android:textStyle="bold" android:textColor="#26A69A" android:letterSpacing="0.08" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView android:id="@+id/tvPendingSync" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#E65100" android:background="@drawable/warning_strip" android:padding="8dp" android:gravity="center" android:layout_marginBottom="14dp" android:visibility="gone" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp" android:baselineAligned="false">
+            <com.google.android.material.card.MaterialCardView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" app:cardCornerRadius="14dp" app:cardElevation="2dp" app:strokeWidth="0dp" android:layout_marginEnd="6dp">
+                <LinearLayout android:id="@+id/btnAttendance" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:padding="18dp" android:background="@drawable/action_card_orange">
+                    <ImageView android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/ic_attendance" android:contentDescription="attendance" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Attendance" android:textSize="13sp" android:textStyle="bold" android:textColor="#E65100" android:layout_marginTop="8dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Barcode Scan" android:textSize="10sp" android:textColor="#BF360C" android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" app:cardCornerRadius="14dp" app:cardElevation="2dp" app:strokeWidth="0dp" android:layout_marginStart="6dp">
+                <LinearLayout android:id="@+id/btnVerification" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:padding="18dp" android:background="@drawable/action_card_indigo">
+                    <ImageView android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/ic_biometric" android:contentDescription="verification" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Enrollment" android:textSize="13sp" android:textStyle="bold" android:textColor="#1A237E" android:layout_marginTop="8dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Photo + Finger + OMR" android:textSize="10sp" android:textColor="#283593" android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp" android:baselineAligned="false">
+            <com.google.android.material.card.MaterialCardView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" app:cardCornerRadius="14dp" app:cardElevation="2dp" app:strokeWidth="0dp" android:layout_marginEnd="6dp">
+                <LinearLayout android:id="@+id/btnOfflineSync" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:padding="18dp" android:background="@drawable/action_card_cyan">
+                    <ImageView android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/ic_sync" android:contentDescription="sync" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Data Sync" android:textSize="13sp" android:textStyle="bold" android:textColor="#006064" android:layout_marginTop="8dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Upload to Server" android:textSize="10sp" android:textColor="#00838F" android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" app:cardCornerRadius="14dp" app:cardElevation="2dp" app:strokeWidth="0dp" android:layout_marginStart="6dp">
+                <LinearLayout android:id="@+id/btnSyncData" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:padding="18dp" android:background="@drawable/action_card_purple">
+                    <ImageView android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/ic_download" android:contentDescription="download" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Download" android:textSize="13sp" android:textStyle="bold" android:textColor="#4A148C" android:layout_marginTop="8dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Refresh Data" android:textSize="10sp" android:textColor="#6A1B9A" android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnFinishExam" android:layout_width="match_parent" android:layout_height="44dp" android:text="Finish Exam" android:textSize="13sp" android:layout_marginTop="6dp" style="@style/Widget.Material3.Button.OutlinedButton" app:cornerRadius="10dp" />
     </LinearLayout>
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnMarkPresent" android:layout_width="match_parent" android:layout_height="56dp" android:text="Mark Attendance" android:layout_marginBottom="12dp" android:visibility="gone" />
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnViewData" android:layout_width="match_parent" android:layout_height="48dp" android:text="View All Candidates" style="@style/Widget.Material3.Button.OutlinedButton" />
-</LinearLayout>
-</ScrollView>`);
-    fs.writeFileSync(path.join(ld, "activity_sync.xml"), `<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Offline Sync" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="12dp" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="16dp" android:gravity="center" android:layout_marginBottom="8dp">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pending Records" android:textSize="14sp" android:textColor="#666" />
-        <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="40sp" android:textStyle="bold" android:textColor="@color/warning" />
-        <TextView android:id="@+id/tvPendingBreakdown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#888" />
-    </LinearLayout>
-    <TextView android:id="@+id/tvSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="4dp" android:gravity="center" />
-    <TextView android:id="@+id/tvSyncProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="8dp" android:gravity="center" />
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="48dp" android:text="Sync Now" android:layout_marginBottom="8dp" />
-    <TextView android:id="@+id/tvSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#333" android:layout_marginBottom="8dp" />
-    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rvCandidates" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    </ScrollView>
 </LinearLayout>`);
 
-    fs.writeFileSync(path.join(ld, "item_sync_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="6dp" app:cardElevation="1dp" app:cardCornerRadius="8dp">
-<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="12dp" android:orientation="horizontal">
-    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-        <TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" />
-        <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#666" />
+  fs.writeFileSync(path.join(resDir, "drawable", "splash_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#0A2463" android:centerColor="#0D47A1" android:endColor="#1565C0" android:angle="160" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "splash_icon_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval"><solid android:color="#1A5FAF" /><stroke android:width="2dp" android:color="#40FFFFFF" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "header_gradient.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#0D47A1" android:centerColor="#1565C0" android:endColor="#1976D2" android:angle="135" /><corners android:bottomLeftRadius="20dp" android:bottomRightRadius="20dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "badge_live.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#4CAF50" /><corners android:radius="12dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "stat_card_blue.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#E8EAF6" /><corners android:radius="14dp" /><stroke android:width="1dp" android:color="#C5CAE9" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "stat_card_green.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#E8F5E9" /><corners android:radius="14dp" /><stroke android:width="1dp" android:color="#C8E6C9" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "stat_card_teal.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#E0F2F1" /><corners android:radius="14dp" /><stroke android:width="1dp" android:color="#B2DFDB" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "warning_strip.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#FFF3E0" /><corners android:radius="8dp" /><stroke android:width="1dp" android:color="#FFE0B2" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "action_card_orange.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#FFF8E1" android:endColor="#FFF3E0" android:angle="135" /><corners android:radius="14dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "action_card_indigo.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#E8EAF6" android:endColor="#E3F2FD" android:angle="135" /><corners android:radius="14dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "action_card_cyan.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#E0F7FA" android:endColor="#E0F2F1" android:angle="135" /><corners android:radius="14dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "action_card_purple.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#F3E5F5" android:endColor="#EDE7F6" android:angle="135" /><corners android:radius="14dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "scan_area_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#E3F2FD" /><corners android:radius="16dp" /><stroke android:width="2dp" android:dashWidth="8dp" android:dashGap="4dp" android:color="#42A5F5" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "candidate_card_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#FFFFFF" /><corners android:radius="16dp" /><stroke android:width="1dp" android:color="#E0E0E0" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "step_active.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval"><solid android:color="#1565C0" /><size android:width="28dp" android:height="28dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "step_done.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval"><solid android:color="#4CAF50" /><size android:width="28dp" android:height="28dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "step_pending.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval"><solid android:color="#E0E0E0" /><size android:width="28dp" android:height="28dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "sync_header_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><gradient android:startColor="#004D40" android:endColor="#00695C" android:angle="135" /><corners android:bottomLeftRadius="24dp" android:bottomRightRadius="24dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "ic_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="36dp" android:height="36dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#E65100" android:pathData="M9,11.75c-0.69,0 -1.25,0.56 -1.25,1.25s0.56,1.25 1.25,1.25 1.25,-0.56 1.25,-1.25 -0.56,-1.25 -1.25,-1.25zM15,11.75c-0.69,0 -1.25,0.56 -1.25,1.25s0.56,1.25 1.25,1.25 1.25,-0.56 1.25,-1.25 -0.56,-1.25 -1.25,-1.25zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z"/></vector>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "ic_biometric.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="36dp" android:height="36dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#1A237E" android:pathData="M17.81,4.47c-0.08,0 -0.16,-0.02 -0.23,-0.06C15.66,3.42 14,3 12.01,3c-1.98,0 -3.86,0.47 -5.57,1.41 -0.24,0.13 -0.54,0.04 -0.68,-0.2 -0.13,-0.24 -0.04,-0.55 0.2,-0.68C7.82,2.52 9.86,2 12.01,2c2.13,0 3.99,0.47 6.03,1.52 0.25,0.13 0.34,0.43 0.21,0.67 -0.09,0.18 -0.26,0.28 -0.44,0.28zM3.5,9.72c-0.1,0 -0.2,-0.03 -0.29,-0.09 -0.23,-0.16 -0.28,-0.47 -0.12,-0.7 0.99,-1.4 2.25,-2.51 3.75,-3.3 3.09,-1.63 6.83,-1.63 9.92,0 1.5,0.79 2.76,1.9 3.75,3.3 0.16,0.23 0.11,0.54 -0.12,0.7 -0.23,0.16 -0.54,0.11 -0.7,-0.12 -0.9,-1.26 -2.04,-2.27 -3.39,-2.98 -2.8,-1.47 -6.18,-1.47 -8.98,0 -1.35,0.71 -2.49,1.72 -3.39,2.98 -0.1,0.14 -0.25,0.21 -0.41,0.21zM9.04,21.67C8.6,21.45 4.69,19.39 4.69,13.82c0,-0.39 0.31,-0.7 0.7,-0.7 0.39,0 0.7,0.31 0.7,0.7 0,4.82 3.44,6.72 3.49,6.75 0.34,0.18 0.47,0.6 0.29,0.94 -0.13,0.24 -0.38,0.38 -0.63,0.38z"/></vector>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "ic_sync.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="36dp" android:height="36dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#006064" android:pathData="M12,4V1L8,5l4,4V6c3.31,0 6,2.69 6,6 0,1.01 -0.25,1.97 -0.7,2.8l1.46,1.46C19.54,15.03 20,13.57 20,12c0,-4.42 -3.58,-8 -8,-8zM12,18c-3.31,0 -6,-2.69 -6,-6 0,-1.01 0.25,-1.97 0.7,-2.8L5.24,7.74C4.46,8.97 4,10.43 4,12c0,4.42 3.58,8 8,8v3l4,-4 -4,-4v3z"/></vector>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "ic_download.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="36dp" android:height="36dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#4A148C" android:pathData="M19,9h-4V3H9v6H5l7,7 7,-7zM5,18v2h14v-2H5z"/></vector>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "card_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#FFFFFF" /><corners android:radius="16dp" /><stroke android:width="1dp" android:color="#E8EAF6" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "spinner_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#FFFFFF" /><corners android:radius="12dp" /><stroke android:width="1dp" android:color="#C5CAE9" /><padding android:left="12dp" android:top="8dp" android:right="12dp" android:bottom="8dp" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "rounded_bg.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle"><solid android:color="#F5F7FA" /><corners android:radius="16dp" /><stroke android:width="1dp" android:color="#E0E0E0" /></shape>`);
+  fs.writeFileSync(path.join(resDir, "drawable", "ic_fingerprint.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFF" android:pathData="M17.81,4.47c-0.08,0 -0.16,-0.02 -0.23,-0.06C15.66,3.42 14,3 12.01,3c-1.98,0 -3.86,0.47 -5.57,1.41 -0.24,0.13 -0.54,0.04 -0.68,-0.2 -0.13,-0.24 -0.04,-0.55 0.2,-0.68C7.82,2.52 9.86,2 12.01,2c2.13,0 3.99,0.47 6.03,1.52 0.25,0.13 0.34,0.43 0.21,0.67 -0.09,0.18 -0.26,0.28 -0.44,0.28z" /></vector>`);
+
+  fs.writeFileSync(path.join(ld, "activity_candidate_list.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/header_gradient" android:padding="20dp" android:orientation="vertical">
+        <TextView android:id="@+id/tvTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+        <TextView android:id="@+id/tvCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#B3FFFFFF" android:layout_marginTop="2dp" />
     </LinearLayout>
-    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="end">
-        <TextView android:id="@+id/tvPresent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" />
-        <TextView android:id="@+id/tvVerified" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" />
-        <TextView android:id="@+id/tvSyncStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rvCandidates" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="12dp" android:clipToPadding="false" />
+</LinearLayout>`);
+
+  fs.writeFileSync(path.join(ld, "item_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:layout_marginStart="4dp" android:layout_marginEnd="4dp" app:cardElevation="2dp" app:cardCornerRadius="14dp" app:strokeWidth="0dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:orientation="horizontal" android:gravity="center_vertical">
+    <LinearLayout android:layout_width="36dp" android:layout_height="36dp" android:gravity="center" android:background="@drawable/step_active">
+        <TextView android:id="@+id/tvInitial" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="12dp">
+        <TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" android:textColor="#1A237E" />
+        <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#5C6BC0" android:layout_marginTop="2dp" />
+    </LinearLayout>
+    <TextView android:id="@+id/tvStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textStyle="bold" android:background="@drawable/badge_live" android:textColor="#FFFFFF" android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="3dp" android:paddingBottom="3dp" />
+</LinearLayout>
+</com.google.android.material.card.MaterialCardView>`);
+
+  fs.writeFileSync(path.join(ld, "activity_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/header_gradient" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="20dp" android:paddingBottom="18dp" android:orientation="vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ATTENDANCE" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Scan Admit Card" android:textSize="20sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="2dp" />
+    </LinearLayout>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:background="@drawable/scan_area_bg" android:padding="24dp" android:layout_marginBottom="14dp">
+            <ImageView android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_attendance" android:contentDescription="scan" android:layout_marginBottom="8dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBarcode" android:layout_width="match_parent" android:layout_height="52dp" android:text="Scan Barcode" android:textSize="15sp" app:cornerRadius="12dp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="14dp">
+            <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" app:boxCornerRadiusTopStart="12dp" app:boxCornerRadiusTopEnd="12dp" app:boxCornerRadiusBottomStart="12dp" app:boxCornerRadiusBottomEnd="12dp"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etRollNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Roll Number" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnSearchRollNo" android:layout_width="wrap_content" android:layout_height="52dp" android:text="Find" android:layout_marginStart="8dp" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
+        </LinearLayout>
+        <com.google.android.material.card.MaterialCardView android:id="@+id/layoutCandidateDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" app:cardCornerRadius="16dp" app:cardElevation="3dp" app:strokeWidth="0dp" android:layout_marginBottom="14dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                    <LinearLayout android:layout_width="44dp" android:layout_height="44dp" android:gravity="center" android:background="@drawable/step_active">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="C" android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="14dp">
+                        <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#1A237E" />
+                        <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#5C6BC0" android:layout_marginTop="2dp" />
+                    </LinearLayout>
+                </LinearLayout>
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#E8EAF6" android:layout_marginTop="12dp" android:layout_marginBottom="10dp" />
+                <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#78909C" />
+                <TextView android:id="@+id/tvAttendanceStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" android:layout_marginTop="6dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnMarkPresent" android:layout_width="match_parent" android:layout_height="52dp" android:text="Mark Attendance" android:layout_marginBottom="12dp" android:visibility="gone" app:cornerRadius="12dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnViewData" android:layout_width="match_parent" android:layout_height="44dp" android:text="View All Candidates" style="@style/Widget.Material3.Button.OutlinedButton" app:cornerRadius="12dp" />
+    </LinearLayout>
+    </ScrollView>
+</LinearLayout>`);
+
+  fs.writeFileSync(path.join(ld, "activity_sync.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/sync_header_bg" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="24dp" android:paddingBottom="24dp" android:gravity="center">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DATA SYNC" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" />
+        <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="48sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/tvPendingBreakdown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#B2DFDB" android:layout_marginTop="2dp" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+        <TextView android:id="@+id/tvSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#00695C" android:background="@drawable/stat_card_teal" android:padding="10dp" android:gravity="center" android:layout_marginBottom="6dp" />
+        <TextView android:id="@+id/tvSyncProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#78909C" android:gravity="center" android:layout_marginBottom="8dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="48dp" android:text="Sync Now" android:layout_marginBottom="10dp" app:cornerRadius="12dp" />
+        <TextView android:id="@+id/tvSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textStyle="bold" android:textColor="#37474F" android:layout_marginBottom="6dp" />
+    </LinearLayout>
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rvCandidates" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:padding="12dp" android:clipToPadding="false" />
+</LinearLayout>`);
+
+  fs.writeFileSync(path.join(ld, "item_sync_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="6dp" android:layout_marginStart="2dp" android:layout_marginEnd="2dp" app:cardElevation="1dp" app:cardCornerRadius="12dp" app:strokeWidth="0dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="12dp" android:orientation="horizontal" android:gravity="center_vertical">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#263238" />
+        <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#78909C" android:layout_marginTop="1dp" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="end" android:layout_marginStart="8dp">
+        <TextView android:id="@+id/tvPresent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tvVerified" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textStyle="bold" android:layout_marginTop="1dp" />
+        <TextView android:id="@+id/tvSyncStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:textStyle="bold" android:layout_marginTop="1dp" />
     </LinearLayout>
 </LinearLayout>
 </com.google.android.material.card.MaterialCardView>`);
 
   fs.writeFileSync(path.join(ld, "activity_verification.xml"), `<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent">
-<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Biometric Verification" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBarcode" android:layout_width="match_parent" android:layout_height="56dp" android:text="Scan Admit Card Barcode" android:layout_marginBottom="12dp" app:icon="@android:drawable/ic_menu_camera" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
-        <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etRollNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Roll Number" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnSearchRollNo" android:layout_width="wrap_content" android:layout_height="56dp" android:text="Search" android:layout_marginStart="8dp" style="@style/Widget.Material3.Button.TonalButton" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/header_gradient" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="20dp" android:paddingBottom="18dp" android:orientation="vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ENROLLMENT" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Biometric Verification" android:textSize="20sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="2dp" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/layoutCandidateDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginBottom="16dp" android:visibility="gone">
-        <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" />
-        <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="4dp" />
-        <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#888" android:layout_marginTop="4dp" />
-        <TextView android:id="@+id/tvVerifyStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:layout_marginTop="8dp" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:background="@drawable/scan_area_bg" android:padding="20dp" android:layout_marginBottom="12dp">
+            <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/ic_biometric" android:contentDescription="scan" android:layout_marginBottom="6dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBarcode" android:layout_width="match_parent" android:layout_height="48dp" android:text="Scan Admit Card" android:textSize="14sp" app:cornerRadius="12dp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="12dp">
+            <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" app:boxCornerRadiusTopStart="12dp" app:boxCornerRadiusTopEnd="12dp" app:boxCornerRadiusBottomStart="12dp" app:boxCornerRadiusBottomEnd="12dp"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etRollNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Roll Number" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnSearchRollNo" android:layout_width="wrap_content" android:layout_height="48dp" android:text="Find" android:layout_marginStart="8dp" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
+        </LinearLayout>
+        <com.google.android.material.card.MaterialCardView android:id="@+id/layoutCandidateDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" app:cardCornerRadius="16dp" app:cardElevation="3dp" app:strokeWidth="0dp" android:layout_marginBottom="12dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#1A237E" />
+                <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#5C6BC0" android:layout_marginTop="2dp" />
+                <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#78909C" android:layout_marginTop="2dp" />
+                <TextView android:id="@+id/tvVerifyStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:layout_marginTop="6dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.card.MaterialCardView android:id="@+id/layoutVerificationActions" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" app:cardCornerRadius="16dp" app:cardElevation="2dp" app:strokeWidth="0dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="STEP 1 - PHOTO" android:textSize="10sp" android:textStyle="bold" android:textColor="#78909C" android:letterSpacing="0.1" android:layout_marginBottom="6dp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnCapturePhoto" android:layout_width="match_parent" android:layout_height="48dp" android:text="Capture Photo" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
+                <TextView android:id="@+id/tvPhotoStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured" android:textSize="12sp" android:textColor="#B0BEC5" android:layout_marginTop="4dp" />
+                <ImageView android:id="@+id/ivCapturedPhoto" android:layout_width="100dp" android:layout_height="100dp" android:scaleType="centerCrop" android:layout_gravity="center" android:visibility="gone" android:layout_marginTop="6dp" />
+                <TextView android:id="@+id/tvFaceResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:layout_marginTop="4dp" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#ECEFF1" android:layout_marginTop="12dp" android:layout_marginBottom="12dp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="STEP 2 - FINGERPRINT" android:textSize="10sp" android:textStyle="bold" android:textColor="#78909C" android:letterSpacing="0.1" android:layout_marginBottom="6dp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint" android:layout_width="match_parent" android:layout_height="48dp" android:text="Capture Fingerprint" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
+                <TextView android:id="@+id/tvFingerprintStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured" android:textSize="12sp" android:textColor="#B0BEC5" android:layout_marginTop="4dp" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#ECEFF1" android:layout_marginTop="12dp" android:layout_marginBottom="12dp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="STEP 3 - OMR SHEET" android:textSize="10sp" android:textStyle="bold" android:textColor="#78909C" android:letterSpacing="0.1" android:layout_marginBottom="6dp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnScanOmr" android:layout_width="match_parent" android:layout_height="48dp" android:text="Scan OMR Barcode" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
+                <TextView android:id="@+id/tvOmrStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not scanned" android:textSize="12sp" android:textColor="#B0BEC5" android:layout_marginTop="4dp" />
+                <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" app:boxCornerRadiusTopStart="12dp" app:boxCornerRadiusTopEnd="12dp" app:boxCornerRadiusBottomStart="12dp" app:boxCornerRadiusBottomEnd="12dp"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etOmrNumber" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="OMR No. (manual)" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#ECEFF1" android:layout_marginTop="12dp" android:layout_marginBottom="12dp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnSubmitVerification" android:layout_width="match_parent" android:layout_height="52dp" android:text="Submit Verification" app:cornerRadius="12dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnViewData" android:layout_width="match_parent" android:layout_height="44dp" android:text="View All Candidates" style="@style/Widget.Material3.Button.OutlinedButton" app:cornerRadius="12dp" android:layout_marginTop="12dp" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/layoutVerificationActions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnCapturePhoto" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Photo" android:layout_marginBottom="4dp" style="@style/Widget.Material3.Button.TonalButton" />
-        <TextView android:id="@+id/tvPhotoStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured yet" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="4dp" />
-        <ImageView android:id="@+id/ivCapturedPhoto" android:layout_width="120dp" android:layout_height="120dp" android:scaleType="centerCrop" android:layout_gravity="center" android:visibility="gone" android:layout_marginBottom="4dp" />
-        <TextView android:id="@+id/tvFaceResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginBottom="12dp" />
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Fingerprint" android:layout_marginBottom="4dp" style="@style/Widget.Material3.Button.TonalButton" />
-        <TextView android:id="@+id/tvFingerprintStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured yet" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="12dp" />
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnScanOmr" android:layout_width="match_parent" android:layout_height="56dp" android:text="Scan OMR Barcode" android:layout_marginBottom="4dp" style="@style/Widget.Material3.Button.TonalButton" />
-        <TextView android:id="@+id/tvOmrStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not scanned yet" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="4dp" />
-        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="16dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etOmrNumber" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="OMR Number (manual entry)" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnSubmitVerification" android:layout_width="match_parent" android:layout_height="56dp" android:text="Submit Verification" android:layout_marginBottom="12dp" />
-    </LinearLayout>
-    <com.google.android.material.button.MaterialButton android:id="@+id/btnViewData" android:layout_width="match_parent" android:layout_height="48dp" android:text="View All Candidates" style="@style/Widget.Material3.Button.OutlinedButton" />
-</LinearLayout>
-</ScrollView>`);
+    </ScrollView>
+</LinearLayout>`);
 }
 
 function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, config: BuildConfig, versionCode: number, versionName: string) {
@@ -3157,8 +3341,8 @@ function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, c
     fs.writeFileSync(path.join(buildDir, "app", "src", "main", "jniLibs", "armeabi-v7a", "README.txt"), "Place Mantra native library here:\n- libMFS100.so\nExtract from Mantra MFS100 SDK package.");
     fs.writeFileSync(path.join(buildDir, "app", "src", "main", "jniLibs", "arm64-v8a", "README.txt"), "Place Mantra native library here:\n- libMFS100.so\nExtract from Mantra MFS100 SDK package.");
   fs.writeFileSync(path.join(resDir, "values", "strings.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">${appName}</string><string name="exam_name">${config.examName}</string></resources>`);
-  fs.writeFileSync(path.join(resDir, "values", "themes.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="Theme.MpaVerify" parent="Theme.Material3.DayNight.NoActionBar"><item name="colorPrimary">@color/primary</item><item name="colorOnPrimary">@color/white</item></style>\n    <style name="Theme.MpaVerify.Splash" parent="Theme.Material3.DayNight.NoActionBar"><item name="android:windowBackground">@color/primary</item></style>\n</resources>`);
-  fs.writeFileSync(path.join(resDir, "values", "colors.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="primary">#1565C0</color><color name="primary_dark">#0D47A1</color><color name="secondary">#26A69A</color><color name="white">#FFFFFF</color><color name="black">#000000</color><color name="success">#4CAF50</color><color name="error">#F44336</color><color name="warning">#FF9800</color></resources>`);
+  fs.writeFileSync(path.join(resDir, "values", "themes.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="Theme.MpaVerify" parent="Theme.Material3.DayNight.NoActionBar"><item name="colorPrimary">@color/primary</item><item name="colorOnPrimary">@color/white</item><item name="colorPrimaryContainer">@color/primary_light</item><item name="colorSecondary">@color/accent</item><item name="android:statusBarColor">@color/primary_dark</item><item name="android:navigationBarColor">@color/primary_dark</item></style>\n    <style name="Theme.MpaVerify.Splash" parent="Theme.Material3.DayNight.NoActionBar"><item name="android:windowBackground">@color/primary_dark</item><item name="android:statusBarColor">@color/primary_dark</item></style>\n</resources>`);
+  fs.writeFileSync(path.join(resDir, "values", "colors.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="primary">#1565C0</color><color name="primary_dark">#0D47A1</color><color name="primary_light">#E3F2FD</color><color name="accent">#00BFA5</color><color name="secondary">#00897B</color><color name="white">#FFFFFF</color><color name="black">#000000</color><color name="success">#2E7D32</color><color name="error">#C62828</color><color name="warning">#E65100</color><color name="surface">#F0F4F8</color><color name="on_surface">#1A237E</color></resources>`);
 
     // Generate ic_launcher as an adaptive icon with foreground vector drawable
     const launcherForeground = `<?xml version="1.0" encoding="utf-8"?>
