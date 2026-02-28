@@ -593,7 +593,7 @@ class RegistrationActivity : AppCompatActivity() {
     private fun doRegister(name: String, phone: String, aadhaar: String, selfie: String, deviceId: String): String {
         val baseUrl = RetrofitClient.getBaseUrl()
         val url = "${"$"}{baseUrl}api/apk/operator/register"
-        Log.d(TAG, "Registering to: $url")
+        Log.d(TAG, "Registering to: ${"$"}url")
         val json = JSONObject()
         json.put("name", name)
         json.put("phone", phone)
@@ -603,14 +603,17 @@ class RegistrationActivity : AppCompatActivity() {
         val body = json.toString().toRequestBody("application/json".toMediaType())
         Log.d(TAG, "Request body size: ${"$"}{json.toString().length} bytes")
         val client = OkHttpClient.Builder()
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(90, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            .writeTimeout(90, TimeUnit.SECONDS)
             .build()
         val request = Request.Builder().url(url).post(body).addHeader("Content-Type", "application/json").addHeader("Accept", "application/json").build()
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string() ?: "{}"
         Log.d(TAG, "Response code: ${"$"}{response.code}, body: ${"$"}{responseBody.take(500)}")
+        if (responseBody.trimStart().startsWith("<!DOCTYPE") || responseBody.trimStart().startsWith("<html")) {
+            throw Exception("Server returned HTML instead of JSON. The API endpoint may not be available. Check server URL: ${"$"}url")
+        }
         if (!response.isSuccessful) {
             throw Exception("Server error ${"$"}{response.code}: ${"$"}{responseBody.take(200)}")
         }
