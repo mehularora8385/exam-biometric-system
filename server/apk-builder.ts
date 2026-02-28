@@ -259,6 +259,7 @@ function generateAndroidManifest(pkgName: string): string {
         <activity android:name=".ui.AttendanceActivity" />
         <activity android:name=".ui.VerificationActivity" />
         <activity android:name=".ui.SyncActivity" />
+        <activity android:name=".ui.CrashActivity" android:process=":crash" android:launchMode="singleInstance" android:theme="@style/Theme.MpaVerify" />
         <service android:name=".service.HeartbeatService" android:foregroundServiceType="dataSync" android:exported="false" />
         <service android:name=".service.SyncService" android:foregroundServiceType="dataSync" android:exported="false" />
         <receiver android:name=".receiver.BootReceiver" android:exported="false">
@@ -377,6 +378,18 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       override fun onCreate() {
           super.onCreate()
           instance = this
+          Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+              try {
+                  val sw = java.io.StringWriter()
+                  throwable.printStackTrace(java.io.PrintWriter(sw))
+                  val intent = android.content.Intent(this, ${pkgName}.ui.CrashActivity::class.java)
+                  intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                  intent.putExtra("error_message", throwable.message ?: "Unknown error")
+                  intent.putExtra("stack_trace", sw.toString().take(8000))
+                  startActivity(intent)
+              } catch (_: Exception) {}
+              android.os.Process.killProcess(android.os.Process.myPid())
+          }
           syncManager = OfflineSyncManager(this)
           registerNetworkCallback()
           syncManager.startAutoSync(60000)
@@ -434,6 +447,68 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
               private set
       }
   }`);
+
+  fs.writeFileSync(path.join(srcDir, "ui", "CrashActivity.kt"), `package ${pkgName}.ui
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Bundle
+import android.widget.Button
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.LinearLayout
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+class CrashActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val errorMsg = intent.getStringExtra("error_message") ?: "Unknown error"
+        val stackTrace = intent.getStringExtra("stack_trace") ?: "No stack trace"
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 64, 32, 32)
+        }
+        val title = TextView(this).apply {
+            text = "APP CRASHED"
+            textSize = 24f
+            setTextColor(0xFFFF0000.toInt())
+        }
+        val errorView = TextView(this).apply {
+            text = "Error: ${"$"}errorMsg"
+            textSize = 14f
+            setTextColor(0xFF333333.toInt())
+        }
+        val traceView = TextView(this).apply {
+            text = stackTrace
+            textSize = 11f
+            setTextColor(0xFF666666.toInt())
+        }
+        val copyBtn = Button(this).apply {
+            text = "Copy Crash Log"
+            setOnClickListener {
+                val clip = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clip.setPrimaryClip(ClipData.newPlainText("crash", "${"$"}errorMsg\\n\\n${"$"}stackTrace"))
+                Toast.makeText(this@CrashActivity, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+            }
+        }
+        val restartBtn = Button(this).apply {
+            text = "Restart App"
+            setOnClickListener {
+                val intent = packageManager.getLaunchIntentForPackage(packageName)
+                intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                finishAffinity()
+            }
+        }
+        layout.addView(title)
+        layout.addView(errorView)
+        val scroll = ScrollView(this)
+        scroll.addView(traceView)
+        layout.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        layout.addView(copyBtn)
+        layout.addView(restartBtn)
+        setContentView(layout)
+    }
+}`);
 
   fs.mkdirSync(path.join(srcDir, "model"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "model", "Models.kt"), `package ${pkgName}.model\nimport androidx.room.Entity\nimport androidx.room.PrimaryKey\nimport com.google.gson.annotations.SerializedName\n\n@Entity(tableName = "candidates")\ndata class Candidate(\n    @PrimaryKey val id: Int,\n    @SerializedName("exam_id") val examId: Int,\n    @SerializedName("roll_no") val rollNo: String,\n    val name: String,\n    @SerializedName("father_name") val fatherName: String?,\n    val dob: String?,\n    val slot: String?,\n    @SerializedName("centre_code") val centreCode: String,\n    @SerializedName("centre_name") val centreName: String?,\n    @SerializedName("photo_url") val photoUrl: String?,\n    @SerializedName("attendance_status") var attendanceStatus: String = "absent",\n    @SerializedName("verification_status") var verificationStatus: String = "pending",\n    @SerializedName("face_match_percent") var faceMatchPercent: Float? = null,\n    @SerializedName("omr_number") var omrNumber: String? = null,\n    @SerializedName("verified_photo") var verifiedPhoto: String? = null,\n    var synced: Boolean = false\n)\n\n@Entity(tableName = "pending_verifications")\ndata class PendingVerification(\n    @PrimaryKey(autoGenerate = true) val id: Int = 0,\n    val candidateId: Int,\n    val rollNo: String,\n    val verifiedPhoto: String?,\n    val faceMatchPercent: Float,\n    val omrNumber: String?,\n    val fingerprint: String?,\n    val timestamp: Long = System.currentTimeMillis(),\n    var uploaded: Boolean = false\n)\n\n@Entity(tableName = "pending_attendance")\ndata class PendingAttendance(\n    @PrimaryKey(autoGenerate = true) val id: Int = 0,\n    val candidateId: Int,\n    val examId: Int,\n    val attendanceStatus: String,\n    val operatorId: Int,\n    val timestamp: Long = System.currentTimeMillis(),\n    var uploaded: Boolean = false\n)\n\ndata class LoginRequest(val username: String, val password: String, val deviceId: String)\ndata class LoginResponse(val success: Boolean, val user: UserData?, val message: String?)\ndata class UserData(val id: Int, val username: String, val fullName: String, val role: String)\ndata class AttendanceRequest(val attendanceStatus: String, val attendanceOperatorId: Int)\ndata class VerificationRequest(val verificationStatus: String, val verifiedPhoto: String?, val faceMatchPercent: Float, val omrNumber: String?, val verificationOperatorId: Int)\ndata class HeartbeatRequest(val deviceId: String, val operatorId: Int, val battery: Int, val gps: String?)\ndata class ApiResponse(val success: Boolean, val message: String?)\ndata class ExamConfig(val id: Int, val name: String, val faceMatchThreshold: Int, val strictMode: Boolean)
