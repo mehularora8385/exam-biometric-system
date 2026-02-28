@@ -448,6 +448,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
       }
   }`);
 
+  fs.mkdirSync(path.join(srcDir, "ui"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "ui", "CrashActivity.kt"), `package ${pkgName}.ui
 import android.content.ClipData
 import android.content.ClipboardManager
