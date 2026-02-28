@@ -77,6 +77,7 @@ export interface IStorage {
   deleteDevice(id: number): Promise<void>;
 
   listApkBuilds(examId?: number): Promise<ApkBuild[]>;
+  getApkBuild(id: number): Promise<ApkBuild | undefined>;
   createApkBuild(build: InsertApkBuild): Promise<ApkBuild>;
   updateApkBuild(id: number, data: Partial<InsertApkBuild>): Promise<ApkBuild | undefined>;
 
@@ -328,6 +329,11 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(apkBuilds).orderBy(desc(apkBuilds.id));
   }
 
+  async getApkBuild(id: number): Promise<ApkBuild | undefined> {
+    const [build] = await db.select().from(apkBuilds).where(eq(apkBuilds.id, id));
+    return build;
+  }
+
   async createApkBuild(build: InsertApkBuild): Promise<ApkBuild> {
     const [created] = await db.insert(apkBuilds).values(build).returning();
     return created;
@@ -394,7 +400,12 @@ export class DatabaseStorage implements IStorage {
     const [absentCount] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(examFilter ? and(sql`(${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent')`, examFilter) : sql`${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent'`);
     const [alertCount] = await db.select({ count: sql<number>`count(*)` }).from(alerts);
 
-    const centerList = await db.select().from(centers).where(centerExamFilter);
+    const distinctCentreCodes = examId
+      ? await db.selectDistinct({ centreCode: candidates.centreCode, centreName: candidates.centreName }).from(candidates).where(examFilter)
+      : await db.selectDistinct({ centreCode: candidates.centreCode, centreName: candidates.centreName }).from(candidates);
+
+    const allCenters = await db.select().from(centers);
+    const centerMap = new Map(allCenters.map(c => [c.code, c]));
 
     let totalOps = 0;
     let activeOps = 0;
@@ -412,27 +423,35 @@ export class DatabaseStorage implements IStorage {
       activeOps = allOps.filter(o => o.status === "Active").length;
     }
 
-    const centerStatsPromises = centerList.map(async (center) => {
-      const cFilter = eq(candidates.centreCode, center.code);
+    const centerStatsPromises = distinctCentreCodes.map(async (dc) => {
+      const code = dc.centreCode;
+      const centerRecord = code ? centerMap.get(code) : undefined;
+      const cFilter = eq(candidates.centreCode, code!);
       const combinedFilter = examFilter ? and(cFilter, examFilter) : cFilter;
       const [total] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter);
       const [verified] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter ? and(eq(candidates.status, "Verified"), combinedFilter) : and(eq(candidates.status, "Verified"), cFilter));
       const [pending] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter ? and(eq(candidates.status, "Pending"), combinedFilter) : and(eq(candidates.status, "Pending"), cFilter));
       const [present] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter ? and(eq(candidates.presentMark, "Present"), combinedFilter) : and(eq(candidates.presentMark, "Present"), cFilter));
-      const opsAtCenter = await db.select().from(operators).where(eq(operators.centerId, center.id));
-      const activeOpsAtCenter = opsAtCenter.filter(o => o.status === "Active").length;
+
+      let activeOpsAtCenter = 0;
+      let opsAtCenterCount = 0;
+      if (centerRecord) {
+        const opsAtCenter = await db.select().from(operators).where(eq(operators.centerId, centerRecord.id));
+        opsAtCenterCount = opsAtCenter.length;
+        activeOpsAtCenter = opsAtCenter.filter(o => o.status === "Active").length;
+      }
 
       return {
-        centerId: center.id,
-        code: center.code,
-        name: center.name,
-        city: center.city,
-        capacity: center.capacity,
+        centerId: centerRecord?.id || 0,
+        code: code || "",
+        name: centerRecord?.name || dc.centreName || code || "",
+        city: centerRecord?.city || "",
+        capacity: centerRecord?.capacity || 0,
         total: Number(total.count),
         verified: Number(verified.count),
         pending: Number(pending.count),
         present: Number(present.count),
-        operators: `${activeOpsAtCenter}/${opsAtCenter.length}`,
+        operators: `${activeOpsAtCenter}/${opsAtCenterCount}`,
         progress: Number(total.count) > 0 ? Math.round((Number(verified.count) / Number(total.count)) * 100) : 0,
       };
     });
@@ -447,10 +466,10 @@ export class DatabaseStorage implements IStorage {
       present: Number(presentCount.count),
       absent: Number(absentCount.count),
       totalExams: Number(examCount.count),
-      totalCenters: Number(centerCount.count),
+      totalCenters: distinctCentreCodes.length,
       totalOperators: totalOps,
       activeOperators: activeOps,
-      activeCenters: centerList.length,
+      activeCenters: distinctCentreCodes.length,
       totalAlerts: Number(alertCount.count),
       centerStats,
     };
@@ -479,10 +498,18 @@ export class DatabaseStorage implements IStorage {
       examFilter ? and(sql`(${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent')`, examFilter) : sql`${candidates.presentMark} IS NULL OR ${candidates.presentMark} = 'Absent'`
     );
 
-    const centerList = await db.select().from(centers).where(centerFilter);
+    const distinctCentreCodes = await db.selectDistinct({
+      centreCode: candidates.centreCode,
+      centreName: candidates.centreName,
+    }).from(candidates).where(examFilter);
 
-    const centerStatsPromises = centerList.map(async (center) => {
-      const cFilter = eq(candidates.centreCode, center.code);
+    const allCenters = await db.select().from(centers);
+    const centerMap = new Map(allCenters.map(c => [c.code, c]));
+
+    const centerStatsPromises = distinctCentreCodes.map(async (dc) => {
+      const code = dc.centreCode;
+      const centerRecord = code ? centerMap.get(code) : undefined;
+      const cFilter = eq(candidates.centreCode, code!);
       const combinedFilter = examFilter ? and(cFilter, examFilter) : cFilter;
       const [total] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(combinedFilter);
       const [verified] = await db.select({ count: sql<number>`count(*)` }).from(candidates).where(
@@ -495,18 +522,23 @@ export class DatabaseStorage implements IStorage {
         combinedFilter ? and(eq(candidates.presentMark, "Present"), combinedFilter) : and(eq(candidates.presentMark, "Present"), cFilter)
       );
 
-      const operatorsAtCenter = await db.select().from(operators).where(eq(operators.centerId, center.id));
-      const activeOps = operatorsAtCenter.filter(o => o.status === "Active").length;
+      let activeOps = 0;
+      let totalOps = 0;
+      if (centerRecord) {
+        const operatorsAtCenter = await db.select().from(operators).where(eq(operators.centerId, centerRecord.id));
+        totalOps = operatorsAtCenter.length;
+        activeOps = operatorsAtCenter.filter(o => o.status === "Active").length;
+      }
 
       return {
-        code: center.code,
-        name: center.name,
-        city: center.city,
+        code: code || "",
+        name: centerRecord?.name || dc.centreName || code || "",
+        city: centerRecord?.city || "",
         total: Number(total.count),
         verified: Number(verified.count),
         pending: Number(pending.count),
         present: Number(present.count),
-        operators: `${activeOps}/${operatorsAtCenter.length}`,
+        operators: `${activeOps}/${totalOps}`,
         progress: Number(total.count) > 0 ? Math.round((Number(verified.count) / Number(total.count)) * 100) : 0,
       };
     });
@@ -537,8 +569,8 @@ export class DatabaseStorage implements IStorage {
       rejected: Number(rejectedCount.count),
       present: Number(presentCount.count),
       absent: Number(absentCount.count),
-      totalCenters: centerList.length,
-      activeCenters: centerList.length,
+      totalCenters: distinctCentreCodes.length,
+      activeCenters: distinctCentreCodes.length,
       totalOperators: operatorCount,
       activeOperators: activeOperatorCount,
       centerStats,
