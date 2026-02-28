@@ -721,7 +721,7 @@ class RegistrationActivity : AppCompatActivity() {
               }
           }
           binding.btnOfflineSync.setOnClickListener { startActivity(Intent(this, SyncActivity::class.java)) }
-          startService(Intent(this, HeartbeatService::class.java))
+          try { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(Intent(this, HeartbeatService::class.java)) else startService(Intent(this, HeartbeatService::class.java)) } catch (_: Exception) {}
           sessionCheckHandler.postDelayed(sessionCheckRunnable, 30000)
           updateStats()
       }
