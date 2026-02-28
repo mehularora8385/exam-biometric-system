@@ -1635,6 +1635,7 @@ export async function registerRoutes(
         examId,
         examName: exam.name,
         examCode: exam.code,
+        linkedExams: [{ id: exam.id, name: exam.name, code: exam.code }],
         serverUrl: req.protocol + '://' + req.get('host'),
         biometricMode: features.biometricMode || 'face_fingerprint',
         verificationFlow: features.verificationFlow || 'face_then_fingerprint',
@@ -1698,10 +1699,23 @@ export async function registerRoutes(
 
       res.status(202).json({ buildId: build.id, status: 'building', message: 'Build started' });
 
+      // Build linked exams list for multi-exam support
+      const linkedExamsList: Array<{id: number, name: string, code: string}> = [{ id: exam.id, name: exam.name, code: exam.code }];
+      if (build.linkedExamIds) {
+        const linkedIds = String(build.linkedExamIds).split(",").map(Number).filter(n => !isNaN(n) && n !== examId);
+        for (const lid of linkedIds) {
+          const linkedExam = await storage.getExam(lid);
+          if (linkedExam) {
+            linkedExamsList.push({ id: linkedExam.id, name: linkedExam.name, code: linkedExam.code });
+          }
+        }
+      }
+
       const configData: BuildConfig = {
         examId,
         examName: exam.name,
         examCode: exam.code,
+        linkedExams: linkedExamsList,
         serverUrl: req.protocol + '://' + req.get('host'),
         biometricMode: features.biometricMode || 'face_fingerprint',
         verificationFlow: features.verificationFlow || 'face_then_fingerprint',

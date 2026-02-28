@@ -163,6 +163,7 @@ export interface BuildConfig {
   examId: number;
   examName: string;
   examCode?: string;
+  linkedExams?: Array<{id: number, name: string, code: string}>;
   serverUrl: string;
   biometricMode: string;
   verificationFlow: string;
@@ -185,6 +186,7 @@ export interface BuildConfig {
 function generateConfigJson(config: BuildConfig): string {
   return JSON.stringify({
     exam: { id: config.examId, name: config.examName, code: config.examCode || `EXAM${config.examId}`, centres: config.centres || [] },
+    linkedExams: config.linkedExams || [{ id: config.examId, name: config.examName, code: config.examCode || `EXAM${config.examId}` }],
     server: {
       baseUrl: config.serverUrl.startsWith('http://') ? config.serverUrl.replace('http://', 'https://') : config.serverUrl,
       endpoints: config.apiEndpoints,
@@ -250,6 +252,7 @@ function generateAndroidManifest(pkgName: string): string {
             </intent-filter>
         </activity>
         <activity android:name=".ui.RegistrationActivity" />
+        <activity android:name=".ui.ExamSelectActivity" />
         <activity android:name=".ui.CentreSelectActivity" />
         <activity android:name=".ui.DashboardActivity" />
         <activity android:name=".ui.CandidateListActivity" />
@@ -490,7 +493,7 @@ function writeKotlinSources(srcDir: string, pkgName: string, config: BuildConfig
   fs.writeFileSync(path.join(srcDir, "db", "AppDatabase.kt"), `package ${pkgName}.db\nimport android.content.Context\nimport androidx.room.*\nimport ${pkgName}.model.Candidate\nimport ${pkgName}.model.PendingVerification\nimport ${pkgName}.model.PendingAttendance\n\n@Dao interface CandidateDao {\n    @Query("SELECT * FROM candidates WHERE examId = :examId") suspend fun getByExam(examId: Int): List<Candidate>\n    @Query("SELECT * FROM candidates WHERE rollNo = :rollNo AND examId = :examId LIMIT 1") suspend fun findByRollNo(rollNo: String, examId: Int): Candidate?\n    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(candidates: List<Candidate>)\n    @Update suspend fun update(candidate: Candidate)\n    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId AND attendanceStatus = 'present'") suspend fun getPresentCount(examId: Int): Int\n    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId AND verificationStatus = 'verified'") suspend fun getVerifiedCount(examId: Int): Int\n    @Query("SELECT COUNT(*) FROM candidates WHERE examId = :examId") suspend fun getTotalCount(examId: Int): Int\n}\n\n@Dao interface PendingVerificationDao {\n    @Insert suspend fun insert(v: PendingVerification)\n    @Query("SELECT * FROM pending_verifications WHERE uploaded = 0") suspend fun getUnuploaded(): List<PendingVerification>\n    @Update suspend fun update(v: PendingVerification)\n}\n\n@Dao interface PendingAttendanceDao {\n    @Insert suspend fun insert(a: PendingAttendance)\n    @Query("SELECT * FROM pending_attendance WHERE uploaded = 0") suspend fun getUnuploaded(): List<PendingAttendance>\n    @Update suspend fun update(a: PendingAttendance)\n}\n\n@Database(entities = [Candidate::class, PendingVerification::class, PendingAttendance::class], version = 1, exportSchema = false)\nabstract class AppDatabase : RoomDatabase() {\n    abstract fun candidateDao(): CandidateDao\n    abstract fun pendingVerificationDao(): PendingVerificationDao\n    abstract fun pendingAttendanceDao(): PendingAttendanceDao\n    companion object {\n        @Volatile private var instance: AppDatabase? = null\n        fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {\n            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "mpa_verify.db").fallbackToDestructiveMigration().build().also { instance = it }\n        }\n    }\n}`);
 
   fs.mkdirSync(path.join(srcDir, "ui"), { recursive: true });
-  fs.writeFileSync(path.join(srcDir, "ui", "SplashActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.os.Handler\nimport android.os.Looper\nimport androidx.appcompat.app.AppCompatActivity\nimport ${pkgName}.R\nimport ${pkgName}.network.RetrofitClient\nclass SplashActivity : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(R.layout.activity_splash)\n        RetrofitClient.init(this)\n        Handler(Looper.getMainLooper()).postDelayed({\n            val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)\n            val registered = prefs.getBoolean("registered", false)\n            val centreSelected = prefs.getBoolean("centre_selected", false)\n            val dest = when {\n                !registered -> RegistrationActivity::class.java\n                !centreSelected -> CentreSelectActivity::class.java\n                else -> DashboardActivity::class.java\n            }\n            startActivity(Intent(this, dest))\n            finish()\n        }, 2000)\n    }\n}`);
+  fs.writeFileSync(path.join(srcDir, "ui", "SplashActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.os.Handler\nimport android.os.Looper\nimport androidx.appcompat.app.AppCompatActivity\nimport ${pkgName}.R\nimport ${pkgName}.network.RetrofitClient\nclass SplashActivity : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(R.layout.activity_splash)\n        RetrofitClient.init(this)\n        Handler(Looper.getMainLooper()).postDelayed({\n            val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)\n            val registered = prefs.getBoolean("registered", false)\n            val examSelected = prefs.getBoolean("exam_selected", false)\n            val centreSelected = prefs.getBoolean("centre_selected", false)\n            val dest = when {\n                !registered -> RegistrationActivity::class.java\n                !examSelected -> ExamSelectActivity::class.java\n                !centreSelected -> CentreSelectActivity::class.java\n                else -> DashboardActivity::class.java\n            }\n            startActivity(Intent(this, dest))\n            finish()\n        }, 2000)\n    }\n}`);
 
   fs.writeFileSync(path.join(srcDir, "ui", "RegistrationActivity.kt"), `package ${pkgName}.ui
 import android.Manifest
@@ -563,18 +566,7 @@ class RegistrationActivity : AppCompatActivity() {
                         prefs.putString("device_id", deviceId)
                         prefs.apply()
                         Toast.makeText(this@RegistrationActivity, "Registration successful!", Toast.LENGTH_SHORT).show()
-                        val alreadyReg = json.optBoolean("alreadyRegistered", false)
-                        val centreCode = op.optString("centreCode", "")
-                        if (alreadyReg && centreCode.isNotEmpty() && centreCode != "null") {
-                            getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit()
-                                .putBoolean("centre_selected", true)
-                                .putString("centre_code", centreCode)
-                                .putInt("exam_id", op.optInt("examId", 0))
-                                .apply()
-                            startActivity(Intent(this@RegistrationActivity, DashboardActivity::class.java))
-                        } else {
-                            startActivity(Intent(this@RegistrationActivity, CentreSelectActivity::class.java))
-                        }
+                        startActivity(Intent(this@RegistrationActivity, ExamSelectActivity::class.java))
                         finish()
                     } else {
                         Toast.makeText(this@RegistrationActivity, json.optString("message", "Registration failed"), Toast.LENGTH_LONG).show()
@@ -662,7 +654,130 @@ class RegistrationActivity : AppCompatActivity() {
     override fun onBackPressed() { }
 }`)
 
-  fs.writeFileSync(path.join(srcDir, "ui", "CentreSelectActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.View\nimport android.widget.AdapterView\nimport android.widget.ArrayAdapter\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityCentreSelectBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.CentreSelectRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass CentreSelectActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCentreSelectBinding\n    private var selectedCentreCode = ""\n    private var examId = 0\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCentreSelectBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        try {\n            val configStr = assets.open("config.json").bufferedReader().readText()\n            val config = org.json.JSONObject(configStr)\n            examId = config.optInt("examId", 1)\n            binding.tvExamName.text = config.optString("examName", "Exam")\n        } catch (_: Exception) { examId = 1 }\n        loadCentres()\n        binding.btnConfirmCentre.setOnClickListener {\n            if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("operator_id", 0)\n            binding.btnConfirmCentre.isEnabled = false\n            binding.btnConfirmCentre.text = "Downloading data..."\n            lifecycleScope.launch {\n                try {\n                    val resp = RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode))\n                    if (resp.isSuccessful && resp.body()?.success == true) {\n                        val body = resp.body()!!\n                        body.candidates?.let { candidates ->\n                            AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(candidates)\n                        }\n                        getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().putBoolean("centre_selected", true).putString("centre_code", selectedCentreCode).putString("centre_name", body.centreName ?: selectedCentreCode).putInt("exam_id", examId).putInt("downloaded_count", body.candidateCount ?: 0).putLong("last_download_time", System.currentTimeMillis()).apply()\n                        Toast.makeText(this@CentreSelectActivity, body.message ?: "Centre selected", Toast.LENGTH_SHORT).show()\n                        startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))\n                        finish()\n                    } else { Toast.makeText(this@CentreSelectActivity, resp.body()?.message ?: "Failed to select centre", Toast.LENGTH_SHORT).show() }\n                } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error: " + e.message, Toast.LENGTH_SHORT).show() }\n                binding.btnConfirmCentre.isEnabled = true\n                binding.btnConfirmCentre.text = "Confirm & Download Data"\n            }\n        }\n    }\n    private fun loadCentres() {\n        lifecycleScope.launch {\n            try {\n                val resp = RetrofitClient.getApi().getCentres(examId)\n                if (resp.isSuccessful && resp.body() != null) {\n                    val centres = resp.body()!!\n                    val names = centres.map { "${"$"}{it.code} - ${"$"}{it.name}" }\n                    binding.spinnerCentre.adapter = ArrayAdapter(this@CentreSelectActivity, android.R.layout.simple_spinner_dropdown_item, names)\n                    binding.spinnerCentre.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {\n                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { selectedCentreCode = centres[pos].code }\n                        override fun onNothingSelected(p: AdapterView<*>?) {}\n                    }\n                } else { Toast.makeText(this@CentreSelectActivity, "Failed to load centres", Toast.LENGTH_SHORT).show() }\n            } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error loading centres", Toast.LENGTH_SHORT).show() }\n        }\n    }\n    override fun onBackPressed() { }\n}`);
+  // ExamSelectActivity - shows linked exams, hides completed ones, navigates to CentreSelect
+  fs.writeFileSync(path.join(srcDir, "ui", "ExamSelectActivity.kt"), `package ${pkgName}.ui
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.widget.BaseAdapter
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import ${pkgName}.databinding.ActivityExamSelectBinding
+import org.json.JSONArray
+import org.json.JSONObject
+
+class ExamSelectActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityExamSelectBinding
+    private val examList = mutableListOf<JSONObject>()
+    private var selectedIndex = -1
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityExamSelectBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+        binding.tvOperatorGreeting.text = "Welcome, ${"$"}{prefs.getString("operator_name", "Operator")}"
+
+        loadExams()
+
+        binding.btnSelectExam.setOnClickListener {
+            if (selectedIndex < 0 || selectedIndex >= examList.size) {
+                Toast.makeText(this, "Please select an exam", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val exam = examList[selectedIndex]
+            val examId = exam.getInt("id")
+            val examName = exam.getString("name")
+            val examCode = exam.optString("code", "")
+
+            prefs.edit()
+                .putBoolean("exam_selected", true)
+                .putInt("exam_id", examId)
+                .putString("exam_name", examName)
+                .putString("exam_code", examCode)
+                .apply()
+
+            // Add to completed exams list
+            val completed = prefs.getString("completed_exams", "") ?: ""
+            // Don't add yet - will be added after exam work is done
+
+            val intent = Intent(this, CentreSelectActivity::class.java)
+            intent.putExtra("examId", examId)
+            intent.putExtra("examName", examName)
+            startActivity(intent)
+            finish()
+        }
+    }
+
+    private fun loadExams() {
+        try {
+            val configStr = assets.open("config.json").bufferedReader().readText()
+            val config = JSONObject(configStr)
+            val linkedExams = config.optJSONArray("linkedExams") ?: JSONArray()
+
+            // Get completed exams to hide them
+            val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+            val completedStr = prefs.getString("completed_exams", "") ?: ""
+            val completedIds = if (completedStr.isEmpty()) emptySet() else completedStr.split(",").map { it.trim().toIntOrNull() }.filterNotNull().toSet()
+
+            examList.clear()
+            for (i in 0 until linkedExams.length()) {
+                val exam = linkedExams.getJSONObject(i)
+                val examId = exam.getInt("id")
+                if (!completedIds.contains(examId)) {
+                    examList.add(exam)
+                }
+            }
+
+            if (examList.isEmpty()) {
+                binding.tvNoExams.visibility = View.VISIBLE
+                binding.lvExams.visibility = View.GONE
+                binding.btnSelectExam.isEnabled = false
+                binding.tvNoExams.text = "All exams have been completed. Please contact HQ."
+                return
+            }
+
+            if (examList.size == 1) {
+                // Auto-select if only one exam available
+                selectedIndex = 0
+            }
+
+            binding.lvExams.adapter = object : BaseAdapter() {
+                override fun getCount() = examList.size
+                override fun getItem(pos: Int) = examList[pos]
+                override fun getItemId(pos: Int) = pos.toLong()
+                override fun getView(pos: Int, convertView: View?, parent: ViewGroup?): View {
+                    val v = convertView ?: layoutInflater.inflate(android.R.layout.simple_list_item_activated_1, parent, false)
+                    val tv = v.findViewById<TextView>(android.R.id.text1)
+                    val exam = examList[pos]
+                    tv.text = "${"$"}{exam.optString("code", "")} - ${"$"}{exam.getString("name")}"
+                    tv.textSize = 16f
+                    tv.setPadding(32, 24, 32, 24)
+                    return v
+                }
+            }
+            binding.lvExams.choiceMode = android.widget.ListView.CHOICE_MODE_SINGLE
+            binding.lvExams.setOnItemClickListener { _, _, pos, _ ->
+                selectedIndex = pos
+                binding.lvExams.setItemChecked(pos, true)
+            }
+
+            if (examList.size == 1) {
+                binding.lvExams.setItemChecked(0, true)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error loading exams: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onBackPressed() { }
+}`)
+
+  // CentreSelectActivity - now reads examId from intent extras or prefs
+  fs.writeFileSync(path.join(srcDir, "ui", "CentreSelectActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.View\nimport android.widget.AdapterView\nimport android.widget.ArrayAdapter\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityCentreSelectBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.CentreSelectRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass CentreSelectActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCentreSelectBinding\n    private var selectedCentreCode = ""\n    private var examId = 0\n    private var examName = ""\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCentreSelectBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)\n        examId = intent.getIntExtra("examId", prefs.getInt("exam_id", 0))\n        examName = intent.getStringExtra("examName") ?: prefs.getString("exam_name", "Exam") ?: "Exam"\n        binding.tvExamName.text = examName\n        loadCentres()\n        binding.btnConfirmCentre.setOnClickListener {\n            if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            val opId = prefs.getInt("operator_id", 0)\n            binding.btnConfirmCentre.isEnabled = false\n            binding.btnConfirmCentre.text = "Downloading data..."\n            lifecycleScope.launch {\n                try {\n                    val resp = RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode))\n                    if (resp.isSuccessful && resp.body()?.success == true) {\n                        val body = resp.body()!!\n                        body.candidates?.let { candidates ->\n                            AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(candidates)\n                        }\n                        getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().putBoolean("centre_selected", true).putString("centre_code", selectedCentreCode).putString("centre_name", body.centreName ?: selectedCentreCode).putInt("exam_id", examId).putInt("downloaded_count", body.candidateCount ?: 0).putLong("last_download_time", System.currentTimeMillis()).apply()\n                        Toast.makeText(this@CentreSelectActivity, body.message ?: "Centre selected", Toast.LENGTH_SHORT).show()\n                        startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))\n                        finish()\n                    } else { Toast.makeText(this@CentreSelectActivity, resp.body()?.message ?: "Failed to select centre", Toast.LENGTH_SHORT).show() }\n                } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error: " + e.message, Toast.LENGTH_SHORT).show() }\n                binding.btnConfirmCentre.isEnabled = true\n                binding.btnConfirmCentre.text = "Confirm & Download Data"\n            }\n        }\n    }\n    private fun loadCentres() {\n        lifecycleScope.launch {\n            try {\n                val resp = RetrofitClient.getApi().getCentres(examId)\n                if (resp.isSuccessful && resp.body() != null) {\n                    val centres = resp.body()!!\n                    val names = centres.map { "${"$"}{it.code} - ${"$"}{it.name}" }\n                    binding.spinnerCentre.adapter = ArrayAdapter(this@CentreSelectActivity, android.R.layout.simple_spinner_dropdown_item, names)\n                    binding.spinnerCentre.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {\n                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { selectedCentreCode = centres[pos].code }\n                        override fun onNothingSelected(p: AdapterView<*>?) {}\n                    }\n                } else { Toast.makeText(this@CentreSelectActivity, "Failed to load centres", Toast.LENGTH_SHORT).show() }\n            } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error loading centres", Toast.LENGTH_SHORT).show() }\n        }\n    }\n    override fun onBackPressed() { }\n}`);
 
   fs.writeFileSync(path.join(srcDir, "ui", "DashboardActivity.kt"), `package ${pkgName}.ui
   import android.content.Intent
@@ -721,6 +836,29 @@ class RegistrationActivity : AppCompatActivity() {
               }
           }
           binding.btnOfflineSync.setOnClickListener { startActivity(Intent(this, SyncActivity::class.java)) }
+          binding.btnFinishExam.setOnClickListener {
+              AlertDialog.Builder(this)
+                  .setTitle("Finish Exam")
+                  .setMessage("Are you sure you want to finish this exam and select another exam?")
+                  .setPositiveButton("Yes") { _, _ ->
+                      val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+                      val completed = prefs.getString("completed_exams", "") ?: ""
+                      val newCompleted = if (completed.isEmpty()) examId.toString() else "${"$"}{completed},${"$"}{examId}"
+                      prefs.edit()
+                          .putString("completed_exams", newCompleted)
+                          .putBoolean("exam_selected", false)
+                          .putBoolean("centre_selected", false)
+                          .remove("exam_id").remove("exam_name").remove("exam_code")
+                          .remove("centre_code").remove("centre_name")
+                          .remove("downloaded_count").remove("last_download_time")
+                          .apply()
+                      try { stopService(Intent(this, HeartbeatService::class.java)) } catch (_: Exception) {}
+                      startActivity(Intent(this, ExamSelectActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                      finish()
+                  }
+                  .setNegativeButton("No", null)
+                  .show()
+          }
           try { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(Intent(this, HeartbeatService::class.java)) else startService(Intent(this, HeartbeatService::class.java)) } catch (_: Exception) {}
           sessionCheckHandler.postDelayed(sessionCheckRunnable, 30000)
           updateStats()
@@ -730,13 +868,16 @@ class RegistrationActivity : AppCompatActivity() {
           centreCode = prefs.getString("centre_code", "") ?: ""
           centreName = prefs.getString("centre_name", "") ?: ""
           examId = prefs.getInt("exam_id", 0)
-          try {
-              val cfg = assets.open("config.json").bufferedReader().use { it.readText() }
-              val json = JSONObject(cfg)
-              val exam = json.getJSONObject("exam")
-              if (examId == 0) examId = exam.getInt("id")
-              examName = exam.getString("name")
-          } catch (_: Exception) { examName = "Exam" }
+          examName = prefs.getString("exam_name", "") ?: ""
+          if (examName.isEmpty()) {
+              try {
+                  val cfg = assets.open("config.json").bufferedReader().use { it.readText() }
+                  val json = JSONObject(cfg)
+                  val exam = json.getJSONObject("exam")
+                  if (examId == 0) examId = exam.getInt("id")
+                  examName = exam.getString("name")
+              } catch (_: Exception) { examName = "Exam" }
+          }
       }
       private fun checkForceLogout() {
           val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("operator_id", 0)
@@ -750,11 +891,15 @@ class RegistrationActivity : AppCompatActivity() {
                           runOnUiThread {
                               AlertDialog.Builder(this@DashboardActivity)
                                   .setTitle("Session Terminated")
-                                  .setMessage("Your session has been terminated by HQ. The app will now close.")
+                                  .setMessage("Your session has been terminated by HQ. Please re-register to continue.")
                                   .setCancelable(false)
                                   .setPositiveButton("OK") { _, _ ->
-                                      getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().clear().apply()
-                                      finishAffinity()
+                                      val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+                                      val completedExams = prefs.getString("completed_exams", "") ?: ""
+                                      prefs.edit().clear().putString("completed_exams", completedExams).apply()
+                                      try { stopService(Intent(this@DashboardActivity, HeartbeatService::class.java)) } catch (_: Exception) {}
+                                      startActivity(Intent(this@DashboardActivity, RegistrationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                                      finish()
                                   }.show()
                           }
                       }
@@ -2191,6 +2336,16 @@ function writeLayoutFiles(resDir: string) {
 
   fs.writeFileSync(path.join(ld, "activity_registration.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">\n<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:orientation="vertical" android:padding="32dp">\n    <ImageView android:layout_width="80dp" android:layout_height="80dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" />\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Operator Registration" android:textSize="24sp" android:textStyle="bold" android:layout_marginTop="16dp" android:layout_marginBottom="24dp" />\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etName" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Full Name" android:inputType="textPersonName" /></com.google.android.material.textfield.TextInputLayout>\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etPhone" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Mobile Number" android:inputType="phone" android:maxLength="10" /></com.google.android.material.textfield.TextInputLayout>\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="16dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etAadhaar" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Aadhaar Number (12 digits)" android:inputType="number" android:maxLength="12" /></com.google.android.material.textfield.TextInputLayout>\n    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:layout_marginBottom="16dp" android:padding="16dp" android:background="@drawable/rounded_bg">\n        <ImageView android:id="@+id/ivSelfie" android:layout_width="120dp" android:layout_height="120dp" android:src="@drawable/ic_fingerprint" android:contentDescription="selfie" android:scaleType="centerCrop" />\n        <TextView android:id="@+id/tvSelfieStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="No selfie captured" android:layout_marginTop="8dp" android:textColor="#888" />\n        <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureSelfie" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Capture Selfie" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />\n    </LinearLayout>\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnRegister" android:layout_width="match_parent" android:layout_height="56dp" android:text="Register" android:textSize="16sp" />\n</LinearLayout>\n</ScrollView>`);
 
+  fs.writeFileSync(path.join(ld, "activity_exam_select.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="32dp">
+    <ImageView android:layout_width="80dp" android:layout_height="80dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" android:layout_gravity="center" />
+    <TextView android:id="@+id/tvOperatorGreeting" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Welcome" android:textSize="18sp" android:textColor="#666" android:layout_gravity="center" android:layout_marginTop="12dp" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Select Exam" android:textSize="24sp" android:textStyle="bold" android:layout_gravity="center" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" />
+    <TextView android:id="@+id/tvNoExams" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="No exams available" android:textSize="16sp" android:textColor="#999" android:gravity="center" android:visibility="gone" android:layout_marginTop="32dp" />
+    <ListView android:id="@+id/lvExams" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="#E0E0E0" android:dividerHeight="1dp" android:background="@drawable/rounded_bg" android:layout_marginBottom="24dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnSelectExam" android:layout_width="match_parent" android:layout_height="56dp" android:text="Select Exam &amp; Continue" android:textSize="16sp" />
+</LinearLayout>`);
+
   fs.writeFileSync(path.join(ld, "activity_centre_select.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical" android:padding="32dp">\n    <ImageView android:layout_width="80dp" android:layout_height="80dp" android:src="@drawable/ic_fingerprint" android:contentDescription="logo" />\n    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Select Centre" android:textSize="24sp" android:textStyle="bold" android:layout_marginTop="16dp" />\n    <TextView android:id="@+id/tvExamName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Exam" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" />\n    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Centre Code" android:textSize="14sp" android:layout_marginBottom="8dp" />\n    <Spinner android:id="@+id/spinnerCentre" android:layout_width="match_parent" android:layout_height="56dp" android:background="@drawable/spinner_bg" android:layout_marginBottom="24dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnConfirmCentre" android:layout_width="match_parent" android:layout_height="56dp" android:text="Confirm and Download Data" android:textSize="16sp" />\n</LinearLayout>`);
 
   fs.writeFileSync(path.join(ld, "activity_dashboard.xml"), `<?xml version="1.0" encoding="utf-8"?>
@@ -2209,6 +2364,7 @@ function writeLayoutFiles(resDir: string) {
       <com.google.android.material.button.MaterialButton android:id="@+id/btnAttendance" android:layout_width="match_parent" android:layout_height="56dp" android:text="Mark Attendance" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />
       <com.google.android.material.button.MaterialButton android:id="@+id/btnVerification" android:layout_width="match_parent" android:layout_height="56dp" android:text="Biometric Verification" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />
       <com.google.android.material.button.MaterialButton android:id="@+id/btnOfflineSync" android:layout_width="match_parent" android:layout_height="56dp" android:text="Offline Sync" android:layout_marginTop="8dp" style="@style/Widget.Material3.Button.TonalButton" />
+      <com.google.android.material.button.MaterialButton android:id="@+id/btnFinishExam" android:layout_width="match_parent" android:layout_height="56dp" android:text="Finish Exam &amp; Select Next" android:layout_marginTop="16dp" style="@style/Widget.Material3.Button.OutlinedButton" />
       <TextView android:id="@+id/tvPendingSync" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="@color/warning" android:layout_marginTop="4dp" android:layout_gravity="center" />
   </LinearLayout>
   </ScrollView>`);
