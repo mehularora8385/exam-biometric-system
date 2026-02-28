@@ -311,6 +311,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'androidx.activity:activity-ktx:1.8.2'
     def camerax_version = "1.3.1"
     implementation "androidx.camera:camera-core:${"$"}{camerax_version}"
@@ -822,8 +823,135 @@ class ExamSelectActivity : AppCompatActivity() {
     override fun onBackPressed() { }
 }`)
 
-  // CentreSelectActivity - now reads examId from intent extras or prefs
-  fs.writeFileSync(path.join(srcDir, "ui", "CentreSelectActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.View\nimport android.widget.AdapterView\nimport android.widget.ArrayAdapter\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.databinding.ActivityCentreSelectBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.CentreSelectRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass CentreSelectActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCentreSelectBinding\n    private var selectedCentreCode = ""\n    private var examId = 0\n    private var examName = ""\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCentreSelectBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)\n        examId = intent.getIntExtra("examId", prefs.getInt("exam_id", 0))\n        examName = intent.getStringExtra("examName") ?: prefs.getString("exam_name", "Exam") ?: "Exam"\n        binding.tvExamName.text = examName\n        loadCentres()\n        binding.btnConfirmCentre.setOnClickListener {\n            if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }\n            val opId = prefs.getInt("operator_id", 0)\n            binding.btnConfirmCentre.isEnabled = false\n            binding.btnConfirmCentre.text = "Downloading data..."\n            lifecycleScope.launch {\n                try {\n                    val resp = RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode))\n                    if (resp.isSuccessful && resp.body()?.success == true) {\n                        val body = resp.body()!!\n                        body.candidates?.let { candidates ->\n                            AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(candidates)\n                        }\n                        getSharedPreferences("mpa_prefs", MODE_PRIVATE).edit().putBoolean("centre_selected", true).putString("centre_code", selectedCentreCode).putString("centre_name", body.centreName ?: selectedCentreCode).putInt("exam_id", examId).putInt("downloaded_count", body.candidateCount ?: 0).putLong("last_download_time", System.currentTimeMillis()).apply()\n                        Toast.makeText(this@CentreSelectActivity, body.message ?: "Centre selected", Toast.LENGTH_SHORT).show()\n                        startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))\n                        finish()\n                    } else { Toast.makeText(this@CentreSelectActivity, resp.body()?.message ?: "Failed to select centre", Toast.LENGTH_SHORT).show() }\n                } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error: " + e.message, Toast.LENGTH_SHORT).show() }\n                binding.btnConfirmCentre.isEnabled = true\n                binding.btnConfirmCentre.text = "Confirm & Download Data"\n            }\n        }\n    }\n    private fun loadCentres() {\n        lifecycleScope.launch {\n            try {\n                val resp = RetrofitClient.getApi().getCentres(examId)\n                if (resp.isSuccessful && resp.body() != null) {\n                    val centres = resp.body()!!\n                    val names = centres.map { "${"$"}{it.code} - ${"$"}{it.name}" }\n                    binding.spinnerCentre.adapter = ArrayAdapter(this@CentreSelectActivity, android.R.layout.simple_spinner_dropdown_item, names)\n                    binding.spinnerCentre.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {\n                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { selectedCentreCode = centres[pos].code }\n                        override fun onNothingSelected(p: AdapterView<*>?) {}\n                    }\n                } else { Toast.makeText(this@CentreSelectActivity, "Failed to load centres", Toast.LENGTH_SHORT).show() }\n            } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error loading centres", Toast.LENGTH_SHORT).show() }\n        }\n    }\n    override fun onBackPressed() { }\n}`);
+  // CentreSelectActivity - reads examId from intent extras or prefs, robust error handling
+  fs.writeFileSync(path.join(srcDir, "ui", "CentreSelectActivity.kt"), `package ${pkgName}.ui
+import android.content.Intent
+import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.databinding.ActivityCentreSelectBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.model.CentreSelectRequest
+import ${pkgName}.network.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+class CentreSelectActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityCentreSelectBinding
+    private var selectedCentreCode = ""
+    private var examId = 0
+    private var examName = ""
+    private val TAG = "CentreSelect"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        try {
+            binding = ActivityCentreSelectBinding.inflate(layoutInflater)
+            setContentView(binding.root)
+        } catch (e: Exception) {
+            Log.e(TAG, "Layout inflation failed", e)
+            Toast.makeText(this, "UI error: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+        try {
+            val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+            examId = intent.getIntExtra("examId", prefs.getInt("exam_id", 0))
+            examName = intent.getStringExtra("examName") ?: prefs.getString("exam_name", "Exam") ?: "Exam"
+            Log.d(TAG, "CentreSelect opened: examId=${"$"}examId examName=${"$"}examName")
+            binding.tvExamName.text = examName
+            loadCentres()
+            binding.btnConfirmCentre.setOnClickListener {
+                if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+                val opId = prefs.getInt("operator_id", 0)
+                binding.btnConfirmCentre.isEnabled = false
+                binding.btnConfirmCentre.text = "Downloading data..."
+                lifecycleScope.launch {
+                    try {
+                        val resp = withContext(Dispatchers.IO) { RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode)) }
+                        if (resp.isSuccessful && resp.body()?.success == true) {
+                            val body = resp.body()!!
+                            try {
+                                body.candidates?.let { candidates ->
+                                    if (candidates.isNotEmpty()) {
+                                        withContext(Dispatchers.IO) { AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(candidates) }
+                                    }
+                                }
+                            } catch (dbErr: Exception) { Log.e(TAG, "DB insert error", dbErr) }
+                            prefs.edit()
+                                .putBoolean("centre_selected", true)
+                                .putString("centre_code", selectedCentreCode)
+                                .putString("centre_name", body.centreName ?: selectedCentreCode)
+                                .putInt("exam_id", examId)
+                                .putString("exam_name", examName)
+                                .putInt("downloaded_count", body.candidateCount ?: 0)
+                                .putLong("last_download_time", System.currentTimeMillis())
+                                .apply()
+                            Toast.makeText(this@CentreSelectActivity, body.message ?: "Centre selected", Toast.LENGTH_SHORT).show()
+                            startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))
+                            finish()
+                        } else {
+                            val msg = try { resp.body()?.message } catch (_: Exception) { null } ?: "Failed to select centre"
+                            Toast.makeText(this@CentreSelectActivity, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Centre select error", e)
+                        Toast.makeText(this@CentreSelectActivity, "Network error: ${"$"}{e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    binding.btnConfirmCentre.isEnabled = true
+                    binding.btnConfirmCentre.text = "Confirm & Download Data"
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onCreate error", e)
+            Toast.makeText(this, "Error: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun loadCentres() {
+        binding.btnConfirmCentre.isEnabled = false
+        binding.btnConfirmCentre.text = "Loading centres..."
+        lifecycleScope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) { RetrofitClient.getApi().getCentres(examId) }
+                if (resp.isSuccessful && resp.body() != null) {
+                    val centres = resp.body()!!
+                    Log.d(TAG, "Loaded ${"$"}{centres.size} centres")
+                    if (centres.isEmpty()) {
+                        Toast.makeText(this@CentreSelectActivity, "No centres found for this exam", Toast.LENGTH_LONG).show()
+                        binding.btnConfirmCentre.isEnabled = false
+                        binding.btnConfirmCentre.text = "No Centres Available"
+                        return@launch
+                    }
+                    val names = centres.map { "${"$"}{it.code} - ${"$"}{it.name}" }
+                    binding.spinnerCentre.adapter = ArrayAdapter(this@CentreSelectActivity, android.R.layout.simple_spinner_dropdown_item, names)
+                    binding.spinnerCentre.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                            if (pos >= 0 && pos < centres.size) { selectedCentreCode = centres[pos].code }
+                        }
+                        override fun onNothingSelected(p: AdapterView<*>?) {}
+                    }
+                    if (centres.isNotEmpty()) { selectedCentreCode = centres[0].code }
+                } else {
+                    Log.e(TAG, "getCentres failed: ${"$"}{resp.code()} ${"$"}{resp.message()}")
+                    Toast.makeText(this@CentreSelectActivity, "Failed to load centres (error ${"$"}{resp.code()})", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "loadCentres error", e)
+                Toast.makeText(this@CentreSelectActivity, "Network error loading centres: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+            }
+            binding.btnConfirmCentre.isEnabled = true
+            binding.btnConfirmCentre.text = "Confirm & Download Data"
+        }
+    }
+
+    override fun onBackPressed() { }
+}`);
 
   fs.writeFileSync(path.join(srcDir, "ui", "DashboardActivity.kt"), `package ${pkgName}.ui
   import android.content.Intent
