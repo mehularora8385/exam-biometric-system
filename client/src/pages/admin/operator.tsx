@@ -55,22 +55,40 @@ export default function OperatorMaster() {
     },
   });
 
+  const centerIdsForExam = new Set<string>();
+  if (examFilter !== "all") {
+    centers.forEach((c: any) => {
+      if (c.examId?.toString() === examFilter) {
+        centerIdsForExam.add(c.id.toString());
+      }
+    });
+  }
+
   const filteredOperators = operatorsData.filter((op: any) => {
     const matchesSearch = !searchQuery ||
       op.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       op.phone?.includes(searchQuery) ||
       op.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesExam = examFilter === "all" || op.examId?.toString() === examFilter;
+    let matchesExam = true;
+    if (examFilter !== "all") {
+      if (op.examId) {
+        matchesExam = op.examId.toString() === examFilter;
+      } else if (op.centerId) {
+        matchesExam = centerIdsForExam.has(op.centerId.toString());
+      } else {
+        matchesExam = false;
+      }
+    }
 
     const matchesCentre = centerFilter === "all_centres" || op.centerId?.toString() === centerFilter || op.center === centerFilter;
 
     return matchesSearch && matchesExam && matchesCentre;
   });
 
-  const totalOperators = operatorsData.length;
-  const activeOperators = operatorsData.filter((op: any) => op.status === "Active").length;
-  const deviceBound = operatorsData.filter((op: any) => op.device && op.device !== "Not bound").length;
+  const totalOperators = filteredOperators.length;
+  const activeOperators = filteredOperators.filter((op: any) => op.status === "Active").length;
+  const deviceBound = filteredOperators.filter((op: any) => op.device && op.device !== "Not bound").length;
 
   if (isLoading) {
     return (
@@ -298,7 +316,7 @@ export default function OperatorMaster() {
         
         {/* Pagination placeholder matching the design */}
         <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500 bg-white">
-          <div>Showing 1 to {filteredOperators.length} of {totalOperators} entries</div>
+          <div>Showing 1 to {filteredOperators.length} of {operatorsData.length} entries</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-8 border-gray-200" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-blue-50 border-blue-200 text-blue-600">1</Button>
