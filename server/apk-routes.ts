@@ -163,7 +163,7 @@ export function registerApkRoutes(app: Express) {
 
   app.post("/api/apk/operator/select-centre", async (req, res) => {
     try {
-      const { operatorId, examId, centreCode } = req.body;
+      const { operatorId, examId, centreCode, password } = req.body;
       if (!operatorId || !examId || !centreCode) {
         return res.status(400).json({ success: false, message: "operatorId, examId and centreCode required" });
       }
@@ -171,6 +171,11 @@ export function registerApkRoutes(app: Express) {
       const centre = centres.find((c: any) => c.code === centreCode);
       const exams = await storage.listExams();
       const exam = exams.find((e: any) => e.id === Number(examId));
+      if (exam?.apkPassword && exam.apkPassword.trim() !== "") {
+        if (!password || password !== exam.apkPassword) {
+          return res.status(403).json({ success: false, message: "Invalid exam password", requiresPassword: true });
+        }
+      }
       await db.update(operators).set({
         centreCode, examId: Number(examId),
         examName: exam?.name || null,

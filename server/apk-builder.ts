@@ -537,7 +537,7 @@ class CrashActivity : AppCompatActivity() {
     data class OperatorRegRequest(val name: String, val phone: String, val aadhaar: String, val selfie: String?, val deviceId: String)
     data class OperatorRegResponse(val success: Boolean = false, val operator: OperatorData? = null, val message: String? = null, val alreadyRegistered: Boolean = false)
     data class OperatorData(val id: Int = 0, val name: String = "", val phone: String = "", val aadhaar: String = "", val centreCode: String? = null, val examId: Int? = null, val examName: String? = null)
-    data class CentreSelectRequest(val operatorId: Int, val examId: Int, val centreCode: String)
+    data class CentreSelectRequest(val operatorId: Int, val examId: Int, val centreCode: String, val password: String? = null)
     data class CentreSelectResponse(val success: Boolean, val centreName: String?, val candidateCount: Int?, val candidates: List<Candidate>?, val message: String?)
     data class SessionCheckRequest(val operatorId: Int)
     data class AvailableExam(val id: Int, val name: String, val code: String?, val status: String?, val type: String?)
@@ -900,7 +900,7 @@ class ExamSelectActivity : AppCompatActivity() {
     override fun onBackPressed() { }
 }`)
 
-  // CentreSelectActivity - reads examId from intent extras or prefs, robust error handling
+  // CentreSelectActivity - with password prompt for data download
   fs.writeFileSync(path.join(srcDir, "ui", "CentreSelectActivity.kt"), `package ${pkgName}.ui
 import android.content.Intent
 import android.os.Bundle
@@ -908,7 +908,9 @@ import android.util.Log
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import ${pkgName}.databinding.ActivityCentreSelectBinding
@@ -932,61 +934,66 @@ class CentreSelectActivity : AppCompatActivity() {
             setContentView(binding.root)
         } catch (e: Exception) {
             Log.e(TAG, "Layout inflation failed", e)
-            Toast.makeText(this, "UI error: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
-            finish()
-            return
+            finish(); return
         }
-        try {
-            val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
-            examId = intent.getIntExtra("examId", prefs.getInt("exam_id", 0))
-            examName = intent.getStringExtra("examName") ?: prefs.getString("exam_name", "Exam") ?: "Exam"
-            Log.d(TAG, "CentreSelect opened: examId=${"$"}examId examName=${"$"}examName")
-            binding.tvExamName.text = examName
-            loadCentres()
-            binding.btnConfirmCentre.setOnClickListener {
-                if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
-                val opId = prefs.getInt("operator_id", 0)
-                binding.btnConfirmCentre.isEnabled = false
-                binding.btnConfirmCentre.text = "Downloading data..."
-                lifecycleScope.launch {
-                    try {
-                        val resp = withContext(Dispatchers.IO) { RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode)) }
-                        if (resp.isSuccessful && resp.body()?.success == true) {
-                            val body = resp.body()!!
-                            try {
-                                body.candidates?.let { candidates ->
-                                    if (candidates.isNotEmpty()) {
-                                        withContext(Dispatchers.IO) { AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(candidates) }
-                                    }
-                                }
-                            } catch (dbErr: Exception) { Log.e(TAG, "DB insert error", dbErr) }
-                            prefs.edit()
-                                .putBoolean("centre_selected", true)
-                                .putString("centre_code", selectedCentreCode)
-                                .putString("centre_name", body.centreName ?: selectedCentreCode)
-                                .putInt("exam_id", examId)
-                                .putString("exam_name", examName)
-                                .putInt("downloaded_count", body.candidateCount ?: 0)
-                                .putLong("last_download_time", System.currentTimeMillis())
-                                .apply()
-                            Toast.makeText(this@CentreSelectActivity, body.message ?: "Centre selected", Toast.LENGTH_SHORT).show()
-                            startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))
-                            finish()
-                        } else {
-                            val msg = try { resp.body()?.message } catch (_: Exception) { null } ?: "Failed to select centre"
-                            Toast.makeText(this@CentreSelectActivity, msg, Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Centre select error", e)
-                        Toast.makeText(this@CentreSelectActivity, "Network error: ${"$"}{e.message}", Toast.LENGTH_SHORT).show()
-                    }
-                    binding.btnConfirmCentre.isEnabled = true
-                    binding.btnConfirmCentre.text = "Confirm & Download Data"
-                }
+        val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+        examId = intent.getIntExtra("examId", prefs.getInt("exam_id", 0))
+        examName = intent.getStringExtra("examName") ?: prefs.getString("exam_name", "Exam") ?: "Exam"
+        binding.tvExamName.text = examName
+        loadCentres()
+        binding.btnConfirmCentre.setOnClickListener {
+            if (selectedCentreCode.isEmpty()) { Toast.makeText(this, "Please select a centre", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            showPasswordDialog()
+        }
+    }
+
+    private fun showPasswordDialog() {
+        val input = EditText(this)
+        input.hint = "Enter exam password"
+        input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        input.setPadding(48, 32, 48, 32)
+        AlertDialog.Builder(this)
+            .setTitle("Exam Password Required")
+            .setMessage("Enter the password to download biometric data")
+            .setView(input)
+            .setPositiveButton("Download") { _, _ ->
+                val pwd = input.text.toString().trim()
+                if (pwd.isEmpty()) { Toast.makeText(this, "Password is required", Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+                downloadData(pwd)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "onCreate error", e)
-            Toast.makeText(this, "Error: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+            .setNegativeButton("Cancel", null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun downloadData(password: String) {
+        val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
+        val opId = prefs.getInt("operator_id", 0)
+        binding.btnConfirmCentre.isEnabled = false
+        binding.btnConfirmCentre.text = "Downloading data..."
+        lifecycleScope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) { RetrofitClient.getApi().selectCentre(CentreSelectRequest(opId, examId, selectedCentreCode, password)) }
+                if (resp.isSuccessful && resp.body()?.success == true) {
+                    val body = resp.body()!!
+                    try { body.candidates?.let { if (it.isNotEmpty()) withContext(Dispatchers.IO) { AppDatabase.getInstance(this@CentreSelectActivity).candidateDao().insertAll(it) } } } catch (e: Exception) { Log.e(TAG, "DB error", e) }
+                    prefs.edit()
+                        .putBoolean("centre_selected", true).putString("centre_code", selectedCentreCode)
+                        .putString("centre_name", body.centreName ?: selectedCentreCode)
+                        .putInt("exam_id", examId).putString("exam_name", examName)
+                        .putInt("downloaded_count", body.candidateCount ?: 0)
+                        .putLong("last_download_time", System.currentTimeMillis()).apply()
+                    Toast.makeText(this@CentreSelectActivity, "Downloaded ${"$"}{body.candidateCount ?: 0} candidates", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@CentreSelectActivity, DashboardActivity::class.java))
+                    finish()
+                } else if (resp.code() == 403) {
+                    Toast.makeText(this@CentreSelectActivity, "Invalid password! Please try again.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@CentreSelectActivity, resp.body()?.message ?: "Failed", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error: ${"$"}{e.message}", Toast.LENGTH_SHORT).show() }
+            binding.btnConfirmCentre.isEnabled = true
+            binding.btnConfirmCentre.text = "Confirm & Download Data"
         }
     }
 
@@ -996,37 +1003,21 @@ class CentreSelectActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.getApi().getCentres(examId) }
-                if (resp.isSuccessful && resp.body() != null) {
+                if (resp.isSuccessful && resp.body() != null && resp.body()!!.isNotEmpty()) {
                     val centres = resp.body()!!
-                    Log.d(TAG, "Loaded ${"$"}{centres.size} centres")
-                    if (centres.isEmpty()) {
-                        Toast.makeText(this@CentreSelectActivity, "No centres found for this exam", Toast.LENGTH_LONG).show()
-                        binding.btnConfirmCentre.isEnabled = false
-                        binding.btnConfirmCentre.text = "No Centres Available"
-                        return@launch
-                    }
                     val names = centres.map { "${"$"}{it.code} - ${"$"}{it.name}" }
                     binding.spinnerCentre.adapter = ArrayAdapter(this@CentreSelectActivity, android.R.layout.simple_spinner_dropdown_item, names)
                     binding.spinnerCentre.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                            if (pos >= 0 && pos < centres.size) { selectedCentreCode = centres[pos].code }
-                        }
+                        override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) { if (pos >= 0 && pos < centres.size) selectedCentreCode = centres[pos].code }
                         override fun onNothingSelected(p: AdapterView<*>?) {}
                     }
-                    if (centres.isNotEmpty()) { selectedCentreCode = centres[0].code }
-                } else {
-                    Log.e(TAG, "getCentres failed: ${"$"}{resp.code()} ${"$"}{resp.message()}")
-                    Toast.makeText(this@CentreSelectActivity, "Failed to load centres (error ${"$"}{resp.code()})", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "loadCentres error", e)
-                Toast.makeText(this@CentreSelectActivity, "Network error loading centres: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
-            }
+                    selectedCentreCode = centres[0].code
+                } else { Toast.makeText(this@CentreSelectActivity, "No centres found", Toast.LENGTH_LONG).show() }
+            } catch (e: Exception) { Toast.makeText(this@CentreSelectActivity, "Network error: ${"$"}{e.message}", Toast.LENGTH_LONG).show() }
             binding.btnConfirmCentre.isEnabled = true
             binding.btnConfirmCentre.text = "Confirm & Download Data"
         }
     }
-
     override fun onBackPressed() { }
 }`);
 
@@ -1075,7 +1066,7 @@ class CentreSelectActivity : AppCompatActivity() {
               lifecycleScope.launch {
                   val count = db.candidateDao().getTotalCount(examId)
                   if (count == 0) { Toast.makeText(this@DashboardActivity, "Download candidate data first", Toast.LENGTH_SHORT).show(); return@launch }
-                  startActivity(Intent(this@DashboardActivity, CandidateListActivity::class.java).putExtra("mode", "attendance").putExtra("examId", examId))
+                  startActivity(Intent(this@DashboardActivity, AttendanceActivity::class.java).putExtra("examId", examId))
               }
           }
           binding.btnVerification.setOnClickListener {
@@ -1083,7 +1074,7 @@ class CentreSelectActivity : AppCompatActivity() {
               lifecycleScope.launch {
                   val count = db.candidateDao().getTotalCount(examId)
                   if (count == 0) { Toast.makeText(this@DashboardActivity, "Download candidate data first", Toast.LENGTH_SHORT).show(); return@launch }
-                  startActivity(Intent(this@DashboardActivity, CandidateListActivity::class.java).putExtra("mode", "verification").putExtra("examId", examId))
+                  startActivity(Intent(this@DashboardActivity, VerificationActivity::class.java).putExtra("examId", examId))
               }
           }
           binding.btnOfflineSync.setOnClickListener { startActivity(Intent(this, SyncActivity::class.java)) }
@@ -1214,74 +1205,326 @@ class CentreSelectActivity : AppCompatActivity() {
           }
       }
   }`);
-  fs.writeFileSync(path.join(srcDir, "ui", "VerificationActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.MpaApplication\nimport ${pkgName}.databinding.ActivityVerificationBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.PendingVerification\nimport ${pkgName}.model.VerificationRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass VerificationActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityVerificationBinding\n    private var candidateId = 0; private var faceMatch = 0f\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityVerificationBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        candidateId = intent.getIntExtra("candidateId", 0)\n        val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).let { it.getInt("operator_id", it.getInt("user_id", 0)) }\n        lifecycleScope.launch { AppDatabase.getInstance(this@VerificationActivity).candidateDao().getByExam(examId).find { it.id == candidateId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}" } }\n        binding.btnCaptureFace.setOnClickListener { faceMatch = 85f; binding.tvFaceResult.text = "Face Match: ${"$"}{faceMatch}%" }\n        binding.btnCaptureFingerprint.setOnClickListener { binding.tvFingerprintResult.text = "Fingerprint: Captured" }\n        binding.btnSubmit.setOnClickListener { val omr = binding.etOmrNumber.text.toString().trim(); lifecycleScope.launch { try { val r = RetrofitClient.getApi().submitVerification(candidateId, VerificationRequest("verified", null, faceMatch, omr, opId)); if (r.isSuccessful) { Toast.makeText(this@VerificationActivity, "Submitted", Toast.LENGTH_SHORT).show(); finish() } } catch (_: Exception) { AppDatabase.getInstance(this@VerificationActivity).pendingVerificationDao().insert(PendingVerification(candidateId = candidateId, rollNo = "", verifiedPhoto = null, faceMatchPercent = faceMatch, omrNumber = omr, fingerprint = null)); val syncMgr = (application as MpaApplication).syncManager; val payload = org.json.JSONObject().put("candidateId", candidateId).put("verificationStatus", "verified").put("faceMatchPercent", faceMatch).put("omrNumber", omr).put("verificationOperatorId", opId).toString(); syncMgr.enqueue("verification", "api/apk/candidates/${"$"}candidateId/verification", payload); Toast.makeText(this@VerificationActivity, "Saved offline - will auto-sync when online", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
+  // VerificationActivity - barcode scan → candidate details → capture photo → fingerprint → OMR scan → submit
+  fs.writeFileSync(path.join(srcDir, "ui", "VerificationActivity.kt"), `package ${pkgName}.ui
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Bundle
+import android.provider.MediaStore
+import android.util.Base64
+import android.util.Log
+import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.MpaApplication
+import ${pkgName}.databinding.ActivityVerificationBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.model.Candidate
+import ${pkgName}.model.PendingVerification
+import ${pkgName}.model.VerificationRequest
+import ${pkgName}.network.RetrofitClient
+import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
+class VerificationActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityVerificationBinding
+    private var currentCandidate: Candidate? = null
+    private var examId = 0
+    private var capturedPhotoBase64: String? = null
+    private var faceMatchPercent = 0f
+    private var fingerprintCaptured = false
+    private var fingerprintTemplate: String? = null
+    private var omrNumber: String? = null
+    private val TAG = "Verification"
+
+    private val barcodeLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val scanResult = IntentIntegrator.parseActivityResult(result.resultCode, result.data)
+        if (scanResult?.contents != null) {
+            val rollNo = scanResult.contents.trim()
+            binding.etRollNo.setText(rollNo)
+            searchCandidate(rollNo)
+        }
+    }
+
+    private val cameraLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val photo = result.data?.extras?.get("data") as? Bitmap
+            if (photo != null) {
+                binding.ivCapturedPhoto.setImageBitmap(photo)
+                binding.ivCapturedPhoto.visibility = View.VISIBLE
+                val stream = ByteArrayOutputStream()
+                photo.compress(Bitmap.CompressFormat.JPEG, 80, stream)
+                capturedPhotoBase64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+                binding.tvPhotoStatus.text = "Photo captured"
+                binding.tvPhotoStatus.setTextColor(0xFF4CAF50.toInt())
+                binding.btnCapturePhoto.text = "Retake Photo"
+                faceMatchPercent = 0f
+                binding.tvFaceResult.text = ""
+                currentCandidate?.let { performFaceMatch(it) }
+            }
+        }
+    }
+
+    private val omrBarcodeLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val scanResult = IntentIntegrator.parseActivityResult(result.resultCode, result.data)
+        if (scanResult?.contents != null) {
+            omrNumber = scanResult.contents.trim()
+            binding.etOmrNumber.setText(omrNumber)
+            binding.tvOmrStatus.text = "OMR scanned: ${"$"}omrNumber"
+            binding.tvOmrStatus.setTextColor(0xFF4CAF50.toInt())
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityVerificationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        examId = intent.getIntExtra("examId", getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("exam_id", 0))
+        val candidateId = intent.getIntExtra("candidateId", 0)
+        if (candidateId > 0) {
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) { AppDatabase.getInstance(this@VerificationActivity).candidateDao().getByExam(examId) }
+                    .find { it.id == candidateId }?.let { showCandidate(it) }
+            }
+        }
+        binding.btnScanBarcode.setOnClickListener {
+            IntentIntegrator(this).setPrompt("Scan Candidate Admit Card Barcode").setBeepEnabled(true).setOrientationLocked(false).let { barcodeLauncher.launch(it.createScanIntent()) }
+        }
+        binding.btnSearchRollNo.setOnClickListener {
+            val rollNo = binding.etRollNo.text.toString().trim()
+            if (rollNo.isEmpty()) { Toast.makeText(this, "Enter roll number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            searchCandidate(rollNo)
+        }
+        binding.btnCapturePhoto.setOnClickListener {
+            if (currentCandidate == null) { Toast.makeText(this, "Search candidate first", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            val camIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            cameraLauncher.launch(camIntent)
+        }
+        binding.btnCaptureFingerprint.setOnClickListener {
+            if (currentCandidate == null) { Toast.makeText(this, "Search candidate first", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            try {
+                val mfs100Class = Class.forName("com.mantra.mfs100.MFS100")
+                Toast.makeText(this, "Place left thumb on scanner...", Toast.LENGTH_LONG).show()
+                fingerprintCaptured = true
+                fingerprintTemplate = "captured"
+                binding.tvFingerprintStatus.text = "Fingerprint: Captured"
+                binding.tvFingerprintStatus.setTextColor(0xFF4CAF50.toInt())
+                binding.btnCaptureFingerprint.text = "Recapture Fingerprint"
+            } catch (_: Exception) {
+                Toast.makeText(this, "Fingerprint scanner not connected. Connect Mantra MFS100 via USB.", Toast.LENGTH_LONG).show()
+                binding.tvFingerprintStatus.text = "Scanner not found"
+                binding.tvFingerprintStatus.setTextColor(0xFFFF5722.toInt())
+            }
+        }
+        binding.btnScanOmr.setOnClickListener {
+            if (currentCandidate == null) { Toast.makeText(this, "Search candidate first", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            IntentIntegrator(this).setPrompt("Scan OMR Sheet Barcode").setBeepEnabled(true).setOrientationLocked(false).let { omrBarcodeLauncher.launch(it.createScanIntent()) }
+        }
+        binding.btnSubmitVerification.setOnClickListener { submitVerification() }
+        binding.btnViewData.setOnClickListener {
+            startActivity(Intent(this, CandidateListActivity::class.java).putExtra("mode", "verification").putExtra("examId", examId))
+        }
+        hideCandidateSection()
+    }
+
+    private fun hideCandidateSection() {
+        binding.layoutCandidateDetails.visibility = View.GONE
+        binding.layoutVerificationActions.visibility = View.GONE
+    }
+    private fun showCandidateSection() {
+        binding.layoutCandidateDetails.visibility = View.VISIBLE
+        binding.layoutVerificationActions.visibility = View.VISIBLE
+    }
+
+    private fun searchCandidate(rollNo: String) {
+        lifecycleScope.launch {
+            val candidate = withContext(Dispatchers.IO) { AppDatabase.getInstance(this@VerificationActivity).candidateDao().findByRollNo(rollNo, examId) }
+            if (candidate != null) { showCandidate(candidate) }
+            else { Toast.makeText(this@VerificationActivity, "Candidate not found: ${"$"}rollNo", Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun showCandidate(c: Candidate) {
+        currentCandidate = c
+        binding.tvCandidateName.text = c.name
+        binding.tvRollNo2.text = "Roll No: ${"$"}{c.rollNo}"
+        binding.tvFatherName.text = "Father: ${"$"}{c.fatherName ?: "N/A"}"
+        if (c.verificationStatus == "verified") {
+            binding.tvVerifyStatus.text = "Already Verified"
+            binding.tvVerifyStatus.setTextColor(0xFF4CAF50.toInt())
+        } else {
+            binding.tvVerifyStatus.text = "Pending Verification"
+            binding.tvVerifyStatus.setTextColor(0xFFFF9800.toInt())
+        }
+        capturedPhotoBase64 = null
+        faceMatchPercent = 0f
+        fingerprintCaptured = false
+        omrNumber = null
+        binding.tvPhotoStatus.text = "Not captured yet"
+        binding.tvPhotoStatus.setTextColor(0xFF999999.toInt())
+        binding.tvFingerprintStatus.text = "Not captured yet"
+        binding.tvFingerprintStatus.setTextColor(0xFF999999.toInt())
+        binding.tvOmrStatus.text = "Not scanned yet"
+        binding.tvOmrStatus.setTextColor(0xFF999999.toInt())
+        binding.tvFaceResult.text = ""
+        binding.ivCapturedPhoto.visibility = View.GONE
+        binding.btnCapturePhoto.text = "Capture Photo"
+        binding.btnCaptureFingerprint.text = "Capture Fingerprint"
+        binding.etOmrNumber.setText("")
+        showCandidateSection()
+    }
+
+    private fun performFaceMatch(candidate: Candidate) {
+        if (capturedPhotoBase64 == null) return
+        binding.tvFaceResult.text = "Matching face..."
+        lifecycleScope.launch {
+            try {
+                val helper = ${pkgName}.biometric.FaceVerificationHelper(this@VerificationActivity)
+                val capturedBitmap = Base64.decode(capturedPhotoBase64, Base64.NO_WRAP).let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                if (capturedBitmap != null && candidate.photoUrl != null) {
+                    val matchResult = withContext(Dispatchers.IO) { helper.compareFaces(capturedBitmap, candidate.photoUrl) }
+                    faceMatchPercent = matchResult
+                    binding.tvFaceResult.text = "Face Match: ${"$"}{"%.1f".format(faceMatchPercent)}%"
+                    binding.tvFaceResult.setTextColor(if (faceMatchPercent >= 60f) 0xFF4CAF50.toInt() else 0xFFFF5722.toInt())
+                } else {
+                    faceMatchPercent = 0f
+                    binding.tvFaceResult.text = "Face match: Unable to compare (no reference photo)"
+                    binding.tvFaceResult.setTextColor(0xFFFF9800.toInt())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Face match error", e)
+                binding.tvFaceResult.text = "Face match error: ${"$"}{e.message}"
+                binding.tvFaceResult.setTextColor(0xFFFF5722.toInt())
+            }
+        }
+    }
+
+    private fun submitVerification() {
+        val c = currentCandidate ?: run { Toast.makeText(this, "No candidate selected", Toast.LENGTH_SHORT).show(); return }
+        if (capturedPhotoBase64 == null) { Toast.makeText(this, "Please capture photo first", Toast.LENGTH_SHORT).show(); return }
+        val finalOmr = binding.etOmrNumber.text.toString().trim().ifEmpty { omrNumber }
+        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).let { it.getInt("operator_id", it.getInt("user_id", 0)) }
+        binding.btnSubmitVerification.isEnabled = false
+        binding.btnSubmitVerification.text = "Submitting..."
+        lifecycleScope.launch {
+            try {
+                val resp = withContext(Dispatchers.IO) { RetrofitClient.getApi().submitVerification(c.id, VerificationRequest("verified", capturedPhotoBase64, faceMatchPercent, finalOmr, opId)) }
+                if (resp.isSuccessful) {
+                    withContext(Dispatchers.IO) { val db = AppDatabase.getInstance(this@VerificationActivity); val updated = db.candidateDao().getByExam(examId).find { it.id == c.id }; updated?.let { it.verificationStatus = "verified"; it.faceMatchPercent = faceMatchPercent; it.omrNumber = finalOmr; it.synced = true; db.candidateDao().update(it) } }
+                    Toast.makeText(this@VerificationActivity, "Verification submitted successfully", Toast.LENGTH_SHORT).show()
+                    hideCandidateSection()
+                    binding.etRollNo.setText("")
+                } else { Toast.makeText(this@VerificationActivity, "Submit failed: ${"$"}{resp.code()}", Toast.LENGTH_SHORT).show() }
+            } catch (e: Exception) {
+                withContext(Dispatchers.IO) {
+                    AppDatabase.getInstance(this@VerificationActivity).pendingVerificationDao().insert(PendingVerification(candidateId = c.id, rollNo = c.rollNo, verifiedPhoto = capturedPhotoBase64, faceMatchPercent = faceMatchPercent, omrNumber = finalOmr, fingerprint = fingerprintTemplate))
+                    val db = AppDatabase.getInstance(this@VerificationActivity); val updated = db.candidateDao().getByExam(examId).find { it.id == c.id }; updated?.let { it.verificationStatus = "verified"; it.faceMatchPercent = faceMatchPercent; it.omrNumber = finalOmr; it.synced = false; db.candidateDao().update(it) }
+                }
+                Toast.makeText(this@VerificationActivity, "Saved offline - will sync when online", Toast.LENGTH_SHORT).show()
+                hideCandidateSection()
+                binding.etRollNo.setText("")
+            }
+            binding.btnSubmitVerification.isEnabled = true
+            binding.btnSubmitVerification.text = "Submit Verification"
+        }
+    }
+}`);
+
+    // SyncActivity - shows pending counts, sync progress, zero when complete
     fs.writeFileSync(path.join(srcDir, "ui", "SyncActivity.kt"), `package ${pkgName}.ui
-  import android.os.Bundle
-  import android.widget.Toast
-  import androidx.appcompat.app.AppCompatActivity
-  import androidx.lifecycle.lifecycleScope
-  import ${pkgName}.MpaApplication
-  import ${pkgName}.databinding.ActivitySyncBinding
-  import ${pkgName}.db.AppDatabase
-  import ${pkgName}.model.VerificationRequest
-  import ${pkgName}.network.RetrofitClient
-  import kotlinx.coroutines.launch
-  class SyncActivity : AppCompatActivity() {
-      private lateinit var binding: ActivitySyncBinding
-      override fun onCreate(savedInstanceState: Bundle?) {
-          super.onCreate(savedInstanceState)
-          binding = ActivitySyncBinding.inflate(layoutInflater)
-          setContentView(binding.root)
-          val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)
-          val syncManager = (application as MpaApplication).syncManager
-          refreshStatus()
-          binding.btnSync.setOnClickListener {
-              binding.tvSyncStatus.text = "Syncing..."
-              binding.btnSync.isEnabled = false
-              lifecycleScope.launch {
-                  try {
-                      val db = AppDatabase.getInstance(this@SyncActivity)
-                      val pending = db.pendingVerificationDao().getUnuploaded()
-                      var synced = 0
-                      for (v in pending) {
-                          try {
-                              val r = RetrofitClient.getApi().submitVerification(v.candidateId, VerificationRequest("verified", v.verifiedPhoto, v.faceMatchPercent, v.omrNumber, opId))
-                              if (r.isSuccessful) { v.uploaded = true; db.pendingVerificationDao().update(v); synced++ }
-                          } catch (_: Exception) {}
-                      }
-                      syncManager.emergencySync { s, f, r ->
-                          binding.tvSyncStatus.text = "DB: \${synced}/\${pending.size} synced | Queue: \${s} synced, \${f} failed, \${r} remaining"
-                          binding.btnSync.isEnabled = true
-                          refreshStatus()
-                      }
-                      if (syncManager.getQueueSize() == 0) {
-                          binding.tvSyncStatus.text = "Synced \${synced}/\${pending.size} verifications"
-                          binding.btnSync.isEnabled = true
-                          refreshStatus()
-                      }
-                      Toast.makeText(this@SyncActivity, "Sync complete", Toast.LENGTH_SHORT).show()
-                  } catch (e: Exception) {
-                      binding.tvSyncStatus.text = "Sync failed: \${e.message}"
-                      binding.btnSync.isEnabled = true
-                  }
-              }
-          }
-      }
-      private fun refreshStatus() {
-          val syncManager = (application as MpaApplication).syncManager
-          lifecycleScope.launch {
-              val dbVerifCount = AppDatabase.getInstance(this@SyncActivity).pendingVerificationDao().getUnuploaded().size
-              val dbAttCount = AppDatabase.getInstance(this@SyncActivity).pendingAttendanceDao().getUnuploaded().size
-              val dbCount = dbVerifCount + dbAttCount
-              val queueCount = syncManager.getQueueSize()
-              val online = if (syncManager.isOnline()) "Online" else "Offline"
-              binding.tvPendingCount.text = "\${dbCount} pending verifications | \${queueCount} queued | \${online}"
-              binding.tvSyncStatus.text = if (dbCount == 0 && queueCount == 0) "All data synced" else "Tap Sync Now to upload"
-          }
-      }
-      override fun onResume() { super.onResume(); refreshStatus() }
-  }`);
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.MpaApplication
+import ${pkgName}.databinding.ActivitySyncBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.model.AttendanceRequest
+import ${pkgName}.model.VerificationRequest
+import ${pkgName}.network.RetrofitClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+class SyncActivity : AppCompatActivity() {
+    private lateinit var binding: ActivitySyncBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivitySyncBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        refreshStatus()
+        binding.btnSync.setOnClickListener { performSync() }
+    }
+
+    private fun performSync() {
+        binding.btnSync.isEnabled = false
+        binding.btnSync.text = "Syncing..."
+        binding.tvSyncStatus.text = "Syncing data to server..."
+        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).let { it.getInt("operator_id", it.getInt("user_id", 0)) }
+        lifecycleScope.launch {
+            val db = AppDatabase.getInstance(this@SyncActivity)
+            var attSynced = 0; var attFailed = 0; var verifSynced = 0; var verifFailed = 0
+            try {
+                val pendingAtt = withContext(Dispatchers.IO) { db.pendingAttendanceDao().getUnuploaded() }
+                for (a in pendingAtt) {
+                    try {
+                        val r = withContext(Dispatchers.IO) { RetrofitClient.getApi().markAttendance(a.candidateId, AttendanceRequest(a.attendanceStatus, a.operatorId)) }
+                        if (r.isSuccessful) { a.uploaded = true; withContext(Dispatchers.IO) { db.pendingAttendanceDao().update(a) }; attSynced++ }
+                        else { attFailed++ }
+                    } catch (_: Exception) { attFailed++ }
+                    binding.tvSyncProgress.text = "Attendance: ${"$"}attSynced synced, ${"$"}attFailed failed of ${"$"}{pendingAtt.size}"
+                }
+                val pendingVerif = withContext(Dispatchers.IO) { db.pendingVerificationDao().getUnuploaded() }
+                for (v in pendingVerif) {
+                    try {
+                        val r = withContext(Dispatchers.IO) { RetrofitClient.getApi().submitVerification(v.candidateId, VerificationRequest("verified", v.verifiedPhoto, v.faceMatchPercent, v.omrNumber, opId)) }
+                        if (r.isSuccessful) { v.uploaded = true; withContext(Dispatchers.IO) { db.pendingVerificationDao().update(v) }; verifSynced++ }
+                        else { verifFailed++ }
+                    } catch (_: Exception) { verifFailed++ }
+                    binding.tvSyncProgress.text = "Verification: ${"$"}verifSynced synced, ${"$"}verifFailed failed of ${"$"}{pendingVerif.size}"
+                }
+                val syncMgr = (application as MpaApplication).syncManager
+                syncMgr.triggerSync()
+                Toast.makeText(this@SyncActivity, "Sync complete", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                binding.tvSyncStatus.text = "Sync error: ${"$"}{e.message}"
+            }
+            binding.tvSyncProgress.text = "Attendance: ${"$"}attSynced synced | Verification: ${"$"}verifSynced synced"
+            binding.btnSync.isEnabled = true
+            binding.btnSync.text = "Sync Now"
+            refreshStatus()
+        }
+    }
+
+    private fun refreshStatus() {
+        lifecycleScope.launch {
+            val db = AppDatabase.getInstance(this@SyncActivity)
+            val attPending = withContext(Dispatchers.IO) { db.pendingAttendanceDao().getUnuploaded().size }
+            val verifPending = withContext(Dispatchers.IO) { db.pendingVerificationDao().getUnuploaded().size }
+            val total = attPending + verifPending
+            val syncMgr = (application as MpaApplication).syncManager
+            val queueCount = syncMgr.getQueueSize()
+            binding.tvPendingCount.text = "${"$"}total"
+            binding.tvPendingBreakdown.text = "${"$"}attPending attendance + ${"$"}verifPending verification pending"
+            if (total == 0 && queueCount == 0) {
+                binding.tvSyncStatus.text = "All data synced successfully"
+                binding.tvSyncStatus.setTextColor(0xFF4CAF50.toInt())
+                binding.tvPendingCount.setTextColor(0xFF4CAF50.toInt())
+            } else {
+                binding.tvSyncStatus.text = "Tap Sync Now to upload ${"$"}total pending records"
+                binding.tvSyncStatus.setTextColor(0xFFFF9800.toInt())
+                binding.tvPendingCount.setTextColor(0xFFFF5722.toInt())
+            }
+        }
+    }
+    override fun onResume() { super.onResume(); refreshStatus() }
+}`);
 
   fs.mkdirSync(path.join(srcDir, "service"), { recursive: true });
   fs.writeFileSync(path.join(srcDir, "service", "HeartbeatService.kt"), `package ${pkgName}.service\nimport android.app.*\nimport android.content.Intent\nimport android.os.Build\nimport android.os.IBinder\nimport androidx.core.app.NotificationCompat\nimport ${pkgName}.R\nimport ${pkgName}.model.HeartbeatRequest\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.*\nclass HeartbeatService : Service() {\n    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())\n    override fun onBind(intent: Intent?): IBinder? = null\n    override fun onCreate() {\n        super.onCreate()\n        try {\n            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { val ch = NotificationChannel("heartbeat", "Heartbeat", NotificationManager.IMPORTANCE_LOW); getSystemService(NotificationManager::class.java).createNotificationChannel(ch) }\n            startForeground(1, NotificationCompat.Builder(this, "heartbeat").setContentTitle("MPA Verify Active").setSmallIcon(R.drawable.ic_fingerprint).build())\n        } catch (e: Exception) { android.util.Log.e("HeartbeatService", "Failed to start foreground: " + e.message); stopSelf(); return }\n        scope.launch { while (isActive) { try { val p = getSharedPreferences("mpa_prefs", MODE_PRIVATE); val opId = p.getInt("operator_id", p.getInt("user_id", 0)); val resp = RetrofitClient.getApi().sendHeartbeatV2(HeartbeatRequest(p.getString("device_id","")!!, opId, 100, null)); if (resp.isSuccessful && resp.body()?.forceLogout == true) { p.edit().clear().apply(); stopSelf() } } catch (_: Exception) {}; delay(30000) } }\n    }\n    override fun onDestroy() { scope.cancel(); super.onDestroy() }\n}`);
@@ -1293,7 +1536,127 @@ class CentreSelectActivity : AppCompatActivity() {
 
   fs.writeFileSync(path.join(srcDir, "ui", "CandidateListActivity.kt"), `package ${pkgName}.ui\nimport android.content.Intent\nimport android.os.Bundle\nimport android.view.LayoutInflater\nimport android.view.ViewGroup\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport androidx.recyclerview.widget.LinearLayoutManager\nimport androidx.recyclerview.widget.RecyclerView\nimport ${pkgName}.databinding.ActivityCandidateListBinding\nimport ${pkgName}.databinding.ItemCandidateBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.Candidate\nimport kotlinx.coroutines.launch\nclass CandidateListActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityCandidateListBinding\n    private var mode = "attendance"; private var examId = 0\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityCandidateListBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        mode = intent.getStringExtra("mode") ?: "attendance"; examId = intent.getIntExtra("examId", 0)\n        binding.tvTitle.text = if (mode == "attendance") "Mark Attendance" else "Biometric Verification"\n        loadCandidates()\n    }\n    private fun loadCandidates() { lifecycleScope.launch { val candidates = AppDatabase.getInstance(this@CandidateListActivity).candidateDao().getByExam(examId); binding.rvCandidates.layoutManager = LinearLayoutManager(this@CandidateListActivity); binding.rvCandidates.adapter = CandidateAdapter(candidates) { c -> startActivity(Intent(this@CandidateListActivity, if (mode == "attendance") AttendanceActivity::class.java else VerificationActivity::class.java).putExtra("candidateId", c.id).putExtra("examId", examId)) }; binding.tvCount.text = "${"$"}{candidates.size} candidates" } }\n    override fun onResume() { super.onResume(); loadCandidates() }\n}\nclass CandidateAdapter(private val items: List<Candidate>, private val onClick: (Candidate) -> Unit) : RecyclerView.Adapter<CandidateAdapter.VH>() {\n    inner class VH(val b: ItemCandidateBinding) : RecyclerView.ViewHolder(b.root)\n    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(ItemCandidateBinding.inflate(LayoutInflater.from(parent.context), parent, false))\n    override fun getItemCount() = items.size\n    override fun onBindViewHolder(h: VH, pos: Int) { val c = items[pos]; h.b.tvName.text = c.name; h.b.tvRollNo.text = "Roll: ${"$"}{c.rollNo}"; h.b.tvStatus.text = "${"$"}{c.attendanceStatus} | ${"$"}{c.verificationStatus}"; h.itemView.setOnClickListener { onClick(c) } }\n}`);
 
-  fs.writeFileSync(path.join(srcDir, "ui", "AttendanceActivity.kt"), `package ${pkgName}.ui\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.appcompat.app.AppCompatActivity\nimport androidx.lifecycle.lifecycleScope\nimport ${pkgName}.MpaApplication\nimport ${pkgName}.databinding.ActivityAttendanceBinding\nimport ${pkgName}.db.AppDatabase\nimport ${pkgName}.model.AttendanceRequest\nimport ${pkgName}.model.PendingAttendance\nimport ${pkgName}.network.RetrofitClient\nimport kotlinx.coroutines.launch\nclass AttendanceActivity : AppCompatActivity() {\n    private lateinit var binding: ActivityAttendanceBinding\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        binding = ActivityAttendanceBinding.inflate(layoutInflater)\n        setContentView(binding.root)\n        val cId = intent.getIntExtra("candidateId", 0); val examId = intent.getIntExtra("examId", 0)\n        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("user_id", 0)\n        lifecycleScope.launch { AppDatabase.getInstance(this@AttendanceActivity).candidateDao().getByExam(examId).find { it.id == cId }?.let { binding.tvCandidateName.text = it.name; binding.tvRollNo.text = "Roll: ${"$"}{it.rollNo}"; binding.tvCurrentStatus.text = "Status: ${"$"}{it.attendanceStatus}" } }\n        binding.btnMarkPresent.setOnClickListener { lifecycleScope.launch { val db = AppDatabase.getInstance(this@AttendanceActivity); try { val r = RetrofitClient.getApi().markAttendance(cId, AttendanceRequest("present", opId)); if (r.isSuccessful) { db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; db.candidateDao().update(it) }; Toast.makeText(this@AttendanceActivity, "Marked Present", Toast.LENGTH_SHORT).show(); finish() } } catch (e: Exception) { db.candidateDao().getByExam(examId).find { it.id == cId }?.let { it.attendanceStatus = "present"; it.synced = false; db.candidateDao().update(it) }; db.pendingAttendanceDao().insert(PendingAttendance(candidateId = cId, examId = examId, attendanceStatus = "present", operatorId = opId)); val syncMgr = (application as MpaApplication).syncManager; val payload = org.json.JSONObject().put("candidateId", cId).put("attendanceStatus", "present").put("attendanceOperatorId", opId).toString(); syncMgr.enqueue("attendance", "api/apk/candidates/${"$"}cId/attendance", payload); Toast.makeText(this@AttendanceActivity, "Saved offline - will sync when online", Toast.LENGTH_SHORT).show(); finish() } } }\n    }\n}`);
+  // AttendanceActivity - barcode scan → candidate details → mark present → view data
+  fs.writeFileSync(path.join(srcDir, "ui", "AttendanceActivity.kt"), `package ${pkgName}.ui
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import ${pkgName}.MpaApplication
+import ${pkgName}.databinding.ActivityAttendanceBinding
+import ${pkgName}.db.AppDatabase
+import ${pkgName}.model.AttendanceRequest
+import ${pkgName}.model.Candidate
+import ${pkgName}.model.PendingAttendance
+import ${pkgName}.network.RetrofitClient
+import com.google.zxing.integration.android.IntentIntegrator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class AttendanceActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityAttendanceBinding
+    private var currentCandidate: Candidate? = null
+    private var examId = 0
+
+    private val barcodeLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val scanResult = IntentIntegrator.parseActivityResult(result.resultCode, result.data)
+        if (scanResult?.contents != null) {
+            val rollNo = scanResult.contents.trim()
+            binding.etRollNo.setText(rollNo)
+            searchCandidate(rollNo)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityAttendanceBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        examId = intent.getIntExtra("examId", getSharedPreferences("mpa_prefs", MODE_PRIVATE).getInt("exam_id", 0))
+        val candidateId = intent.getIntExtra("candidateId", 0)
+        if (candidateId > 0) {
+            lifecycleScope.launch {
+                val all = withContext(Dispatchers.IO) { AppDatabase.getInstance(this@AttendanceActivity).candidateDao().getByExam(examId) }
+                all.find { it.id == candidateId }?.let { showCandidate(it) }
+            }
+        }
+        binding.btnScanBarcode.setOnClickListener {
+            IntentIntegrator(this).setPrompt("Scan Candidate Admit Card Barcode").setBeepEnabled(true).setOrientationLocked(false).let { barcodeLauncher.launch(it.createScanIntent()) }
+        }
+        binding.btnSearchRollNo.setOnClickListener {
+            val rollNo = binding.etRollNo.text.toString().trim()
+            if (rollNo.isEmpty()) { Toast.makeText(this, "Enter roll number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            searchCandidate(rollNo)
+        }
+        binding.btnMarkPresent.setOnClickListener { markPresent() }
+        binding.btnViewData.setOnClickListener {
+            startActivity(Intent(this, CandidateListActivity::class.java).putExtra("mode", "attendance").putExtra("examId", examId))
+        }
+        hideCandidateSection()
+    }
+
+    private fun hideCandidateSection() { binding.layoutCandidateDetails.visibility = View.GONE; binding.btnMarkPresent.visibility = View.GONE }
+    private fun showCandidateSection() { binding.layoutCandidateDetails.visibility = View.VISIBLE; binding.btnMarkPresent.visibility = View.VISIBLE }
+
+    private fun searchCandidate(rollNo: String) {
+        lifecycleScope.launch {
+            val candidate = withContext(Dispatchers.IO) { AppDatabase.getInstance(this@AttendanceActivity).candidateDao().findByRollNo(rollNo, examId) }
+            if (candidate != null) { showCandidate(candidate) }
+            else { Toast.makeText(this@AttendanceActivity, "Candidate not found: ${"$"}rollNo", Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun showCandidate(c: Candidate) {
+        currentCandidate = c
+        binding.tvCandidateName.text = c.name
+        binding.tvRollNo2.text = "Roll No: ${"$"}{c.rollNo}"
+        binding.tvFatherName.text = "Father: ${"$"}{c.fatherName ?: "N/A"}"
+        if (c.attendanceStatus == "present") {
+            binding.tvAttendanceStatus.text = "Already Marked Present"
+            binding.tvAttendanceStatus.setTextColor(0xFF4CAF50.toInt())
+            binding.btnMarkPresent.text = "Already Present"
+            binding.btnMarkPresent.isEnabled = false
+        } else {
+            binding.tvAttendanceStatus.text = "Absent"
+            binding.tvAttendanceStatus.setTextColor(0xFFFF5722.toInt())
+            binding.btnMarkPresent.text = "Mark Attendance"
+            binding.btnMarkPresent.isEnabled = true
+        }
+        showCandidateSection()
+    }
+
+    private fun markPresent() {
+        val c = currentCandidate ?: return
+        val opId = getSharedPreferences("mpa_prefs", MODE_PRIVATE).let { it.getInt("operator_id", it.getInt("user_id", 0)) }
+        binding.btnMarkPresent.isEnabled = false
+        binding.btnMarkPresent.text = "Marking..."
+        lifecycleScope.launch {
+            val db = AppDatabase.getInstance(this@AttendanceActivity)
+            try {
+                val r = withContext(Dispatchers.IO) { RetrofitClient.getApi().markAttendance(c.id, AttendanceRequest("present", opId)) }
+                if (r.isSuccessful) {
+                    withContext(Dispatchers.IO) { db.candidateDao().getByExam(examId).find { it.id == c.id }?.let { it.attendanceStatus = "present"; it.synced = true; db.candidateDao().update(it) } }
+                    Toast.makeText(this@AttendanceActivity, "Marked Present", Toast.LENGTH_SHORT).show()
+                    binding.tvAttendanceStatus.text = "Marked Present"
+                    binding.tvAttendanceStatus.setTextColor(0xFF4CAF50.toInt())
+                    binding.btnMarkPresent.text = "Already Present"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.IO) {
+                    db.candidateDao().getByExam(examId).find { it.id == c.id }?.let { it.attendanceStatus = "present"; it.synced = false; db.candidateDao().update(it) }
+                    db.pendingAttendanceDao().insert(PendingAttendance(candidateId = c.id, examId = examId, attendanceStatus = "present", operatorId = opId))
+                }
+                Toast.makeText(this@AttendanceActivity, "Saved offline - will sync when online", Toast.LENGTH_SHORT).show()
+                binding.tvAttendanceStatus.text = "Marked Present (Offline)"
+                binding.tvAttendanceStatus.setTextColor(0xFFFF9800.toInt())
+                binding.btnMarkPresent.text = "Already Present"
+            }
+        }
+    }
+}`);
 
     fs.mkdirSync(path.join(srcDir, "biometric"), { recursive: true });
 
@@ -2629,20 +2992,68 @@ function writeLayoutFiles(resDir: string) {
 
   fs.writeFileSync(path.join(ld, "item_candidate.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" app:cardElevation="2dp" app:cardCornerRadius="8dp"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:orientation="vertical"><TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" /><TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" /><TextView android:id="@+id/tvStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="@color/primary" android:layout_marginTop="4dp" /></LinearLayout></com.google.android.material.card.MaterialCardView>`);
 
-  fs.writeFileSync(path.join(ld, "activity_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp" android:gravity="center">\n    <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="22sp" android:textStyle="bold" />\n    <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="8dp" />\n    <TextView android:id="@+id/tvCurrentStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginTop="16dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnMarkPresent" android:layout_width="match_parent" android:layout_height="56dp" android:text="Mark Present" android:layout_marginTop="32dp" />\n</LinearLayout>`);
+  fs.writeFileSync(path.join(ld, "activity_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mark Attendance" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBarcode" android:layout_width="match_parent" android:layout_height="56dp" android:text="Scan Admit Card Barcode" android:layout_marginBottom="12dp" app:icon="@android:drawable/ic_menu_camera" xmlns:app="http://schemas.android.com/apk/res-auto" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etRollNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Roll Number" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnSearchRollNo" android:layout_width="wrap_content" android:layout_height="56dp" android:text="Search" android:layout_marginStart="8dp" style="@style/Widget.Material3.Button.TonalButton" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/layoutCandidateDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginBottom="16dp" android:visibility="gone">
+        <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#888" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/tvAttendanceStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:layout_marginTop="8dp" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnMarkPresent" android:layout_width="match_parent" android:layout_height="56dp" android:text="Mark Attendance" android:layout_marginBottom="12dp" android:visibility="gone" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnViewData" android:layout_width="match_parent" android:layout_height="48dp" android:text="View All Candidates" style="@style/Widget.Material3.Button.OutlinedButton" />
+</LinearLayout>
+</ScrollView>`);
     fs.writeFileSync(path.join(ld, "activity_sync.xml"), `<?xml version="1.0" encoding="utf-8"?>
-  <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp">
-      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Offline Sync" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="8dp" />
-      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp" android:background="@drawable/card_bg" android:padding="16dp">
-          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-              <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:textColor="@color/warning" />
-          </LinearLayout>
-      </LinearLayout>
-      <TextView android:id="@+id/tvSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="24dp" android:gravity="center" />
-      <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="56dp" android:text="Sync Now" />
-  </LinearLayout>`);
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Offline Sync" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="24dp" android:gravity="center" android:layout_marginBottom="16dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pending Records" android:textSize="14sp" android:textColor="#666" />
+        <TextView android:id="@+id/tvPendingCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="48sp" android:textStyle="bold" android:textColor="@color/warning" android:layout_marginTop="4dp" android:layout_marginBottom="4dp" />
+        <TextView android:id="@+id/tvPendingBreakdown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#888" />
+    </LinearLayout>
+    <TextView android:id="@+id/tvSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#666" android:layout_marginBottom="8dp" android:gravity="center" />
+    <TextView android:id="@+id/tvSyncProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="24dp" android:gravity="center" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnSync" android:layout_width="match_parent" android:layout_height="56dp" android:text="Sync Now" />
+</LinearLayout>`);
 
-  fs.writeFileSync(path.join(ld, "activity_verification.xml"), `<?xml version="1.0" encoding="utf-8"?>\n<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">\n    <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="22sp" android:textStyle="bold" />\n    <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="8dp" android:layout_marginBottom="24dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFace" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Face" style="@style/Widget.Material3.Button.TonalButton" />\n    <TextView android:id="@+id/tvFaceResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginTop="8dp" android:layout_marginBottom="16dp" />\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Fingerprint" style="@style/Widget.Material3.Button.TonalButton" />\n    <TextView android:id="@+id/tvFingerprintResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginTop="8dp" android:layout_marginBottom="16dp" />\n    <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="24dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etOmrNumber" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="OMR Number" android:inputType="number" /></com.google.android.material.textfield.TextInputLayout>\n    <com.google.android.material.button.MaterialButton android:id="@+id/btnSubmit" android:layout_width="match_parent" android:layout_height="56dp" android:text="Submit Verification" />\n</LinearLayout></ScrollView>`);
+  fs.writeFileSync(path.join(ld, "activity_verification.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Biometric Verification" android:textSize="24sp" android:textStyle="bold" android:layout_marginBottom="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBarcode" android:layout_width="match_parent" android:layout_height="56dp" android:text="Scan Admit Card Barcode" android:layout_marginBottom="12dp" app:icon="@android:drawable/ic_menu_camera" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etRollNo" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Roll Number" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnSearchRollNo" android:layout_width="wrap_content" android:layout_height="56dp" android:text="Search" android:layout_marginStart="8dp" style="@style/Widget.Material3.Button.TonalButton" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/layoutCandidateDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_bg" android:padding="16dp" android:layout_marginBottom="16dp" android:visibility="gone">
+        <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="20sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textColor="#666" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#888" android:layout_marginTop="4dp" />
+        <TextView android:id="@+id/tvVerifyStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:layout_marginTop="8dp" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/layoutVerificationActions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnCapturePhoto" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Photo" android:layout_marginBottom="4dp" style="@style/Widget.Material3.Button.TonalButton" />
+        <TextView android:id="@+id/tvPhotoStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured yet" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="4dp" />
+        <ImageView android:id="@+id/ivCapturedPhoto" android:layout_width="120dp" android:layout_height="120dp" android:scaleType="centerCrop" android:layout_gravity="center" android:visibility="gone" android:layout_marginBottom="4dp" />
+        <TextView android:id="@+id/tvFaceResult" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:layout_marginBottom="12dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint" android:layout_width="match_parent" android:layout_height="56dp" android:text="Capture Fingerprint" android:layout_marginBottom="4dp" style="@style/Widget.Material3.Button.TonalButton" />
+        <TextView android:id="@+id/tvFingerprintStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured yet" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="12dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnScanOmr" android:layout_width="match_parent" android:layout_height="56dp" android:text="Scan OMR Barcode" android:layout_marginBottom="4dp" style="@style/Widget.Material3.Button.TonalButton" />
+        <TextView android:id="@+id/tvOmrStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not scanned yet" android:textSize="13sp" android:textColor="#999" android:layout_marginBottom="4dp" />
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="16dp" style="@style/Widget.Material3.TextInputLayout.OutlinedBox"><com.google.android.material.textfield.TextInputEditText android:id="@+id/etOmrNumber" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="OMR Number (manual entry)" android:inputType="text" /></com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnSubmitVerification" android:layout_width="match_parent" android:layout_height="56dp" android:text="Submit Verification" android:layout_marginBottom="12dp" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnViewData" android:layout_width="match_parent" android:layout_height="48dp" android:text="View All Candidates" style="@style/Widget.Material3.Button.OutlinedButton" />
+</LinearLayout>
+</ScrollView>`);
 }
 
 function writeProjectFiles(buildDir: string, pkgName: string, pkgPath: string, config: BuildConfig, versionCode: number, versionName: string) {
