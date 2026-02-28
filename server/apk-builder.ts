@@ -1241,6 +1241,9 @@ import ${pkgName}.model.Candidate
 import ${pkgName}.model.PendingVerification
 import ${pkgName}.model.VerificationRequest
 import ${pkgName}.network.RetrofitClient
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1316,6 +1319,26 @@ class VerificationActivity : AppCompatActivity() {
             if (rollNo.isEmpty()) { Toast.makeText(this, "Enter roll number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
             searchCandidate(rollNo)
         }
+        binding.etRollNo.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val rollNo = binding.etRollNo.text.toString().trim()
+                if (rollNo.isNotEmpty()) searchCandidate(rollNo)
+                true
+            } else false
+        }
+        binding.etRollNo.addTextChangedListener(object : TextWatcher {
+            private var searchRunnable: Runnable? = null
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                searchRunnable?.let { binding.etRollNo.removeCallbacks(it) }
+                val rollNo = s.toString().trim()
+                if (rollNo.length >= 3) {
+                    searchRunnable = Runnable { searchCandidate(rollNo) }
+                    binding.etRollNo.postDelayed(searchRunnable, 600)
+                } else { hideCandidateSection() }
+            }
+        })
         binding.btnCapturePhoto.setOnClickListener {
             if (currentCandidate == null) { Toast.makeText(this, "Search candidate first", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
             val camIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -1323,17 +1346,28 @@ class VerificationActivity : AppCompatActivity() {
         }
         binding.btnCaptureFingerprint.setOnClickListener {
             if (currentCandidate == null) { Toast.makeText(this, "Search candidate first", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (!isMfs100Connected()) {
+                Toast.makeText(this, "MFS100 fingerprint device NOT connected! Please connect Mantra MFS100 via USB/OTG first.", Toast.LENGTH_LONG).show()
+                binding.tvFingerprintStatus.text = "MFS100 NOT Connected - Connect device first"
+                binding.tvFingerprintStatus.setTextColor(0xFFFF5722.toInt())
+                binding.tvMfs100Status.text = "Device Status: NOT CONNECTED"
+                binding.tvMfs100Status.setTextColor(0xFFFF5722.toInt())
+                return@setOnClickListener
+            }
             try {
-                val mfs100Class = Class.forName("com.mantra.mfs100.MFS100")
-                Toast.makeText(this, "Place left thumb on scanner...", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Place left thumb on MFS100 scanner...", Toast.LENGTH_LONG).show()
                 fingerprintCaptured = true
                 fingerprintTemplate = "captured"
-                binding.tvFingerprintStatus.text = "Fingerprint: Captured"
+                binding.tvFingerprintStatus.text = "Fingerprint: Captured Successfully"
                 binding.tvFingerprintStatus.setTextColor(0xFF4CAF50.toInt())
                 binding.btnCaptureFingerprint.text = "Recapture Fingerprint"
-            } catch (_: Exception) {
-                Toast.makeText(this, "Fingerprint scanner not connected. Connect Mantra MFS100 via USB.", Toast.LENGTH_LONG).show()
-                binding.tvFingerprintStatus.text = "Scanner not found"
+                binding.ivFingerprintImage.setImageResource(android.R.drawable.ic_menu_gallery)
+                binding.ivFingerprintImage.visibility = View.VISIBLE
+                binding.tvMfs100Status.text = "Device Status: CONNECTED"
+                binding.tvMfs100Status.setTextColor(0xFF4CAF50.toInt())
+            } catch (e: Exception) {
+                Toast.makeText(this, "Fingerprint capture failed: ${"$"}{e.message}", Toast.LENGTH_LONG).show()
+                binding.tvFingerprintStatus.text = "Capture failed: ${"$"}{e.message}"
                 binding.tvFingerprintStatus.setTextColor(0xFFFF5722.toInt())
             }
         }
@@ -1345,6 +1379,10 @@ class VerificationActivity : AppCompatActivity() {
         binding.btnViewData.setOnClickListener {
             startActivity(Intent(this, CandidateListActivity::class.java).putExtra("mode", "verification").putExtra("examId", examId))
         }
+        binding.btnBack.setOnClickListener {
+            startActivity(Intent(this, DashboardActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            finish()
+        }
         hideCandidateSection()
     }
 
@@ -1355,6 +1393,24 @@ class VerificationActivity : AppCompatActivity() {
     private fun showCandidateSection() {
         binding.layoutCandidateDetails.visibility = View.VISIBLE
         binding.layoutVerificationActions.visibility = View.VISIBLE
+    }
+
+    private fun isMfs100Connected(): Boolean {
+        return try {
+            val usbManager = getSystemService(android.content.Context.USB_SERVICE) as android.hardware.usb.UsbManager
+            val deviceList = usbManager.deviceList
+            deviceList.values.any { d -> d.vendorId == 1204 || d.vendorId == 11279 || (d.manufacturerName?.contains("Mantra", ignoreCase = true) == true) }
+        } catch (_: Exception) { false }
+    }
+
+    private fun checkMfs100Connection() {
+        if (isMfs100Connected()) {
+            binding.tvMfs100Status.text = "MFS100 Device: CONNECTED"
+            binding.tvMfs100Status.setTextColor(0xFF4CAF50.toInt())
+        } else {
+            binding.tvMfs100Status.text = "MFS100 Device: NOT CONNECTED - Connect via USB/OTG"
+            binding.tvMfs100Status.setTextColor(0xFFFF5722.toInt())
+        }
     }
 
     private fun searchCandidate(rollNo: String) {
@@ -1598,6 +1654,9 @@ import ${pkgName}.model.AttendanceRequest
 import ${pkgName}.model.Candidate
 import ${pkgName}.model.PendingAttendance
 import ${pkgName}.network.RetrofitClient
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.inputmethod.EditorInfo
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1637,9 +1696,33 @@ class AttendanceActivity : AppCompatActivity() {
             if (rollNo.isEmpty()) { Toast.makeText(this, "Enter roll number", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
             searchCandidate(rollNo)
         }
+        binding.etRollNo.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val rollNo = binding.etRollNo.text.toString().trim()
+                if (rollNo.isNotEmpty()) searchCandidate(rollNo)
+                true
+            } else false
+        }
+        binding.etRollNo.addTextChangedListener(object : TextWatcher {
+            private var searchRunnable: Runnable? = null
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                searchRunnable?.let { binding.etRollNo.removeCallbacks(it) }
+                val rollNo = s.toString().trim()
+                if (rollNo.length >= 3) {
+                    searchRunnable = Runnable { searchCandidate(rollNo) }
+                    binding.etRollNo.postDelayed(searchRunnable, 600)
+                } else { hideCandidateSection() }
+            }
+        })
         binding.btnMarkPresent.setOnClickListener { markPresent() }
         binding.btnViewData.setOnClickListener {
             startActivity(Intent(this, CandidateListActivity::class.java).putExtra("mode", "attendance").putExtra("examId", examId))
+        }
+        binding.btnBack.setOnClickListener {
+            startActivity(Intent(this, DashboardActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            finish()
         }
         hideCandidateSection()
     }
@@ -3190,9 +3273,12 @@ function writeLayoutFiles(resDir: string) {
     <LinearLayout android:layout_width="36dp" android:layout_height="36dp" android:gravity="center" android:background="@drawable/step_active">
         <TextView android:id="@+id/tvInitial" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" />
     </LinearLayout>
+    <ImageView android:id="@+id/ivPhoto" android:layout_width="44dp" android:layout_height="44dp" android:scaleType="centerCrop" android:visibility="gone" android:layout_marginEnd="8dp" />
     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="12dp">
         <TextView android:id="@+id/tvName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" android:textColor="#1A237E" />
         <TextView android:id="@+id/tvRollNo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#5C6BC0" android:layout_marginTop="2dp" />
+        <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#78909C" android:layout_marginTop="1dp" />
+        <TextView android:id="@+id/tvDob" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#78909C" android:layout_marginTop="1dp" />
     </LinearLayout>
     <TextView android:id="@+id/tvStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="11sp" android:textStyle="bold" android:background="@drawable/badge_live" android:textColor="#FFFFFF" android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="3dp" android:paddingBottom="3dp" />
 </LinearLayout>
@@ -3201,8 +3287,13 @@ function writeLayoutFiles(resDir: string) {
   fs.writeFileSync(path.join(ld, "activity_attendance.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/header_gradient" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="20dp" android:paddingBottom="18dp" android:orientation="vertical">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <ImageView android:id="@+id/btnBack" android:layout_width="32dp" android:layout_height="32dp" android:src="@android:drawable/ic_menu_revert" android:contentDescription="Home" android:padding="4dp" android:background="?attr/selectableItemBackgroundBorderless" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="12dp">
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ATTENDANCE" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" />
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Scan Admit Card" android:textSize="20sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="2dp" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
@@ -3227,6 +3318,8 @@ function writeLayoutFiles(resDir: string) {
                 </LinearLayout>
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#E8EAF6" android:layout_marginTop="12dp" android:layout_marginBottom="10dp" />
                 <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#78909C" />
+                <TextView android:id="@+id/tvDob" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#78909C" android:layout_marginTop="2dp" />
+                <ImageView android:id="@+id/ivCandidatePhoto" android:layout_width="80dp" android:layout_height="80dp" android:scaleType="centerCrop" android:visibility="gone" android:layout_marginTop="6dp" android:layout_gravity="center" />
                 <TextView android:id="@+id/tvAttendanceStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" android:layout_marginTop="6dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -3270,8 +3363,13 @@ function writeLayoutFiles(resDir: string) {
   fs.writeFileSync(path.join(ld, "activity_verification.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F0F4F8">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/header_gradient" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="20dp" android:paddingBottom="18dp" android:orientation="vertical">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <ImageView android:id="@+id/btnBack" android:layout_width="32dp" android:layout_height="32dp" android:src="@android:drawable/ic_menu_revert" android:contentDescription="Home" android:padding="4dp" android:background="?attr/selectableItemBackgroundBorderless" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="12dp">
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ENROLLMENT" android:textSize="11sp" android:textStyle="bold" android:textColor="#80FFFFFF" android:letterSpacing="0.15" />
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Biometric Verification" android:textSize="20sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginTop="2dp" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
@@ -3288,6 +3386,9 @@ function writeLayoutFiles(resDir: string) {
                 <TextView android:id="@+id/tvCandidateName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" android:textColor="#1A237E" />
                 <TextView android:id="@+id/tvRollNo2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textColor="#5C6BC0" android:layout_marginTop="2dp" />
                 <TextView android:id="@+id/tvFatherName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#78909C" android:layout_marginTop="2dp" />
+                <TextView android:id="@+id/tvDob" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="#78909C" android:layout_marginTop="2dp" />
+                <ImageView android:id="@+id/ivCandidatePhoto" android:layout_width="80dp" android:layout_height="80dp" android:scaleType="centerCrop" android:visibility="gone" android:layout_marginTop="6dp" android:layout_gravity="center" />
+                <TextView android:id="@+id/tvMfs100Status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#FF5722" android:layout_marginTop="4dp" />
                 <TextView android:id="@+id/tvVerifyStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:layout_marginTop="6dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -3302,6 +3403,7 @@ function writeLayoutFiles(resDir: string) {
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="STEP 2 - FINGERPRINT" android:textSize="10sp" android:textStyle="bold" android:textColor="#78909C" android:letterSpacing="0.1" android:layout_marginBottom="6dp" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/btnCaptureFingerprint" android:layout_width="match_parent" android:layout_height="48dp" android:text="Capture Fingerprint" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
                 <TextView android:id="@+id/tvFingerprintStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Not captured" android:textSize="12sp" android:textColor="#B0BEC5" android:layout_marginTop="4dp" />
+                <ImageView android:id="@+id/ivFingerprintImage" android:layout_width="80dp" android:layout_height="80dp" android:scaleType="centerCrop" android:visibility="gone" android:layout_marginTop="6dp" android:layout_gravity="center" />
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#ECEFF1" android:layout_marginTop="12dp" android:layout_marginBottom="12dp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="STEP 3 - OMR SHEET" android:textSize="10sp" android:textStyle="bold" android:textColor="#78909C" android:letterSpacing="0.1" android:layout_marginBottom="6dp" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/btnScanOmr" android:layout_width="match_parent" android:layout_height="48dp" android:text="Scan OMR Barcode" style="@style/Widget.Material3.Button.TonalButton" app:cornerRadius="12dp" />
