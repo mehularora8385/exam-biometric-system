@@ -5,7 +5,7 @@ import { buildApk, generateApkConfig, type BuildConfig , SDK_DIR } from "./apk-b
 import { type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql as rawSql } from "drizzle-orm";
 import {
   devices, deviceWhitelist, deviceSyncLogs, crashLogs,
   centreLoginLocks, appVersions, apkBuilds, operators,
@@ -63,6 +63,40 @@ export async function registerRoutes(
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 
+  // Auto-migrate: add missing columns to exams table
+  try {
+    const migrationSql = [
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS code TEXT",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS client TEXT DEFAULT ''",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS apk_password TEXT",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS client_login_id TEXT",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS client_login_pass TEXT",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS biometric_mode TEXT DEFAULT 'face'",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS flow_type TEXT DEFAULT 'linear'",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS attendance_mode TEXT DEFAULT 'biometric'",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS omr_mode TEXT DEFAULT 'auto'",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS face_liveness BOOLEAN DEFAULT TRUE",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS iris_enabled BOOLEAN DEFAULT FALSE",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS retry_limit INTEGER DEFAULT 3",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS client_logo TEXT",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS candidates_count INTEGER DEFAULT 0",
+      "ALTER TABLE exams ADD COLUMN IF NOT EXISTS verified_count INTEGER DEFAULT 0",
+      "UPDATE exams SET code = 'EXAM' || id WHERE code IS NULL",
+      "UPDATE exams SET client = '' WHERE client IS NULL",
+      "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS linked_exam_ids TEXT",
+      "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS build_logs TEXT",
+      "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS apk_path TEXT",
+      "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS build_progress INTEGER DEFAULT 0",
+      "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS config_json JSONB",
+      "ALTER TABLE apk_builds ADD COLUMN IF NOT EXISTS build_size TEXT",
+    ];
+    for (const stmt of migrationSql) {
+      try { await db.execute(rawSql.raw(stmt)); } catch (_) {}
+    }
+    console.log("[migration] Auto-migration completed");
+  } catch (e) {
+    console.log("[migration] Auto-migration skipped:", (e as any).message);
+  }
 
   app.post("/api/auth/login", async (req, res) => {
     try {
