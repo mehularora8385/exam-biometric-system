@@ -3591,6 +3591,72 @@ class CandidateListActivity : AppCompatActivity() {
 
     // ====== DEVICE REGISTRATION ======
 
+
+    // ====== APK DEVICE ROUTE ALIASES ======
+    // APK Retrofit uses "api/apk/devices/..." prefix - alias them to the actual routes
+    app.post("/api/apk/devices/register", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, model, androidVersion, examId, centreCode, operatorName } = req.body;
+        const existing = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
+        if (existing.length > 0) {
+          await db.update(devices).set({
+            model, androidVersion, examId, centreCode, operatorName,
+            loginStatus: "Logged In", lastSyncAt: new Date().toISOString(),
+          }).where(eq(devices.id, existing[0].id));
+          res.json({ success: true, message: "Device re-registered" });
+        } else {
+          await db.insert(devices).values({
+            macAddress: deviceId, imei: deviceId, model, androidVersion,
+            examId, centreCode, operatorName, loginStatus: "Logged In",
+            status: "Active", lastSyncAt: new Date().toISOString(),
+          }).returning();
+          res.json({ success: true, message: "Device registered" });
+        }
+      } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+    });
+
+    app.post("/api/apk/devices/sync-status", async (req: Request, res: Response) => {
+      try {
+        const { deviceId, examId, syncedCount, failedCount } = req.body;
+        await db.insert(deviceSyncLogs).values({
+          deviceId, examId, syncType: "auto",
+          recordsSynced: syncedCount, recordsFailed: failedCount,
+          syncStatus: failedCount > 0 ? "partial" : "completed",
+          syncedAt: new Date().toISOString(),
+        });
+        await db.update(devices).set({ lastSyncAt: new Date().toISOString() }).where(eq(devices.imei, deviceId));
+        res.json({ success: true });
+      } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    app.get("/api/apk/devices/check-logout", async (req: Request, res: Response) => {
+      try {
+        const deviceId = String(req.query.deviceId || "");
+        if (!deviceId) return res.json({ forceLogout: false });
+        const device = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
+        if (device.length > 0 && (device[0].loginStatus === "Force Logged Out" || device[0].loginStatus === "Logged Out")) {
+          res.json({ forceLogout: true, reason: device[0].mdmStatus || "Logged out by admin" });
+        } else {
+          res.json({ forceLogout: false });
+        }
+      } catch (e: any) { res.json({ forceLogout: false }); }
+    });
+
+    app.get("/api/apk/devices/mdm-command", async (req: Request, res: Response) => {
+      try {
+        const deviceId = String(req.query.deviceId || "");
+        if (!deviceId) return res.json({ command: null });
+        const device = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
+        if (device.length > 0 && device[0].mdmStatus && device[0].mdmStatus !== "Inactive") {
+          const cmd = device[0].mdmStatus;
+          await db.update(devices).set({ mdmStatus: "Inactive" }).where(eq(devices.id, device[0].id));
+          res.json({ command: cmd, payload: {} });
+        } else {
+          res.json({ command: null });
+        }
+      } catch (e: any) { res.json({ command: null }); }
+    });
+
     app.post("/api/devices/register", async (req: Request, res: Response) => {
       try {
         const { deviceId, model, androidVersion, examId, centreCode, operatorName } = req.body;
@@ -3692,8 +3758,8 @@ class CandidateListActivity : AppCompatActivity() {
         const deviceId = String(req.query.deviceId || "");
         if (!deviceId) return res.json({ forceLogout: false });
         const device = await db.select().from(devices).where(eq(devices.imei, deviceId)).limit(1);
-        if (device.length > 0 && device[0].loginStatus === "Force Logged Out") {
-          res.json({ forceLogout: true, reason: device[0].mdmStatus });
+        if (device.length > 0 && (device[0].loginStatus === "Force Logged Out" || device[0].loginStatus === "Logged Out")) {
+          res.json({ forceLogout: true, reason: device[0].mdmStatus || "Logged out by admin" });
         } else {
           res.json({ forceLogout: false });
         }

@@ -1084,27 +1084,18 @@ class CentreSelectActivity : AppCompatActivity() {
           }
           binding.btnOfflineSync.setOnClickListener { startActivity(Intent(this, SyncActivity::class.java)) }
           binding.tvPendingSync.visibility = android.view.View.GONE
-          binding.btnFinishExam.setOnClickListener {
+          binding.btnLogout.setOnClickListener {
               AlertDialog.Builder(this)
-                  .setTitle("Finish Exam")
-                  .setMessage("Are you sure you want to finish this exam and select another exam?")
-                  .setPositiveButton("Yes") { _, _ ->
+                  .setTitle("Logout")
+                  .setMessage("Are you sure you want to logout? You will need to re-register as operator to continue.")
+                  .setPositiveButton("Logout") { _, _ ->
                       val prefs = getSharedPreferences("mpa_prefs", MODE_PRIVATE)
-                      val completed = prefs.getString("completed_exams", "") ?: ""
-                      val newCompleted = if (completed.isEmpty()) examId.toString() else "${"$"}{completed},${"$"}{examId}"
-                      prefs.edit()
-                          .putString("completed_exams", newCompleted)
-                          .putBoolean("exam_selected", false)
-                          .putBoolean("centre_selected", false)
-                          .remove("exam_id").remove("exam_name").remove("exam_code")
-                          .remove("centre_code").remove("centre_name")
-                          .remove("downloaded_count").remove("last_download_time")
-                          .apply()
+                      prefs.edit().clear().apply()
                       try { stopService(Intent(this, HeartbeatService::class.java)) } catch (_: Exception) {}
-                      startActivity(Intent(this, ExamSelectActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                      startActivity(Intent(this, RegistrationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
                       finish()
                   }
-                  .setNegativeButton("No", null)
+                  .setNegativeButton("Cancel", null)
                   .show()
           }
           try { if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(Intent(this, HeartbeatService::class.java)) else startService(Intent(this, HeartbeatService::class.java)) } catch (_: Exception) {}
@@ -3226,7 +3217,7 @@ function writeLayoutFiles(resDir: string) {
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
-        <com.google.android.material.button.MaterialButton android:id="@+id/btnFinishExam" android:layout_width="match_parent" android:layout_height="44dp" android:text="Finish Exam" android:textSize="13sp" android:layout_marginTop="6dp" style="@style/Widget.Material3.Button.OutlinedButton" app:cornerRadius="10dp" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnLogout" android:layout_width="match_parent" android:layout_height="44dp" android:text="Logout" android:textSize="13sp" android:layout_marginTop="6dp" style="@style/Widget.Material3.Button.OutlinedButton" app:cornerRadius="10dp" android:textColor="#C62828" app:strokeColor="#C62828" />
     </LinearLayout>
     </ScrollView>
 </LinearLayout>`);
