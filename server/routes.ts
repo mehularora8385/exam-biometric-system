@@ -691,6 +691,48 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // Get available exams for an APK (primary + linked)
+  app.get("/api/apk/available-exams", async (req, res) => {
+    try {
+      const primaryExamId = req.query.examId ? Number(req.query.examId) : undefined;
+      const deviceId = req.query.deviceId as string;
+      if (!primaryExamId) return res.json([]);
+      
+      const primaryExam = await storage.getExam(primaryExamId);
+      const result: any[] = [];
+      if (primaryExam) {
+        result.push({ id: primaryExam.id, name: primaryExam.name, code: primaryExam.code, status: primaryExam.status, type: "primary" });
+      }
+      
+      const allBuilds = await storage.listApkBuilds(primaryExamId);
+      const build = allBuilds.find((b: any) => b.examId === primaryExamId);
+      if (build && build.linkedExamIds) {
+        const linkedIds = String(build.linkedExamIds).split(",").map(Number).filter(n => !isNaN(n) && n !== primaryExamId);
+        for (const lid of linkedIds) {
+          const exam = await storage.getExam(lid);
+          if (exam) {
+            result.push({ id: exam.id, name: exam.name, code: exam.code, status: exam.status, type: "linked" });
+          }
+        }
+      }
+      
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Link/unlink exams to an APK build
+  app.post("/api/apk-builds/:id/link-exams", async (req, res) => {
+    try {
+      const buildId = Number(req.params.id);
+      const { examIds } = req.body;
+      if (!Array.isArray(examIds)) return res.status(400).json({ message: "examIds must be an array" });
+      const build = await storage.getApkBuild(buildId);
+      if (!build) return res.status(404).json({ message: "Build not found" });
+      await storage.updateApkBuild(buildId, { linkedExamIds: examIds.join(",") });
+      res.json({ success: true, message: "Linked " + examIds.length + " exams to APK build", linkedExamIds: examIds });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.get("/api/apk-builds", async (req, res) => {
     try {
       const examId = req.query.examId ? Number(req.query.examId) : undefined;
@@ -1924,6 +1966,7 @@ android {
         versionName "${build.version}"
         buildConfigField "String", "SERVER_URL", "\\"${serverUrl}\\""
         buildConfigField "int", "EXAM_ID", "${examId}"
+        buildConfigField "String", "EXAM_NAME", "\"${build.examName || 'Exam'}\""
         buildConfigField "int", "FACE_THRESHOLD", "${threshold}"
         buildConfigField "String", "SCANNER_MODEL", "\\"${scanner}\\""
     }
@@ -2090,6 +2133,9 @@ interface ApiService {
 
     @POST("api/verification/heartbeat")
     suspend fun heartbeat(@Body body: HeartbeatRequest): Response<Map<String, Any>>
+
+    @GET("api/apk/available-exams")
+    suspend fun getAvailableExams(@Query("examId") examId: Int): Response<List<Map<String, Any>>>
 
     @GET("api/devices/mdm-command")
     suspend fun checkMdmCommand(@Query("deviceId") deviceId: String): Response<Map<String, Any>>
@@ -2424,6 +2470,22 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var binding: ActivityDashboardBinding
     private val db by lazy { AppDatabase.getInstance(this) }
 
+    private fun getActiveExamId(): Int {
+        return getSharedPreferences("mpa_session", MODE_PRIVATE).getInt("active_exam_id", BuildConfig.EXAM_ID)
+    }
+
+    private fun getActiveExamName(): String {
+        val prefs = getSharedPreferences("mpa_session", MODE_PRIVATE)
+        return prefs.getString("active_exam_name", "Exam #" + getActiveExamId()) ?: "Exam #" + getActiveExamId()
+    }
+
+    private fun setActiveExam(examId: Int, examName: String) {
+        getSharedPreferences("mpa_session", MODE_PRIVATE).edit()
+            .putInt("active_exam_id", examId)
+            .putString("active_exam_name", examName)
+            .apply()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDashboardBinding.inflate(layoutInflater)
@@ -2444,10 +2506,56 @@ class DashboardActivity : AppCompatActivity() {
             finish()
         }
 
+        binding.btnSwitchExam.setOnClickListener { showExamSelector() }
+
+        // Set initial exam if not set
+        if (prefs.getInt("active_exam_id", 0) == 0) {
+            setActiveExam(BuildConfig.EXAM_ID, BuildConfig.EXAM_NAME)
+        }
+
         updateStats()
 
         // Start heartbeat service
         HeartbeatService.start(this)
+    }
+
+    private fun showExamSelector() {
+        lifecycleScope.launch {
+            try {
+                val response = RetrofitClient.api.getAvailableExams(getActiveExamId())
+                if (response.isSuccessful) {
+                    val exams = response.body() ?: emptyList()
+                    if (exams.isEmpty()) {
+                        Toast.makeText(this@DashboardActivity, "No exams available", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val examNames = exams.map { it["name"] as? String ?: "Exam #${it["id"]}" }.toTypedArray()
+                    val examIds = exams.map { (it["id"] as? Double)?.toInt() ?: 0 }
+                    val currentIdx = examIds.indexOf(getActiveExamId()).coerceAtLeast(0)
+                    
+                    runOnUiThread {
+                        android.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("Select Exam / Mock")
+                            .setSingleChoiceItems(examNames, currentIdx) { dialog, which ->
+                                val selectedId = examIds[which]
+                                val selectedName = examNames[which]
+                                setActiveExam(selectedId, selectedName)
+                                binding.tvExamId.text = "Exam: $selectedName"
+                                dialog.dismiss()
+                                db.clearAllTables()
+                                Toast.makeText(this@DashboardActivity, "Switched to $selectedName — please sync data", Toast.LENGTH_LONG).show()
+                                updateStats()
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                } else {
+                    runOnUiThread { Toast.makeText(this@DashboardActivity, "Could not load exams", Toast.LENGTH_SHORT).show() }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this@DashboardActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show() }
+            }
+        }
     }
 
     private fun syncExamData() {
@@ -2456,7 +2564,7 @@ class DashboardActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val response = RetrofitClient.api.syncExamData(BuildConfig.EXAM_ID)
+                val response = RetrofitClient.api.syncExamData(getActiveExamId())
                 if (response.isSuccessful && response.body() != null) {
                     val sync = response.body()!!
                     val entities = sync.candidates.map { c ->
@@ -2487,9 +2595,9 @@ class DashboardActivity : AppCompatActivity() {
 
     private fun updateStats() {
         lifecycleScope.launch {
-            val total = db.candidateDao().countByExam(BuildConfig.EXAM_ID)
-            val verified = db.candidateDao().countVerified(BuildConfig.EXAM_ID)
-            val present = db.candidateDao().countPresent(BuildConfig.EXAM_ID)
+            val total = db.candidateDao().countByExam(getActiveExamId())
+            val verified = db.candidateDao().countVerified(getActiveExamId())
+            val present = db.candidateDao().countPresent(getActiveExamId())
             binding.tvTotalCandidates.text = "\$total"
             binding.tvVerified.text = "\$verified"
             binding.tvPresent.text = "\$present"
@@ -2657,7 +2765,7 @@ class VerificationActivity : AppCompatActivity() {
             try {
                 val request = VerificationRequest(
                     candidateId = candidateId,
-                    examId = BuildConfig.EXAM_ID,
+                    examId = getActiveExamId(),
                     operatorId = operatorId,
                     centreCode = "",
                     deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID),
@@ -2697,7 +2805,7 @@ class VerificationActivity : AppCompatActivity() {
     private suspend fun saveOffline(operatorId: String, timestamp: String) {
         db.verificationDao().insert(PendingVerification(
             candidateId = candidateId,
-            examId = BuildConfig.EXAM_ID,
+            examId = getActiveExamId(),
             operatorId = operatorId,
             centreCode = "",
             deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID),
@@ -2776,7 +2884,7 @@ class HeartbeatService : Service() {
                 deviceId = deviceId,
                 operatorId = prefs.getInt("user_id", 0).toString(),
                 centreCode = prefs.getString("centreCode", "") ?: "",
-                examId = BuildConfig.EXAM_ID,
+                examId = getSharedPreferences("mpa_session", MODE_PRIVATE).getInt("active_exam_id", BuildConfig.EXAM_ID),
                 batteryLevel = getBatteryLevel(),
                 gpsLat = null, gpsLng = null,
                 scannerConnected = true,
@@ -2866,6 +2974,10 @@ import kotlinx.coroutines.launch
 class CandidateListActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCandidateListBinding
     private val db by lazy { AppDatabase.getInstance(this) }
+
+    private fun getActiveExamId(): Int {
+        return getSharedPreferences("mpa_session", MODE_PRIVATE).getInt("active_exam_id", BuildConfig.EXAM_ID)
+    }
     private val forceLogoutReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
             Toast.makeText(this@CandidateListActivity, "Session terminated by HQ", Toast.LENGTH_LONG).show()
@@ -2895,7 +3007,7 @@ class CandidateListActivity : AppCompatActivity() {
 
     private fun loadCandidates() {
         lifecycleScope.launch {
-            val candidates = db.candidateDao().getByExam(BuildConfig.EXAM_ID)
+            val candidates = db.candidateDao().getByExam(getActiveExamId())
             if (candidates.isEmpty()) {
                 Toast.makeText(this@CandidateListActivity, "No candidates. Sync data first.", Toast.LENGTH_LONG).show()
                 return@launch

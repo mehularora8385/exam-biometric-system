@@ -155,6 +155,7 @@ export const apkBuilds = pgTable("apk_builds", {
   configJson: jsonb("config_json"),
   downloadUrl: text("download_url"),
   apkPath: text("apk_path"),
+  linkedExamIds: text("linked_exam_ids"),
   buildLogs: text("build_logs"),
   createdAt: timestamp("created_at").defaultNow(),
 });

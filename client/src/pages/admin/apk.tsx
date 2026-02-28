@@ -20,6 +20,9 @@ export default function GenerateAPK() {
   const queryClient = useQueryClient();
 
   const [selectedExamIds, setSelectedExamIds] = useState<number[]>([]);
+    const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+    const [linkBuildId, setLinkBuildId] = useState<number | null>(null);
+    const [selectedLinkedExams, setSelectedLinkedExams] = useState<number[]>([]);
   const [biometricMode, setBiometricMode] = useState("face_fingerprint");
   const [verificationFlow, setVerificationFlow] = useState("face_then_fingerprint");
   const [attendanceMode, setAttendanceMode] = useState("both");
@@ -1071,7 +1074,15 @@ export default function GenerateAPK() {
                             </div>
                           </TableCell>
                           <TableCell className="text-center py-4">
+                            <div className="flex items-center gap-2 justify-center">
                             <button
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium rounded transition-colors border border-blue-200"
+                                onClick={() => { setLinkBuildId(apk.id); setLinkDialogOpen(true); setSelectedLinkedExams(apk.linkedExamIds ? String(apk.linkedExamIds).split(",").map(Number).filter(n => !isNaN(n)) : []); }}
+                                data-testid={`button-link-exams-${apk.id || idx}`}
+                              >
+                                <Settings className="w-3 h-3" /> Link Exams
+                              </button>
+                              <button
                               className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded transition-colors border border-red-200"
                               onClick={async () => {
                                 if (!confirm("Delete this build?")) return;
@@ -1085,6 +1096,7 @@ export default function GenerateAPK() {
                             >
                               <Trash2 className="w-3 h-3" /> Delete
                             </button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -1330,6 +1342,60 @@ export default function GenerateAPK() {
               </div>
               <div className="px-6 py-3 border-t flex justify-end">
                 <button onClick={() => setLogModal({ ...logModal, open: false })} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium" data-testid="button-dismiss-logs">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+  
+
+        {linkDialogOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setLinkDialogOpen(false)}>
+            <div className="bg-white rounded-lg p-6 w-[500px] max-h-[80vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-bold mb-1" data-testid="text-link-dialog-title">Link Exams to APK Build #{linkBuildId}</h3>
+              <p className="text-sm text-gray-500 mb-4">Select exams operators can switch to (mock tests, multi-day exams)</p>
+              <div className="space-y-2 mb-4 max-h-[300px] overflow-y-auto">
+                {(exams || []).filter((e: any) => {
+                  const build = generatedApks.find((a: any) => a.id === linkBuildId);
+                  return build && e.id !== build.examId;
+                }).map((exam: any) => (
+                  <label key={exam.id} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 cursor-pointer" data-testid={`checkbox-link-exam-${exam.id}`}>
+                    <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={selectedLinkedExams.includes(exam.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedLinkedExams([...selectedLinkedExams, exam.id]);
+                        else setSelectedLinkedExams(selectedLinkedExams.filter((id: number) => id !== exam.id));
+                      }}
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{exam.name}</div>
+                      <div className="text-xs text-gray-400">Code: {exam.code} | Status: {exam.status}</div>
+                    </div>
+                  </label>
+                ))}
+                {(exams || []).filter((e: any) => {
+                  const build = generatedApks.find((a: any) => a.id === linkBuildId);
+                  return build && e.id !== build.examId;
+                }).length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-4">No other exams available to link</p>
+                )}
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50" onClick={() => setLinkDialogOpen(false)} data-testid="button-cancel-link">Cancel</button>
+                <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700" data-testid="button-save-link" onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/apk-builds/${linkBuildId}/link-exams`, {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ examIds: selectedLinkedExams })
+                    });
+                    if (res.ok) {
+                      toast({ title: "Exams Linked", description: selectedLinkedExams.length + " exams linked to this APK" });
+                      queryClient.invalidateQueries({ queryKey: ['/api/apk-builds'] });
+                      setLinkDialogOpen(false);
+                    } else {
+                      toast({ title: "Error", description: "Failed to link exams", variant: "destructive" });
+                    }
+                  } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                }}>Save Links ({selectedLinkedExams.length} exams)</button>
               </div>
             </div>
           </div>
