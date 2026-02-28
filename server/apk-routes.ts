@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "./storage";
 import { db } from "./db";
-import { operators } from "@shared/schema";
+import { operators, biometricPlugins, examBiometricConfig, candidateBiometrics } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 export function registerApkRoutes(app: Express) {
@@ -167,15 +167,15 @@ export function registerApkRoutes(app: Express) {
       if (!operatorId || !examId || !centreCode) {
         return res.status(400).json({ success: false, message: "operatorId, examId and centreCode required" });
       }
-      const centres = await storage.listCenters();
-      const centre = centres.find((c: any) => c.code === centreCode);
       const exams = await storage.listExams();
       const exam = exams.find((e: any) => e.id === Number(examId));
-      if (exam?.apkPassword && exam.apkPassword.trim() !== "") {
+      if (exam && exam.apkPassword) {
         if (!password || password !== exam.apkPassword) {
-          return res.status(403).json({ success: false, message: "Invalid exam password", requiresPassword: true });
+          return res.status(403).json({ success: false, message: "Invalid exam password" });
         }
       }
+      const centres = await storage.listCenters();
+      const centre = centres.find((c: any) => c.code === centreCode);
       await db.update(operators).set({
         centreCode, examId: Number(examId),
         examName: exam?.name || null,
@@ -288,6 +288,100 @@ export function registerApkRoutes(app: Express) {
       const id = Number(req.params.id);
       await db.delete(operators).where(eq(operators.id, id));
       res.json({ success: true, message: "Operator deleted" });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  app.get("/api/apk/biometric-config/:examId", async (req, res) => {
+    try {
+      const examId = Number(req.params.examId);
+      const configs = await db.select().from(examBiometricConfig).where(eq(examBiometricConfig.examId, examId)).orderBy(examBiometricConfig.stepOrder);
+      const allPlugins = await db.select().from(biometricPlugins);
+      const steps = configs.map((c: any) => {
+        const plugin = allPlugins.find((p: any) => p.id === c.pluginId);
+        return {
+          stepOrder: c.stepOrder,
+          pluginCode: plugin?.code || "unknown",
+          pluginName: plugin?.name || "Unknown",
+          category: plugin?.category || "unknown",
+          captureType: plugin?.captureType || "unknown",
+          manufacturer: plugin?.manufacturer || null,
+          model: plugin?.model || null,
+          sdkPackage: plugin?.sdkPackage || null,
+          sdkVersion: plugin?.sdkVersion || null,
+          connectionType: plugin?.connectionType || "USB",
+          templateFormat: plugin?.templateFormat || null,
+          required: c.required,
+          threshold: c.threshold,
+          retryLimit: c.retryLimit,
+          captureTimeout: c.captureTimeout,
+          qualityCheck: c.qualityCheck,
+          configJson: plugin?.configJson || null,
+        };
+      });
+      res.json({ success: true, examId, steps });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  app.post("/api/apk/biometric-result", async (req, res) => {
+    try {
+      const { candidateId, examId, pluginCode, capturedData, matchPercent, verified, deviceId, operatorId, metadata } = req.body;
+      if (!candidateId || !pluginCode) {
+        return res.status(400).json({ success: false, message: "candidateId and pluginCode required" });
+      }
+      const existing = await db.select().from(candidateBiometrics)
+        .where(and(eq(candidateBiometrics.candidateId, Number(candidateId)), eq(candidateBiometrics.pluginCode, pluginCode)));
+      if (existing.length > 0) {
+        const [updated] = await db.update(candidateBiometrics).set({
+          capturedData, matchPercent: matchPercent ? Number(matchPercent) : null,
+          verified: verified === true, capturedAt: new Date().toISOString(),
+          deviceId, operatorId: operatorId ? Number(operatorId) : null, metadata,
+        }).where(eq(candidateBiometrics.id, existing[0].id)).returning();
+        return res.json({ success: true, biometric: updated, message: "Biometric result updated" });
+      }
+      const [record] = await db.insert(candidateBiometrics).values({
+        candidateId: Number(candidateId), examId: examId ? Number(examId) : null,
+        pluginCode, capturedData, matchPercent: matchPercent ? Number(matchPercent) : null,
+        verified: verified === true, capturedAt: new Date().toISOString(),
+        deviceId, operatorId: operatorId ? Number(operatorId) : null, metadata,
+      }).returning();
+      res.json({ success: true, biometric: record, message: "Biometric result saved" });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  app.post("/api/apk/biometric-result/sync", async (req, res) => {
+    try {
+      const { results } = req.body;
+      if (!Array.isArray(results)) return res.status(400).json({ success: false, message: "results array required" });
+      let synced = 0;
+      for (const r of results) {
+        try {
+          const existing = await db.select().from(candidateBiometrics)
+            .where(and(eq(candidateBiometrics.candidateId, Number(r.candidateId)), eq(candidateBiometrics.pluginCode, r.pluginCode)));
+          if (existing.length > 0) {
+            await db.update(candidateBiometrics).set({
+              capturedData: r.capturedData, matchPercent: r.matchPercent ? Number(r.matchPercent) : null,
+              verified: r.verified === true, capturedAt: r.capturedAt || new Date().toISOString(),
+              deviceId: r.deviceId, operatorId: r.operatorId ? Number(r.operatorId) : null, metadata: r.metadata,
+            }).where(eq(candidateBiometrics.id, existing[0].id));
+          } else {
+            await db.insert(candidateBiometrics).values({
+              candidateId: Number(r.candidateId), examId: r.examId ? Number(r.examId) : null,
+              pluginCode: r.pluginCode, capturedData: r.capturedData,
+              matchPercent: r.matchPercent ? Number(r.matchPercent) : null,
+              verified: r.verified === true, capturedAt: r.capturedAt || new Date().toISOString(),
+              deviceId: r.deviceId, operatorId: r.operatorId ? Number(r.operatorId) : null, metadata: r.metadata,
+            });
+          }
+          synced++;
+        } catch (_) {}
+      }
+      res.json({ success: true, synced, total: results.length });
     } catch (e: any) {
       res.status(500).json({ success: false, message: e.message });
     }

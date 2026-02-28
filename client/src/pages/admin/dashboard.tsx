@@ -23,11 +23,13 @@ export default function Dashboard({ selectedExamId, setActivePage }: DashboardPr
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats", selectedExamId, slotParam],
     queryFn: () => api.dashboard.stats(selectedExamId, slotParam),
+    refetchInterval: 10000,
   });
 
   const { data: exams = [] } = useQuery({
     queryKey: ["exams"],
     queryFn: api.exams.list,
+    refetchInterval: 30000,
   });
 
   const { data: slotsList = [] } = useQuery({
@@ -39,6 +41,7 @@ export default function Dashboard({ selectedExamId, setActivePage }: DashboardPr
   const { data: alertsData = [] } = useQuery({
     queryKey: ["alerts"],
     queryFn: api.alerts.list,
+    refetchInterval: 15000,
   });
 
   if (isLoading) {

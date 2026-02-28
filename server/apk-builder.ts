@@ -1790,6 +1790,29 @@ class AttendanceActivity : AppCompatActivity() {
           return ((cosineSimilarity + 1f) / 2f * 100f).coerceIn(0f, 100f)
       }
 
+      fun compareFaces(capturedBitmap: Bitmap, referencePhotoUrl: String?): Float {
+          if (referencePhotoUrl == null) return 0f
+          val capturedEmbedding = generateEmbedding(capturedBitmap) ?: return 0f
+          val refBitmap = try {
+              val url = java.net.URL(referencePhotoUrl)
+              val connection = url.openConnection() as java.net.HttpURLConnection
+              connection.connectTimeout = 10000
+              connection.readTimeout = 10000
+              connection.doInput = true
+              connection.connect()
+              val inputStream = connection.inputStream
+              val bmp = android.graphics.BitmapFactory.decodeStream(inputStream)
+              inputStream.close()
+              connection.disconnect()
+              bmp
+          } catch (e: Exception) {
+              Log.e(tag, "Failed to download reference photo: \${e.message}")
+              null
+          } ?: return 0f
+          val refEmbedding = generateEmbedding(refBitmap) ?: return 0f
+          return compareFaces(capturedEmbedding, refEmbedding)
+      }
+
       fun release() {
           interpreter?.close()
           faceDetector.close()
